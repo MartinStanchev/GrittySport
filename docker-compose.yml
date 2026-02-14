@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: grittyfitness
+      POSTGRES_USER: gritty
+      POSTGRES_PASSWORD: gritty
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://gritty:gritty@postgres:5432/grittyfitness?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      MIGRATIONS_PATH: /app/migrations
+      PORT: "8080"
+    volumes:
+      - ./db/migrations:/app/migrations
+
+volumes:
+  pgdata:
