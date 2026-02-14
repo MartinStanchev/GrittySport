@@ -66,6 +66,9 @@ func main() {
 	authService := services.NewAuthService(pool, jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
 
+	userService := services.NewUserService(pool)
+	userHandler := handlers.NewUserHandler(userService)
+
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -86,7 +89,8 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(appmw.JWTAuth(authService))
-		// Protected endpoints will be added here in future tasks
+		r.Get("/users/me", userHandler.GetMe)
+		r.Put("/users/me", userHandler.UpdateMe)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

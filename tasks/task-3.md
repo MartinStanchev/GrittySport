@@ -1,66 +1,55 @@
-## Feature 3: User Profile and Onboarding
+## Feature 3: Minimal User Profile and Settings
 
 ### Goal
-After registration (or for existing users with incomplete profiles), the app shows a profile setup flow. The profile data is needed before Grit can create a program. Users can also edit their profile from Settings later.
+After registration, users go straight to the main tab navigator — no profile setup screen, no onboarding gate. The users table only stores truly user-level preferences (timezone, units). Sport-specific data (experience, equipment, goals) is stored as program criteria tied to each program (see Task 5).
 
-### Task 3.1: Database Migration — Extend Users Table
-- Create migration `002_extend_users_profile.sql`:
+### Task 3.1: Database Migration — Extend Users (Minimal)
+- Create migration `003_extend_users_minimal.sql`:
   ```sql
   ALTER TABLE users
-    ADD COLUMN sport VARCHAR(255),
-    ADD COLUMN experience_level VARCHAR(50),
-    ADD COLUMN training_days_per_week INTEGER,
-    ADD COLUMN hours_per_session NUMERIC(3,1),
-    ADD COLUMN equipment_access TEXT,
-    ADD COLUMN injuries TEXT,
-    ADD COLUMN goal TEXT,
-    ADD COLUMN event_date DATE,
     ADD COLUMN timezone VARCHAR(100),
-    ADD COLUMN units_preference VARCHAR(10) DEFAULT 'metric',
-    ADD COLUMN profile_complete BOOLEAN DEFAULT FALSE;
+    ADD COLUMN units_preference VARCHAR(10) NOT NULL DEFAULT 'metric';
   ```
+- No sport, experience_level, training_days_per_week, equipment, injuries, goal, event_date, or profile_complete fields. Those belong to program criteria.
 
-### Task 3.2: Profile API Endpoints
-- Implement `GET /api/users/me`:
-  - Returns the full user object (all profile fields) for the authenticated user
-  - Response: `{ "id", "email", "name", "sport", "experience_level", "training_days_per_week", "hours_per_session", "equipment_access", "injuries", "goal", "event_date", "timezone", "units_preference", "profile_complete" }`
-- Implement `PUT /api/users/me`:
-  - Accepts partial updates — only the fields present in the request body are updated
-  - If all required profile fields are now non-null (`sport`, `experience_level`, `training_days_per_week`, `hours_per_session`, `goal`), set `profile_complete = TRUE`
-  - Return the updated full user object
+### Task 3.2: Backend — User Model Updates
+- Update `/backend/internal/models/user.go`:
+  - Add `Timezone *string` and `UnitsPreference string` fields to `User` struct
+  - Add these fields to `UserResponse` struct
+- Update any existing queries that SELECT from the users table to include the new columns
 
-### Task 3.3: Profile Setup Screen
-- This screen is **not** part of the tab navigator. It is shown after login/registration if `profile_complete` is `false`.
-- The screen is a single scrollable form with the following fields:
-  - **Sport / Fitness Focus** — text input, placeholder "e.g., Running, Swimming, Powerlifting, General Fitness"
-  - **Experience Level** — picker/segmented control with options: Beginner, Intermediate, Advanced, Elite
-  - **Training Days per Week** — numeric stepper, range 1–7
-  - **Hours per Session** — numeric stepper, range 0.5–4.0, step 0.5
-  - **Equipment Access** — text input, placeholder "e.g., Full gym, Home dumbbells only, Pool access"
-  - **Injuries / Limitations** — text input (optional), placeholder "e.g., Recovering from knee surgery, none"
-  - **Primary Goal** — text input, placeholder "e.g., Run a sub-25 min 5K, Squat 150 kg"
-  - **Target Event Date** — date picker (optional), label "Training for a specific date?"
-  - **Units** — segmented control: Metric / Imperial
-  - **Timezone** — auto-detected from device using `Intl.DateTimeFormat().resolvedOptions().timeZone`, shown as read-only text with a "Change" option
-- "Save Profile" button at bottom calls `PUT /api/users/me` with all fields
-- On success, navigate to the main tab navigator
+### Task 3.3: Backend — User Profile Endpoints
+- Create `/backend/internal/handlers/user.go` and `/backend/internal/services/user.go`
+- Implement `GET /api/v1/users/me`:
+  - Returns the authenticated user's data: `{ "id", "email", "name", "timezone", "units_preference" }`
+- Implement `PUT /api/v1/users/me`:
+  - Accepts partial updates for `name`, `timezone`, `units_preference`
+  - Returns the updated user object
+- Register routes in `backend/main.go` under the existing `/api/v1` protected group
 
-### Task 3.4: Navigation Flow Update
-- Update `App.tsx` to add a third state: authenticated but profile incomplete
-- Flow: Splash → (not authenticated → Auth Stack) | (authenticated, profile incomplete → Profile Setup Screen) | (authenticated, profile complete → Tab Navigator)
-- After the user completes the profile, `AuthContext` updates the user state and the navigation switches to the Tab Navigator
-- Store the user object (including `profile_complete`) in the AuthContext so it's accessible everywhere
+### Task 3.4: Frontend — AuthContext Updates
+- Expand the `User` interface in `AuthContext.tsx` to include `timezone` and `units_preference`
+- After login/register, call `GET /api/v1/users/me` to populate the full user object in context
+- On first login, auto-detect timezone from device using `Intl.DateTimeFormat().resolvedOptions().timeZone` and send it via `PUT /api/v1/users/me` if not already set
 
-### Task 3.5: Edit Profile from Settings
-- Replace the Settings placeholder with a real `SettingsScreen` that has the following sections:
-  - **Profile** — tapping opens an `EditProfileScreen` which is identical to the Profile Setup Screen but pre-filled with current values. Save calls `PUT /api/users/me`.
-  - **Log Out** — button that calls `signOut()` from AuthContext
-- `EditProfileScreen` reuses the same form component as Profile Setup but with a different title ("Edit Profile" vs "Complete Your Profile")
+### Task 3.5: Frontend — Settings Screen
+- Replace the placeholder `SettingsScreen` with a real one:
+  - **Account section**: Display email (read-only), editable name field
+  - **Preferences section**: Units toggle (Metric / Imperial), timezone (auto-detected, with option to change)
+  - **Save button**: Calls `PUT /api/v1/users/me`
+  - **Log Out button**: Existing `signOut()` behavior from AuthContext
+- No "Edit Profile" screen for sport/fitness data — that lives in program criteria (Task 5)
+
+### Navigation Flow
+- No change to `App.tsx`. The existing two-state flow remains:
+  - Not authenticated → AuthStack
+  - Authenticated → BottomTabNavigator
+- No third state. No `profile_complete` gate.
 
 ### How to Test
-- Register a new account — after registration you see the Profile Setup screen (not the tabs)
-- Fill in all required fields, tap Save — you land on the Home tab
-- Go to Settings → Profile → change your sport → Save — returns to Settings
-- Log out, log back in — you go directly to tabs (profile is already complete)
+- Register a new account — after registration you land directly on the Home tab (no profile setup screen)
+- Go to Settings — you see your name, email, units toggle, timezone, and log out button
+- Change units to Imperial, save — setting persists after app restart
+- Log out, log back in — you go directly to tabs
 
 ---

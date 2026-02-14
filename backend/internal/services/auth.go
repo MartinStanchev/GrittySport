@@ -63,9 +63,9 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 	var user models.UserResponse
 	err = s.pool.QueryRow(ctx,
 		`INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3)
-		 RETURNING id, email, name`,
+		 RETURNING id, email, name, timezone, units_preference`,
 		email, string(hash), name,
-	).Scan(&user.ID, &user.Email, &user.Name)
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -91,9 +91,9 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 
 	var user models.User
 	err := s.pool.QueryRow(ctx,
-		"SELECT id, email, password_hash, name FROM users WHERE email = $1",
+		"SELECT id, email, password_hash, name, timezone, units_preference FROM users WHERE email = $1",
 		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.Timezone, &user.UnitsPreference)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidCredentials
@@ -105,7 +105,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 		return nil, ErrInvalidCredentials
 	}
 
-	userResp := models.UserResponse{ID: user.ID, Email: user.Email, Name: user.Name}
+	userResp := user.ToResponse()
 	accessToken, refreshToken, err := s.generateTokenPair(ctx, userResp)
 	if err != nil {
 		return nil, err
@@ -128,12 +128,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 	var userResp models.UserResponse
 	var expiresAt time.Time
 	err = tx.QueryRow(ctx,
-		`SELECT u.id, u.email, u.name, rt.expires_at
+		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, rt.expires_at
 		 FROM refresh_tokens rt
 		 JOIN users u ON rt.user_id = u.id
 		 WHERE rt.token = $1`,
 		token,
-	).Scan(&userResp.ID, &userResp.Email, &userResp.Name, &expiresAt)
+	).Scan(&userResp.ID, &userResp.Email, &userResp.Name, &userResp.Timezone, &userResp.UnitsPreference, &expiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidToken

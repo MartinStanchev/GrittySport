@@ -178,10 +178,12 @@ async function apiFetch<T>(
   return response.json();
 }
 
-interface UserResponse {
+export interface UserResponse {
   id: string;
   email: string;
   name: string;
+  timezone?: string;
+  units_preference: string;
 }
 
 interface AuthResponse {
@@ -213,4 +215,21 @@ export async function login(
   });
   await setTokens(resp.access_token, resp.refresh_token);
   return resp;
+}
+
+export async function getMe(): Promise<UserResponse> {
+  return apiFetch<UserResponse>('/api/v1/users/me');
+}
+
+export interface UpdateUserInput {
+  name?: string;
+  timezone?: string;
+  units_preference?: string;
+}
+
+export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {
+  return apiFetch<UserResponse>('/api/v1/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
 }
