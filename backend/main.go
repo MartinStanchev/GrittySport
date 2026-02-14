@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/db"
 	"github.com/grittyfitness/api/internal/handlers"
 	appmw "github.com/grittyfitness/api/internal/middleware"
@@ -46,6 +47,11 @@ func main() {
 		log.Fatal().Msg("JWT_SECRET environment variable is required")
 	}
 
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		log.Fatal().Msg("GEMINI_API_KEY environment variable is required")
+	}
+
 	migrationsPath := os.Getenv("MIGRATIONS_PATH")
 	if migrationsPath == "" {
 		migrationsPath = "../db/migrations"
@@ -63,11 +69,19 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to run migrations")
 	}
 
+	geminiClient, err := ai.NewGeminiClient(ctx, geminiAPIKey)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize Gemini client")
+	}
+
 	authService := services.NewAuthService(pool, jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)
 	userHandler := handlers.NewUserHandler(userService)
+
+	chatService := services.NewChatService(pool)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -87,10 +101,14 @@ func main() {
 		r.Post("/refresh", authHandler.Refresh)
 	})
 
+	// WebSocket endpoint — auth via query param, outside JWT middleware
+	r.Get("/api/ws/chat", chatHandler.WebSocket)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(appmw.JWTAuth(authService))
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
+		r.Get("/chat/history", chatHandler.History)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

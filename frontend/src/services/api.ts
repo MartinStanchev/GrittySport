@@ -233,3 +233,35 @@ export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {
     body: JSON.stringify(input),
   });
 }
+
+export interface ChatMessageResponse {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  context: string;
+  program_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+interface ChatHistoryResponse {
+  messages: ChatMessageResponse[];
+  has_more: boolean;
+}
+
+export async function getChatHistory(
+  context?: string,
+  limit?: number,
+  before?: string,
+): Promise<ChatHistoryResponse> {
+  const params = new URLSearchParams();
+  if (context) params.set('context', context);
+  if (limit) params.set('limit', String(limit));
+  if (before) params.set('before', before);
+  const query = params.toString();
+  return apiFetch<ChatHistoryResponse>(`/api/v1/chat/history${query ? `?${query}` : ''}`);
+}
+
+export function getWsBaseUrl(): string {
+  return API_BASE_URL.replace(/^http/, 'ws');
+}

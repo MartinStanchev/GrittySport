@@ -21,6 +21,7 @@ services:
     environment:
       DATABASE_URL: postgres://gritty:gritty@postgres:5432/grittyfitness?sslmode=disable
       JWT_SECRET: ${JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       MIGRATIONS_PATH: /app/migrations
       PORT: "8080"
     volumes:

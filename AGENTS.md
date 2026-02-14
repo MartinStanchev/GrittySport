@@ -16,3 +16,12 @@ The code should always be kept in good readable condition and best practices sho
 ### Progress tracker
 
 To track how much progress we've made, there is a @./PROGRESS.md file. After each implementation, update it with a very short summary of what you have implemented. This should be enough to tell other AI agents or developers what has happenend. Make sure to include any deviations from the tasks here, so that it is visible. The file should not become very big as this will fill the context of coding agents very quickly. 
+
+## Rules
+
+Always validate your code by:
+
+* Writing and running tests
+* Running the code simplifier agent
+* running linters for both backend and frontend
+* 
