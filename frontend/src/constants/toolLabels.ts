@@ -1,0 +1,14 @@
+export const TOOL_LABELS: Record<string, string> = {
+  get_user_profile: 'Checking your info...',
+  get_active_program: 'Looking at your program...',
+  get_program_criteria: 'Reviewing your program settings...',
+  propose_program: 'Preparing your program...',
+  confirm_program_save: 'Saving your program...',
+  propose_adjustment: 'Preparing adjustments...',
+  confirm_adjustment: 'Applying adjustments...',
+  update_program_criteria: 'Updating your program settings...',
+  get_scheduled_activity: 'Checking your scheduled workout...',
+  get_draft_program: 'Checking for your draft...',
+  create_draft_program: 'Creating a draft...',
+  save_draft_criterion: 'Saving your answer...',
+};

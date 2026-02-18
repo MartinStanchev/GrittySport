@@ -1,25 +1,165 @@
 package ai
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/rs/zerolog/log"
 	"google.golang.org/genai"
 )
 
-const freeChatSystemPrompt = `You are Grit, an AI fitness coach in the Gritty Fitness app. Your personality is adaptable: you are encouraging and celebratory when the user works hard and hits their goals, and you become more direct and challenging when they slack off or skip sessions. You are never hostile or shaming, but you are firm and honest. You speak like a knowledgeable, experienced coach — not overly formal, not too casual. You use the user's name when it feels natural.
-
-The user's name is %s.
-
-%s
-
-You are in free chat mode. The user may ask you anything about training, nutrition, recovery, or their program. If the user has no program yet, you can suggest they create one by tapping "Create Your Program" on the Home screen. Keep responses under 200 words unless the user asks for detailed explanations.`
+const model = "gemini-2.5-flash"
+const cheapModel = "gemini-2.0-flash-lite"
 
 type ChatMessage struct {
 	Role    string
 	Content string
+}
+
+type ToolCallNotifier func(toolName string, status string)
+
+// PromptParams contains all fields available to prompt templates.
+type PromptParams struct {
+	UserName        string
+	Timezone        string
+	Units           string
+	CurrentDateTime string
+	ProgramContext  string
+	Memory          string
+	ChangedCriteria string
+	Criteria        string
+}
+
+// Criterion represents a single information goal from questions.json.
+type Criterion struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	Required    bool   `json:"required"`
+}
+
+// CriteriaCategory groups criteria by topic.
+type CriteriaCategory struct {
+	Name     string      `json:"name"`
+	Criteria []Criterion `json:"criteria"`
+}
+
+// CriteriaFile is the top-level structure of questions.json.
+type CriteriaFile struct {
+	Categories []CriteriaCategory `json:"categories"`
+}
+
+// PromptLoader loads prompt templates from disk and renders them with parameters.
+type PromptLoader struct {
+	freeChatTmpl        *template.Template
+	programCreationTmpl *template.Template
+	criteriaEditTmpl    *template.Template
+	criteria            CriteriaFile
+	formattedCriteria   string
+}
+
+// LoadPrompts reads prompt templates and questions from the given directory.
+func LoadPrompts(dir string) (*PromptLoader, error) {
+	loader := &PromptLoader{}
+
+	var err error
+	loader.freeChatTmpl, err = loadTemplate(dir, "free_chat")
+	if err != nil {
+		return nil, err
+	}
+	loader.programCreationTmpl, err = loadTemplate(dir, "program_creation")
+	if err != nil {
+		return nil, err
+	}
+	loader.criteriaEditTmpl, err = loadTemplate(dir, "criteria_edit")
+	if err != nil {
+		return nil, err
+	}
+
+	criteriaBytes, err := os.ReadFile(filepath.Join(dir, "questions.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read questions.json: %w", err)
+	}
+	if err := json.Unmarshal(criteriaBytes, &loader.criteria); err != nil {
+		return nil, fmt.Errorf("parse questions.json: %w", err)
+	}
+
+	loader.formattedCriteria = formatCriteria(loader.criteria)
+
+	log.Info().
+		Int("categories", len(loader.criteria.Categories)).
+		Str("prompts_dir", dir).
+		Msg("Prompts and criteria loaded")
+
+	return loader, nil
+}
+
+func loadTemplate(dir, name string) (*template.Template, error) {
+	filename := name + ".txt"
+	data, err := os.ReadFile(filepath.Join(dir, filename))
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", filename, err)
+	}
+	tmpl, err := template.New(name).Parse(string(data))
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", filename, err)
+	}
+	return tmpl, nil
+}
+
+func formatCriteria(cf CriteriaFile) string {
+	var b strings.Builder
+	for _, cat := range cf.Categories {
+		fmt.Fprintf(&b, "\n[%s]\n", cat.Name)
+		for _, c := range cat.Criteria {
+			marker := ""
+			if c.Required {
+				marker = " (required)"
+			}
+			fmt.Fprintf(&b, "- %s%s\n", c.Description, marker)
+		}
+	}
+	return b.String()
+}
+
+func (pl *PromptLoader) GetCriteria() CriteriaFile {
+	return pl.criteria
+}
+
+func (pl *PromptLoader) BuildFreeChatPrompt(p PromptParams) string {
+	if p.ProgramContext == "" {
+		p.ProgramContext = "The user has no active program."
+	}
+	return pl.renderTemplate(pl.freeChatTmpl, p)
+}
+
+func (pl *PromptLoader) BuildProgramCreationPrompt(p PromptParams) string {
+	if p.Timezone == "" {
+		p.Timezone = "UTC"
+	}
+	if p.Units == "" {
+		p.Units = "metric"
+	}
+	p.Criteria = pl.formattedCriteria
+	return pl.renderTemplate(pl.programCreationTmpl, p)
+}
+
+func (pl *PromptLoader) BuildCriteriaEditPrompt(p PromptParams) string {
+	return pl.renderTemplate(pl.criteriaEditTmpl, p)
+}
+
+func (pl *PromptLoader) renderTemplate(tmpl *template.Template, p PromptParams) string {
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, p); err != nil {
+		log.Error().Err(err).Str("template", tmpl.Name()).Msg("Failed to render prompt template")
+		return ""
+	}
+	return buf.String()
 }
 
 type GeminiClient struct {
@@ -38,27 +178,37 @@ func NewGeminiClient(ctx context.Context, apiKey string) (*GeminiClient, error) 
 	return &GeminiClient{client: client}, nil
 }
 
-func BuildFreeChatPrompt(userName, activeProgramContext string) string {
-	if activeProgramContext == "" {
-		activeProgramContext = "The user has no active program."
+// SummarizeConversation uses a cheap/fast model to summarize a conversation for long-term memory.
+func (g *GeminiClient) SummarizeConversation(ctx context.Context, messages []ChatMessage) (string, error) {
+	if len(messages) == 0 {
+		return "", nil
 	}
-	return fmt.Sprintf(freeChatSystemPrompt, userName, activeProgramContext)
+
+	var convo strings.Builder
+	for _, msg := range messages {
+		fmt.Fprintf(&convo, "%s: %s\n", msg.Role, msg.Content)
+	}
+
+	prompt := "Summarize this fitness coaching conversation in 2-3 sentences. Capture the key facts shared (sport, goals, program decisions, user preferences). Be brief and factual.\n\n" + convo.String()
+
+	contents := []*genai.Content{
+		{Role: "user", Parts: []*genai.Part{genai.NewPartFromText(prompt)}},
+	}
+
+	resp, err := g.client.Models.GenerateContent(ctx, cheapModel, contents, nil)
+	if err != nil {
+		return "", fmt.Errorf("summarize conversation: %w", err)
+	}
+
+	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+		return "", fmt.Errorf("no summary generated")
+	}
+
+	return extractText(resp.Candidates[0].Content.Parts), nil
 }
 
 func (g *GeminiClient) StreamChat(ctx context.Context, systemPrompt string, messages []ChatMessage) (<-chan string, error) {
-	contents := make([]*genai.Content, 0, len(messages))
-	for _, msg := range messages {
-		role := msg.Role
-		if role == "assistant" {
-			role = "model"
-		}
-		contents = append(contents, &genai.Content{
-			Role: role,
-			Parts: []*genai.Part{
-				genai.NewPartFromText(msg.Content),
-			},
-		})
-	}
+	contents := messagesToContents(messages)
 
 	if len(contents) == 0 || contents[len(contents)-1].Role != "user" {
 		return nil, fmt.Errorf("last message must be from user")
@@ -84,7 +234,7 @@ func (g *GeminiClient) StreamChat(ctx context.Context, systemPrompt string, mess
 		var totalChunks int
 		var fullText strings.Builder
 
-		for resp, err := range g.client.Models.GenerateContentStream(ctx, "gemini-2.5-flash", contents, config) {
+		for resp, err := range g.client.Models.GenerateContentStream(ctx, model, contents, config) {
 			if err != nil {
 				log.Error().Err(err).
 					Int("chunks_received", totalChunks).
@@ -113,6 +263,294 @@ func (g *GeminiClient) StreamChat(ctx context.Context, systemPrompt string, mess
 	}()
 
 	return ch, nil
+}
+
+// ChatWithTools handles a conversation turn that may involve function calling.
+// It uses non-streaming GenerateContent for tool-calling rounds, then streams the final text response.
+// Returns the full assistant text response and any tool calls that were made.
+func (g *GeminiClient) ChatWithTools(
+	ctx context.Context,
+	systemPrompt string,
+	messages []ChatMessage,
+	tools []*genai.Tool,
+	executeTool func(name string, args map[string]any) (any, error),
+	notifyToolCall ToolCallNotifier,
+	sendChunk func(text string) error,
+) (string, []ToolCallInfo, error) {
+	contents := messagesToContents(messages)
+
+	if len(contents) == 0 || contents[len(contents)-1].Role != "user" {
+		return "", nil, fmt.Errorf("last message must be from user")
+	}
+
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
+		},
+		Tools: tools,
+	}
+
+	var toolNames []string
+	for _, t := range tools {
+		for _, fd := range t.FunctionDeclarations {
+			toolNames = append(toolNames, fd.Name)
+		}
+	}
+	log.Debug().
+		Int("history_len", len(contents)).
+		Strs("available_tools", toolNames).
+		Msg("Starting Gemini ChatWithTools")
+
+	var toolCalls []ToolCallInfo
+	var hasProposal bool
+	maxRounds := 10
+
+	for round := 0; round < maxRounds; round++ {
+		log.Debug().
+			Int("round", round).
+			Int("contents_len", len(contents)).
+			Msg("ChatWithTools: sending GenerateContent request")
+
+		resp, err := g.client.Models.GenerateContent(ctx, model, contents, config)
+		if err != nil {
+			log.Error().Err(err).Int("round", round).Msg("ChatWithTools: GenerateContent failed")
+			return "", toolCalls, fmt.Errorf("generate content round %d: %w", round, err)
+		}
+
+		if len(resp.Candidates) == 0 {
+			log.Warn().Int("round", round).Msg("ChatWithTools: no candidates returned")
+			return "", toolCalls, fmt.Errorf("no candidates in round %d", round)
+		}
+
+		candidate := resp.Candidates[0]
+		finishReason := string(candidate.FinishReason)
+
+		log.Debug().
+			Int("round", round).
+			Str("finish_reason", finishReason).
+			Int("parts_count", countParts(candidate.Content)).
+			Msg("ChatWithTools: received response")
+
+		if candidate.Content == nil || len(candidate.Content.Parts) == 0 {
+			log.Warn().
+				Int("round", round).
+				Str("finish_reason", finishReason).
+				Msg("ChatWithTools: empty content")
+
+			if round == 0 && (candidate.FinishReason == "MAX_TOKENS" || candidate.FinishReason == "SAFETY" || candidate.Content == nil) {
+				log.Warn().Str("finish_reason", finishReason).Msg("ChatWithTools: retrying without tools as fallback")
+				fallbackConfig := &genai.GenerateContentConfig{
+					SystemInstruction: config.SystemInstruction,
+				}
+				fallbackResp, fbErr := g.client.Models.GenerateContent(ctx, model, contents, fallbackConfig)
+				if fbErr == nil && len(fallbackResp.Candidates) > 0 && fallbackResp.Candidates[0].Content != nil {
+					fullText := extractText(fallbackResp.Candidates[0].Content.Parts)
+					if fullText != "" {
+						if sendChunk != nil {
+							sendChunk(fullText)
+						}
+						log.Debug().Str("response", truncate(fullText, 300)).Msg("ChatWithTools: fallback response succeeded")
+						return fullText, toolCalls, nil
+					}
+				}
+			}
+
+			return "", toolCalls, fmt.Errorf("empty response in round %d (finish_reason: %s)", round, finishReason)
+		}
+
+		var functionCalls []*genai.FunctionCall
+		var textParts []string
+		for _, part := range resp.Candidates[0].Content.Parts {
+			if part.FunctionCall != nil {
+				functionCalls = append(functionCalls, part.FunctionCall)
+			}
+			if part.Text != "" {
+				textParts = append(textParts, truncate(part.Text, 100))
+			}
+		}
+
+		log.Debug().
+			Int("round", round).
+			Int("function_calls", len(functionCalls)).
+			Strs("text_parts_preview", textParts).
+			Bool("has_proposal", hasProposal).
+			Msg("ChatWithTools: parsed response parts")
+
+		if len(functionCalls) == 0 {
+			nonStreamingText := extractText(resp.Candidates[0].Content.Parts)
+
+			log.Debug().
+				Int("round", round).
+				Str("finish_reason", finishReason).
+				Int("text_len", len(nonStreamingText)).
+				Msg("ChatWithTools: no function calls, preparing final response")
+
+			// After a proposal tool, skip re-streaming — use the short acknowledgment directly.
+			if hasProposal {
+				if sendChunk != nil && nonStreamingText != "" {
+					sendChunk(nonStreamingText)
+				}
+				log.Debug().
+					Int("tool_calls", len(toolCalls)).
+					Str("response", truncate(nonStreamingText, 300)).
+					Msg("ChatWithTools completed (proposal, no re-stream)")
+				return nonStreamingText, toolCalls, nil
+			}
+
+			// Re-invoke with streaming (no tools) so the UI gets token-by-token updates.
+			log.Debug().Msg("ChatWithTools: starting streaming re-invocation for final response")
+			streamConfig := &genai.GenerateContentConfig{
+				SystemInstruction: config.SystemInstruction,
+			}
+
+			var fullText strings.Builder
+			var streamChunks int
+			for streamResp, streamErr := range g.client.Models.GenerateContentStream(ctx, model, contents, streamConfig) {
+				if streamErr != nil {
+					log.Error().Err(streamErr).Int("chunks_received", streamChunks).Msg("ChatWithTools: final stream error")
+					if sendChunk != nil && nonStreamingText != "" {
+						sendChunk(nonStreamingText)
+					}
+					return nonStreamingText, toolCalls, nil
+				}
+				chunk := streamResp.Text()
+				if strings.TrimSpace(chunk) != "" {
+					streamChunks++
+					fullText.WriteString(chunk)
+					if sendChunk != nil {
+						if err := sendChunk(chunk); err != nil {
+							log.Error().Err(err).Msg("ChatWithTools: failed to send stream chunk")
+						}
+					}
+				}
+			}
+
+			log.Debug().
+				Int("tool_calls", len(toolCalls)).
+				Int("stream_chunks", streamChunks).
+				Str("response", truncate(fullText.String(), 300)).
+				Msg("ChatWithTools completed with streaming")
+			return fullText.String(), toolCalls, nil
+		}
+
+		contents = append(contents, resp.Candidates[0].Content)
+
+		var functionResponses []*genai.Part
+		for _, fc := range functionCalls {
+			if fc.Name == "propose_program" || fc.Name == "propose_adjustment" {
+				hasProposal = true
+			}
+
+			argsJSON, _ := json.Marshal(fc.Args)
+			log.Debug().
+				Str("tool", fc.Name).
+				Int("round", round).
+				RawJSON("args", argsJSON).
+				Msg("ChatWithTools: executing tool call")
+
+			if notifyToolCall != nil {
+				notifyToolCall(fc.Name, "calling")
+			}
+
+			result, err := executeTool(fc.Name, fc.Args)
+
+			info := ToolCallInfo{Name: fc.Name}
+			if err != nil {
+				log.Error().Err(err).Str("tool", fc.Name).Int("round", round).Msg("ChatWithTools: tool execution failed")
+				info.Error = err.Error()
+				result = map[string]any{"error": err.Error()}
+			}
+			toolCalls = append(toolCalls, info)
+
+			resultMap, err := toMap(result)
+			if err != nil {
+				resultMap = map[string]any{"result": fmt.Sprintf("%v", result)}
+			}
+
+			resultJSON, _ := json.Marshal(resultMap)
+			log.Debug().
+				Str("tool", fc.Name).
+				Int("round", round).
+				RawJSON("result", resultJSON).
+				Msg("ChatWithTools: tool call completed")
+
+			functionResponses = append(functionResponses, &genai.Part{
+				FunctionResponse: &genai.FunctionResponse{
+					Name:     fc.Name,
+					Response: resultMap,
+				},
+			})
+
+			if notifyToolCall != nil {
+				notifyToolCall(fc.Name, "completed")
+			}
+		}
+
+		log.Debug().
+			Int("round", round).
+			Int("function_responses", len(functionResponses)).
+			Msg("ChatWithTools: appending function responses, continuing to next round")
+
+		contents = append(contents, &genai.Content{
+			Role:  "user",
+			Parts: functionResponses,
+		})
+	}
+
+	log.Error().
+		Int("max_rounds", maxRounds).
+		Int("total_tool_calls", len(toolCalls)).
+		Msg("ChatWithTools: exceeded maximum tool call rounds")
+	return "", toolCalls, fmt.Errorf("exceeded maximum tool call rounds (%d)", maxRounds)
+}
+
+type ToolCallInfo struct {
+	Name  string `json:"name"`
+	Error string `json:"error,omitempty"`
+}
+
+func messagesToContents(messages []ChatMessage) []*genai.Content {
+	contents := make([]*genai.Content, 0, len(messages))
+	for _, msg := range messages {
+		role := msg.Role
+		if role == "assistant" {
+			role = "model"
+		}
+		contents = append(contents, &genai.Content{
+			Role: role,
+			Parts: []*genai.Part{
+				genai.NewPartFromText(msg.Content),
+			},
+		})
+	}
+	return contents
+}
+
+func extractText(parts []*genai.Part) string {
+	var b strings.Builder
+	for _, p := range parts {
+		b.WriteString(p.Text)
+	}
+	return b.String()
+}
+
+func toMap(v any) (map[string]any, error) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func countParts(c *genai.Content) int {
+	if c == nil {
+		return 0
+	}
+	return len(c.Parts)
 }
 
 func truncate(s string, maxLen int) string {

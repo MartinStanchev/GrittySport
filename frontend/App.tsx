@@ -2,6 +2,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ProgramProvider } from './src/contexts/ProgramContext';
 import { Colors } from './src/constants/colors';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthStackNavigator from './src/navigation/AuthStackNavigator';
@@ -17,7 +18,13 @@ function RootNavigator() {
     );
   }
 
-  return isAuthenticated ? <BottomTabNavigator /> : <AuthStackNavigator />;
+  if (!isAuthenticated) return <AuthStackNavigator />;
+
+  return (
+    <ProgramProvider>
+      <BottomTabNavigator />
+    </ProgramProvider>
+  );
 }
 
 export default function App() {

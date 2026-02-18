@@ -265,3 +265,150 @@ export async function getChatHistory(
 export function getWsBaseUrl(): string {
   return API_BASE_URL.replace(/^http/, 'ws');
 }
+
+// Program types
+
+export interface ProgramSummary {
+  id: string;
+  name: string;
+  sport?: string;
+  goal_description?: string;
+  start_date: string;
+  end_date?: string;
+  status: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CriterionResponse {
+  id: string;
+  key: string;
+  label: string;
+  value: string;
+  value_type: string;
+  display_order: number;
+}
+
+export interface ScheduledActivityResponse {
+  id: string;
+  day_of_week: number;
+  activity_type: string;
+  prescription: Record<string, any>;
+  notes?: string;
+  order_index: number;
+}
+
+export interface WeekResponse {
+  id: string;
+  week_number: number;
+  start_date?: string;
+  activities: ScheduledActivityResponse[];
+}
+
+export interface PhaseResponse {
+  id: string;
+  name: string;
+  order_index: number;
+  start_date?: string;
+  end_date?: string;
+  weeks: WeekResponse[];
+}
+
+export interface ProgramDetail extends ProgramSummary {
+  phases: PhaseResponse[];
+  criteria: CriterionResponse[];
+}
+
+export interface UpcomingActivity {
+  id: string;
+  activity_type: string;
+  day_of_week: number;
+  prescription: Record<string, any>;
+  notes?: string;
+  week_number: number;
+  phase_name: string;
+  date: string;
+}
+
+export interface CriterionInput {
+  key: string;
+  label: string;
+  value: string;
+  value_type: string;
+  display_order: number;
+}
+
+export async function getPrograms(): Promise<ProgramSummary[]> {
+  return apiFetch<ProgramSummary[]>('/api/v1/programs');
+}
+
+export async function getProgram(id: string): Promise<ProgramDetail> {
+  return apiFetch<ProgramDetail>(`/api/v1/programs/${id}`);
+}
+
+export async function updateProgram(
+  id: string,
+  input: { name?: string; status?: string },
+): Promise<ProgramSummary> {
+  return apiFetch<ProgramSummary>(`/api/v1/programs/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getProgramCriteria(id: string): Promise<CriterionResponse[]> {
+  return apiFetch<CriterionResponse[]>(`/api/v1/programs/${id}/criteria`);
+}
+
+export async function updateProgramCriteria(
+  id: string,
+  criteria: CriterionInput[],
+): Promise<CriterionResponse[]> {
+  return apiFetch<CriterionResponse[]>(`/api/v1/programs/${id}/criteria`, {
+    method: 'PUT',
+    body: JSON.stringify(criteria),
+  });
+}
+
+export async function getUpcomingActivities(): Promise<UpcomingActivity[]> {
+  return apiFetch<UpcomingActivity[]>('/api/v1/activities/upcoming');
+}
+
+// Activity detail types
+
+export interface ActivityDetail {
+  id: string;
+  program_id: string;
+  program_name: string;
+  activity_type: string;
+  day_of_week: number;
+  prescription: Record<string, any>;
+  notes?: string;
+  order_index: number;
+  week_number: number;
+  phase_name: string;
+  date: string;
+}
+
+export interface UpdateActivityInput {
+  prescription?: Record<string, any>;
+  notes?: string;
+  day_of_week?: number;
+  activity_type?: string;
+}
+
+export async function getActivity(activityId: string): Promise<ActivityDetail> {
+  return apiFetch<ActivityDetail>(`/api/v1/activities/${activityId}`);
+}
+
+export async function updateActivity(
+  programId: string,
+  activityId: string,
+  input: UpdateActivityInput,
+): Promise<ActivityDetail> {
+  return apiFetch<ActivityDetail>(`/api/v1/programs/${programId}/activities/${activityId}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}

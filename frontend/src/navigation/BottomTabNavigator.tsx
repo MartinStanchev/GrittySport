@@ -1,8 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import HomeScreen from '../screens/HomeScreen';
+import HomeStackNavigator from './HomeStackNavigator';
 import HistoryScreen from '../screens/HistoryScreen';
-import ProgramsScreen from '../screens/ProgramsScreen';
+import ProgramsStackNavigator from './ProgramsStackNavigator';
 import SettingsScreen from '../screens/SettingsScreen';
 import { Colors } from '../constants/colors';
 
@@ -27,7 +27,7 @@ export default function BottomTabNavigator() {
     >
       <Tab.Screen
         name="Home"
-        component={HomeScreen}
+        component={HomeStackNavigator}
         options={{
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
@@ -46,8 +46,9 @@ export default function BottomTabNavigator() {
       />
       <Tab.Screen
         name="Programs"
-        component={ProgramsScreen}
+        component={ProgramsStackNavigator}
         options={{
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="barbell" size={size} color={color} />
           ),

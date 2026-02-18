@@ -1,0 +1,51 @@
+{
+  "categories": [
+    {
+      "name": "Sport & Goal",
+      "criteria": [
+        {"id": "sport", "description": "Identify the user's primary sport or activity", "required": true},
+        {"id": "primary_goal", "description": "Understand the user's main goal (e.g. race prep, general fitness, strength gain)", "required": true},
+        {"id": "event_date", "description": "Find out if there's a target event, race, or competition date", "required": false},
+        {"id": "goal_target", "description": "Any specific performance targets (time, distance, weight, etc.)", "required": false}
+      ]
+    },
+    {
+      "name": "Experience",
+      "criteria": [
+        {"id": "experience_level", "description": "Assess the user's experience level with their sport", "required": true},
+        {"id": "training_history", "description": "How long they have been training consistently", "required": false},
+        {"id": "current_fitness", "description": "Their current fitness level and recent training load", "required": false}
+      ]
+    },
+    {
+      "name": "Schedule",
+      "criteria": [
+        {"id": "days_per_week", "description": "How many days per week the user can commit to training", "required": true},
+        {"id": "preferred_days", "description": "Specific days they prefer to train or need to rest", "required": false},
+        {"id": "morning_evening", "description": "Whether they prefer morning or evening training", "required": false}
+      ]
+    },
+    {
+      "name": "Equipment & Access",
+      "criteria": [
+        {"id": "equipment", "description": "What equipment specific for their sport does the user have access to", "required": false},
+        {"id": "facility_access", "description": "Access to sport-specific facilities (pool, track, climbing gym, fitness gym, etc.)", "required": false}
+      ]
+    },
+    {
+      "name": "Cross-Training",
+      "criteria": [
+        {"id": "strength_conditioning", "description": "Whether to include strength and conditioning sessions", "required": true},
+        {"id": "stretching_mobility", "description": "Whether to include dedicated stretching and mobility work", "required": true},
+        {"id": "complementary_activities", "description": "Other activities to include (yoga, pilates, swimming for recovery, etc.)", "required": true}
+      ]
+    },
+    {
+      "name": "Injuries & Limitations",
+      "criteria": [
+        {"id": "injuries", "description": "Any current injuries or physical limitations", "required": true},
+        {"id": "past_injuries", "description": "Past injuries that tend to flare up during training", "required": false}
+      ]
+    }
+  ]
+}

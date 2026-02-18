@@ -24,4 +24,13 @@ Always validate your code by:
 * Writing and running tests
 * Running the code simplifier agent
 * running linters for both backend and frontend
-* 
+
+** IMPORTANT ** 
+
+This project is still a work in progress. When you are asked to refactor a feature and that means breaking how it works currently, you have to refactor the feature completely. There should be absolutely no backwards compatibility, because this will only introduce unnecessary code and logic that will make the project confusing and hard to maintain. You are an expert developer and you know better than to create confusing and unnecessary code. 
+
+## Running Go 
+
+Go is installed in Windows in `Files/Go/bin/go.exe`. 
+
+In WSL in Ubuntu it is in `

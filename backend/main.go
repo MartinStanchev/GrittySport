@@ -57,6 +57,11 @@ func main() {
 		migrationsPath = "../db/migrations"
 	}
 
+	promptsPath := os.Getenv("PROMPTS_PATH")
+	if promptsPath == "" {
+		promptsPath = "./prompts"
+	}
+
 	ctx := context.Background()
 
 	pool, err := db.Connect(ctx, os.Getenv("DATABASE_URL"))
@@ -74,14 +79,25 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to initialize Gemini client")
 	}
 
+	promptLoader, err := ai.LoadPrompts(promptsPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load prompts")
+	}
+
 	authService := services.NewAuthService(pool, jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)
 	userHandler := handlers.NewUserHandler(userService)
 
+	chatMemoryEnabled := os.Getenv("ENABLE_CHAT_MEMORY") == "true"
+	log.Info().Bool("chat_memory", chatMemoryEnabled).Msg("Feature flags")
+
 	chatService := services.NewChatService(pool)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService)
+
+	programService := services.NewProgramService(pool)
+	programHandler := handlers.NewProgramHandler(programService, chatService)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, chatMemoryEnabled)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -109,6 +125,15 @@ func main() {
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Get("/chat/history", chatHandler.History)
+
+		r.Get("/programs", programHandler.List)
+		r.Get("/programs/{id}", programHandler.Get)
+		r.Put("/programs/{id}", programHandler.Update)
+		r.Get("/programs/{id}/criteria", programHandler.GetCriteria)
+		r.Put("/programs/{id}/criteria", programHandler.UpdateCriteria)
+		r.Get("/activities/upcoming", programHandler.GetUpcoming)
+		r.Get("/activities/{activityId}", programHandler.GetActivity)
+		r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

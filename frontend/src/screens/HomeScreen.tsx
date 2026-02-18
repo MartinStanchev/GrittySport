@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated,
+  ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -12,10 +14,15 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import Markdown from 'react-native-markdown-display';
 import { Colors } from '../constants/colors';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
+import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
+import { ProgramProposalCard } from '../components/ProgramProposalCard';
+import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -42,18 +49,43 @@ function useKeyboardHeight() {
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const keyboardHeight = useKeyboardHeight();
-  const { messages, isGritTyping, sendMessage, loadHistory, isConnected } =
-    useChatWebSocket();
+  const { activeProgram, upcomingActivities, refreshProgram, refreshUpcoming } =
+    useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatContext, setChatContext] = useState<string>('free_chat');
   const [inputText, setInputText] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
 
-  const openChat = useCallback(() => {
+  const handleProgramCreated = useCallback(() => {
+    refreshProgram();
+    refreshUpcoming();
+    setTimeout(() => {
+      setChatOpen(false);
+      setChatContext('free_chat');
+    }, 1500);
+  }, [refreshProgram, refreshUpcoming]);
+
+  const handleAdjustmentApplied = useCallback(() => {
+    refreshUpcoming();
+  }, [refreshUpcoming]);
+
+  const {
+    messages, isGritTyping, sendMessage, respondToProposal,
+    loadHistory, isConnected, quickReplies, clearChat, activeToolAction,
+  } = useChatWebSocket({
+    onProgramCreated: handleProgramCreated,
+    onAdjustmentApplied: handleAdjustmentApplied,
+  });
+
+  const openChat = useCallback((context = 'free_chat') => {
+    setChatContext(context);
     setChatOpen(true);
   }, []);
 
@@ -62,15 +94,24 @@ export default function HomeScreen() {
     setChatOpen(false);
   }, []);
 
+  const openProgramCreation = useCallback(() => {
+    setChatContext('program_creation');
+    setChatOpen(true);
+    setTimeout(() => {
+      sendMessage('I want to create a training program', 'program_creation');
+    }, 500);
+  }, [sendMessage]);
+
   useEffect(() => {
     if (chatOpen && !historyLoaded) {
-      getChatHistory('free_chat', 50)
+      getChatHistory(chatContext, 50)
         .then((resp) => {
           if (resp.messages.length > 0) {
             const mapped: ChatMessage[] = resp.messages.map((m) => ({
               id: m.id,
               role: m.role as 'user' | 'assistant',
               content: m.content,
+              messageType: 'text' as const,
             }));
             loadHistory(mapped);
           }
@@ -78,7 +119,7 @@ export default function HomeScreen() {
         })
         .catch(() => setHistoryLoaded(true));
     }
-  }, [chatOpen, historyLoaded, loadHistory]);
+  }, [chatOpen, historyLoaded, loadHistory, chatContext]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -91,8 +132,8 @@ export default function HomeScreen() {
     if (!text) return;
     setInputText('');
     if (!chatOpen) openChat();
-    sendMessage(text);
-  }, [inputText, chatOpen, openChat, sendMessage]);
+    sendMessage(text, chatContext);
+  }, [inputText, chatOpen, openChat, sendMessage, chatContext]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -100,15 +141,33 @@ export default function HomeScreen() {
     }
   }, [messages, scrollToBottom]);
 
-  // Also scroll when keyboard opens
   useEffect(() => {
     if (keyboardHeight > 0 && chatOpen) {
       scrollToBottom();
     }
   }, [keyboardHeight, chatOpen, scrollToBottom]);
 
+  const handleProposalResponse = useCallback(
+    (action: 'accept' | 'deny', proposalId: string) => {
+      setRespondedProposals((prev) => new Set(prev).add(proposalId));
+      respondToProposal(action, chatContext);
+    },
+    [respondToProposal, chatContext],
+  );
+
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => {
+      if (item.messageType === 'program_proposal' || item.messageType === 'adjustment_proposal') {
+        return (
+          <ProgramProposalCard
+            data={item.proposalData}
+            onAccept={() => handleProposalResponse('accept', item.id)}
+            onDeny={() => handleProposalResponse('deny', item.id)}
+            disabled={respondedProposals.has(item.id)}
+          />
+        );
+      }
+
       const isUser = item.role === 'user';
       return (
         <View
@@ -118,57 +177,122 @@ export default function HomeScreen() {
           ]}
         >
           {!isUser && <Text style={styles.gritLabel}>Grit</Text>}
-          <Text
-            style={[
-              styles.messageText,
-              isUser ? styles.userText : styles.gritText,
-            ]}
-          >
-            {item.content}
-          </Text>
+          {isUser ? (
+            <Text style={[styles.messageText, styles.userText]}>
+              {item.content}
+            </Text>
+          ) : (
+            <Markdown style={markdownStyles}>{item.content}</Markdown>
+          )}
         </View>
       );
     },
-    [],
+    [handleProposalResponse, respondedProposals],
   );
 
-  // Bottom padding: when keyboard is open use keyboard height, otherwise use safe area
-  const chatBottomPadding =
-    keyboardHeight > 0 ? keyboardHeight : insets.bottom;
+  const handleClearChat = useCallback(() => {
+    const doClear = () => {
+      clearChat();
+      setHistoryLoaded(false);
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Clear conversation? Grit will remember key context.')) {
+        doClear();
+      }
+    } else {
+      Alert.alert(
+        'Clear conversation',
+        'This will clear all messages. Grit will remember key context from your conversation.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear', style: 'destructive', onPress: doClear },
+        ],
+      );
+    }
+  }, [clearChat]);
+
+  const inputBottomPadding = keyboardHeight > 0 ? 4 : Math.max(insets.bottom, 8);
+
+  // Calculate program progress
+  let progressText = '';
+  let progressPercent = 0;
+  if (activeProgram) {
+    const start = new Date(activeProgram.start_date);
+    const end = activeProgram.end_date ? new Date(activeProgram.end_date) : null;
+    if (end) {
+      const total = end.getTime() - start.getTime();
+      const elapsed = Date.now() - start.getTime();
+      progressPercent = Math.min(Math.max(elapsed / total, 0), 1);
+      const totalWeeks = Math.ceil(total / (7 * 24 * 60 * 60 * 1000));
+      const currentWeek = Math.ceil(elapsed / (7 * 24 * 60 * 60 * 1000));
+      progressText = `Week ${Math.min(currentWeek, totalWeeks)} of ${totalWeeks}`;
+    }
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Top Zone */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>GRITTY FITNESS</Text>
-        <View style={styles.programCard}>
-          <Ionicons
-            name="barbell-outline"
-            size={32}
-            color={Colors.textSecondary}
-            style={styles.programIcon}
-          />
-          <Text style={styles.programText}>No active program</Text>
-          <Text style={styles.programSubtext}>
-            Create one to get started with personalized training
-          </Text>
-          <Pressable style={styles.createButton} disabled>
-            <Text style={styles.createButtonText}>Create Program</Text>
-          </Pressable>
-        </View>
+
+        {activeProgram ? (
+          <View style={styles.programCard}>
+            <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
+            {activeProgram.sport && (
+              <Text style={styles.activeProgramSport}>{activeProgram.sport}</Text>
+            )}
+            {progressText && (
+              <Text style={styles.activeProgramWeek}>{progressText}</Text>
+            )}
+            {activeProgram.end_date && (
+              <View style={styles.progressBarContainer}>
+                <View
+                  style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]}
+                />
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.programCard}>
+            <Ionicons
+              name="barbell-outline"
+              size={32}
+              color={Colors.textSecondary}
+              style={styles.programIcon}
+            />
+            <Text style={styles.programText}>No active program</Text>
+            <Text style={styles.programSubtext}>
+              Let Grit build your personalized training program
+            </Text>
+            <Pressable style={styles.createButton} onPress={openProgramCreation}>
+              <Text style={styles.createButtonText}>Create Your Program</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {/* Middle Zone */}
       <View style={styles.comingUp}>
         <Text style={styles.sectionTitle}>Coming up</Text>
-        <View style={styles.emptyCard}>
-          <Ionicons
-            name="calendar-outline"
-            size={24}
-            color={Colors.textSecondary}
-          />
-          <Text style={styles.emptyText}>No upcoming activities</Text>
-        </View>
+        {upcomingActivities.length > 0 ? (
+          upcomingActivities.map((activity) => (
+            <UpcomingActivityCard
+              key={activity.id}
+              activity={activity}
+              onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
+            />
+          ))
+        ) : (
+          <View style={styles.emptyCard}>
+            <Ionicons
+              name="calendar-outline"
+              size={24}
+              color={Colors.textSecondary}
+            />
+            <Text style={styles.emptyText}>No upcoming activities</Text>
+          </View>
+        )}
       </View>
 
       <View style={{ flex: 1 }} />
@@ -177,7 +301,7 @@ export default function HomeScreen() {
       <View
         style={[styles.chatBar, { paddingBottom: Math.max(insets.bottom, 8) }]}
       >
-        <Pressable style={styles.chatBarInner} onPress={openChat}>
+        <Pressable style={styles.chatBarInner} onPress={() => openChat()}>
           <View style={styles.chatBarAvatar}>
             <Text style={styles.chatBarAvatarText}>G</Text>
           </View>
@@ -188,15 +312,16 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      {/* Chat Modal — truly full screen, above tab bar */}
+      {/* Chat Modal */}
       <Modal
         visible={chatOpen}
         animationType="slide"
         presentationStyle="fullScreen"
         onRequestClose={closeChat}
       >
-        <View
-          style={[styles.chatScreen, { paddingBottom: chatBottomPadding }]}
+        <KeyboardAvoidingView
+          style={styles.chatScreen}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Chat Header */}
           <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
@@ -232,7 +357,13 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
-            <View style={{ width: 36 }} />
+            <Pressable
+              onPress={handleClearChat}
+              style={styles.clearButton}
+              hitSlop={12}
+            >
+              <Ionicons name="trash-outline" size={20} color={Colors.textSecondary} />
+            </Pressable>
           </View>
 
           {/* Messages */}
@@ -244,23 +375,49 @@ export default function HomeScreen() {
             style={styles.messageList}
             contentContainerStyle={styles.messageListContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
             onLayout={scrollToBottom}
           />
 
-          {/* Typing Indicator */}
-          {isGritTyping &&
+          {/* Typing / Tool Indicator */}
+          {(isGritTyping || activeToolAction) &&
             messages[messages.length - 1]?.isStreaming !== true && (
               <View style={styles.typingContainer}>
-                <View style={styles.typingDots}>
-                  <View style={styles.typingDot} />
-                  <View style={[styles.typingDot, styles.typingDotMiddle]} />
-                  <View style={styles.typingDot} />
+                <View style={styles.toolActionRow}>
+                  <ActivityIndicator size="small" color={Colors.textSecondary} />
+                  <Text style={styles.toolActionLabel}>
+                    {activeToolAction ?? 'Thinking...'}
+                  </Text>
                 </View>
               </View>
             )}
 
+          {/* Quick Reply Buttons */}
+          {quickReplies.length > 0 && (
+            <View style={styles.quickReplyContainer}>
+              {quickReplies.map((reply) => (
+                <Pressable
+                  key={reply}
+                  style={styles.quickReplyButton}
+                  onPress={() => sendMessage(reply, chatContext)}
+                >
+                  <Text style={styles.quickReplyText}>{reply}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {/* Chat Input */}
-          <View style={styles.chatInputContainer}>
+          <View style={[styles.chatInputContainer, { paddingBottom: inputBottomPadding }]}>
+            {keyboardHeight > 0 && (
+              <Pressable
+                onPress={() => Keyboard.dismiss()}
+                style={styles.keyboardDismissButton}
+                hitSlop={8}
+              >
+                <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+              </Pressable>
+            )}
             <TextInput
               ref={inputRef}
               style={styles.chatInput}
@@ -274,6 +431,7 @@ export default function HomeScreen() {
               maxLength={2000}
               blurOnSubmit={false}
               autoFocus
+              autoCapitalize="sentences"
             />
             <Pressable
               style={[
@@ -290,7 +448,7 @@ export default function HomeScreen() {
               />
             </Pressable>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -343,12 +501,40 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    opacity: 0.5,
   },
   createButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 14,
+  },
+  activeProgramName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  activeProgramSport: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  activeProgramWeek: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#E8E8E8',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 3,
   },
   comingUp: {
     paddingHorizontal: 20,
@@ -377,7 +563,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
   },
-  // Chat Bar (Home screen)
   chatBar: {
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -431,7 +616,6 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#E8E8E8',
   },
-  // Chat Screen (Modal)
   chatScreen: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -542,32 +726,24 @@ const styles = StyleSheet.create({
   userText: {
     color: '#FFFFFF',
   },
-  gritText: {
-    color: Colors.textPrimary,
-  },
   typingContainer: {
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-  typingDots: {
+  toolActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
     alignSelf: 'flex-start',
     borderRadius: 12,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 4,
+    paddingVertical: 8,
+    gap: 8,
   },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.textSecondary,
-    opacity: 0.5,
-  },
-  typingDotMiddle: {
-    opacity: 0.7,
+  toolActionLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
   chatInputContainer: {
     flexDirection: 'row',
@@ -590,5 +766,101 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 10 : 8,
     maxHeight: 120,
     minHeight: 40,
+  },
+  clearButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickReplyContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  quickReplyButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+  },
+  quickReplyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  keyboardDismissButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
+  },
+});
+
+const markdownStyles = StyleSheet.create({
+  body: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: Colors.textPrimary,
+  },
+  heading1: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+    marginTop: 8,
+  },
+  heading2: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+    marginTop: 6,
+  },
+  heading3: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.textPrimary,
+    marginBottom: 2,
+    marginTop: 4,
+  },
+  strong: {
+    fontWeight: '700' as const,
+  },
+  bullet_list: {
+    marginVertical: 4,
+  },
+  ordered_list: {
+    marginVertical: 4,
+  },
+  list_item: {
+    marginVertical: 2,
+  },
+  code_inline: {
+    backgroundColor: Colors.background,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  fence: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  paragraph: {
+    marginTop: 0,
+    marginBottom: 6,
   },
 });

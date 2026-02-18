@@ -105,7 +105,7 @@ export default function LoginScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('Register')}
           >
             <Text style={styles.linkText}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Text style={styles.linkBold}>Register</Text>
             </Text>
           </TouchableOpacity>
