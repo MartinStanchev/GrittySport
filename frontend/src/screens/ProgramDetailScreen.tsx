@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,18 +11,58 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { dayAbbrev, formatPrescriptionSummary } from '../constants/activityIcons';
+import {
+  getActivityIcon,
+  formatPrescriptionSummary,
+} from '../constants/activityIcons';
 import { getProgram } from '../services/api';
-import type { ProgramDetail } from '../services/api';
+import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+type FlatWeek = {
+  id: string;
+  weekNumber: number;
+  phaseName: string;
+  computedStart: Date;
+  activities: ScheduledActivityResponse[];
+};
+
+function computeWeekStart(
+  weekNumber: number,
+  weekStartDate: string | null | undefined,
+  programStartDate: string,
+): Date {
+  if (weekStartDate) return new Date(weekStartDate + 'T00:00:00');
+  const d = new Date(programStartDate + 'T00:00:00');
+  d.setDate(d.getDate() + (weekNumber - 1) * 7);
+  return d;
+}
+
+function formatWeekRange(weekStart: Date): string {
+  const end = new Date(weekStart);
+  end.setDate(end.getDate() + 6);
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(weekStart)} – ${fmt(end)}`;
+}
+
+function formatDate(dateStr?: string) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function ProgramDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { programId } = route.params;
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+  const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
   const [criteriaModalVisible, setCriteriaModalVisible] = useState(false);
+
+  const weekSelectorRef = useRef<FlatList>(null);
 
   const fetchProgram = useCallback(async () => {
     try {
@@ -39,23 +80,69 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     fetchProgram();
   }, [fetchProgram]);
 
-  const togglePhase = useCallback((phaseId: string) => {
-    setExpandedPhases((prev) => {
-      const next = new Set(prev);
-      if (next.has(phaseId)) {
-        next.delete(phaseId);
-      } else {
-        next.add(phaseId);
+  const flatWeeks = useMemo<FlatWeek[]>(() => {
+    if (!program) return [];
+    const result: FlatWeek[] = [];
+    for (const phase of program.phases) {
+      for (const week of phase.weeks) {
+        result.push({
+          id: week.id,
+          weekNumber: week.week_number,
+          phaseName: phase.name,
+          computedStart: computeWeekStart(week.week_number, week.start_date, program.start_date),
+          activities: week.activities,
+        });
       }
-      return next;
-    });
-  }, []);
+    }
+    return result;
+  }, [program]);
 
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+  useEffect(() => {
+    if (flatWeeks.length === 0) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let found = flatWeeks.find((w) => {
+      const start = new Date(w.computedStart);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      return today >= start && today < end;
+    });
+
+    if (!found) {
+      found = flatWeeks.find((w) => {
+        const start = new Date(w.computedStart);
+        start.setHours(0, 0, 0, 0);
+        return start > today;
+      });
+    }
+    if (!found) {
+      found = flatWeeks[flatWeeks.length - 1];
+    }
+
+    setSelectedWeekId(found.id);
+  }, [flatWeeks]);
+
+  useEffect(() => {
+    if (!selectedWeekId) return;
+    const idx = flatWeeks.findIndex((w) => w.id === selectedWeekId);
+    if (idx >= 0) {
+      setTimeout(() => {
+        weekSelectorRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+      }, 300);
+    }
+  }, [selectedWeekId, flatWeeks]);
+
+  const selectedWeek = useMemo(
+    () => flatWeeks.find((w) => w.id === selectedWeekId) ?? null,
+    [flatWeeks, selectedWeekId],
+  );
+
+  const handleCriteriaSaved = useCallback(() => {
+    fetchProgram();
+  }, [fetchProgram]);
 
   if (loading) {
     return (
@@ -73,12 +160,14 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     );
   }
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
     >
-      {/* Header */}
       <View style={styles.headerSection}>
         <Text style={styles.programName}>{program.name}</Text>
         {program.sport && <Text style={styles.sport}>{program.sport}</Text>}
@@ -86,21 +175,21 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
           <Text style={styles.goal}>{program.goal_description}</Text>
         )}
         <Text style={styles.dates}>
-          {formatDate(program.start_date)} — {formatDate(program.end_date)}
+          {formatDate(program.start_date)}
+          {program.end_date ? ` — ${formatDate(program.end_date)}` : ''}
         </Text>
       </View>
 
-      {/* Criteria Section */}
       {program.criteria.length > 0 && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Program Settings</Text>
             <Pressable
-              style={styles.editButton}
+              style={styles.editSettingsBtn}
               onPress={() => setCriteriaModalVisible(true)}
             >
               <Ionicons name="create-outline" size={16} color={Colors.primary} />
-              <Text style={styles.editButtonText}>Edit Settings</Text>
+              <Text style={styles.editSettingsBtnText}>Edit</Text>
             </Pressable>
           </View>
           <View style={styles.criteriaGrid}>
@@ -114,68 +203,233 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
         </View>
       )}
 
-      {/* Phases */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Training Plan</Text>
-        {program.phases.map((phase) => (
-          <View key={phase.id} style={styles.phaseContainer}>
-            <Pressable
-              style={styles.phaseHeader}
-              onPress={() => togglePhase(phase.id)}
-            >
-              <Ionicons
-                name={expandedPhases.has(phase.id) ? 'chevron-down' : 'chevron-forward'}
-                size={18}
-                color={Colors.textSecondary}
-              />
-              <Text style={styles.phaseName}>{phase.name}</Text>
-              <Text style={styles.phaseWeekCount}>
-                {phase.weeks.length} {phase.weeks.length === 1 ? 'week' : 'weeks'}
-              </Text>
-            </Pressable>
 
-            {expandedPhases.has(phase.id) && (
-              <View style={styles.weeksContainer}>
-                {phase.weeks.map((week) => (
-                  <View key={week.id} style={styles.weekContainer}>
-                    <Text style={styles.weekLabel}>Week {week.week_number}</Text>
-                    {week.activities.map((activity) => (
-                      <Pressable
-                        key={activity.id}
-                        style={({ pressed }) => [styles.activityRow, pressed && styles.activityRowPressed]}
-                        onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
-                      >
-                        <Text style={styles.activityDay}>
-                          {dayAbbrev(activity.day_of_week)}
-                        </Text>
-                        <View style={styles.activityContent}>
-                          <Text style={styles.activityType}>
-                            {activity.activity_type}
-                          </Text>
-                          <Text style={styles.activityPrescription} numberOfLines={1}>
-                            {formatPrescriptionSummary(activity.prescription)}
-                          </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} />
-                      </Pressable>
-                    ))}
-                  </View>
-                ))}
-              </View>
+        {flatWeeks.length === 0 ? (
+          <Text style={styles.emptyText}>No activities scheduled yet.</Text>
+        ) : (
+          <>
+            <FlatList
+              ref={weekSelectorRef}
+              data={flatWeeks}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(w) => w.id}
+              contentContainerStyle={styles.weekSelectorContent}
+              onScrollToIndexFailed={() => {}}
+              renderItem={({ item: week }) => {
+                const isSelected = week.id === selectedWeekId;
+                const weekStart = new Date(week.computedStart);
+                weekStart.setHours(0, 0, 0, 0);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                const isCurrentWeek = today >= weekStart && today < weekEnd;
+                const isPast = weekEnd < today;
+
+                return (
+                  <Pressable
+                    style={[
+                      styles.weekPill,
+                      isSelected && styles.weekPillSelected,
+                      isCurrentWeek && !isSelected && styles.weekPillCurrent,
+                      isPast && !isSelected && styles.weekPillPast,
+                    ]}
+                    onPress={() => setSelectedWeekId(week.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.weekPillNumber,
+                        isSelected && styles.weekPillTextSelected,
+                        isPast && !isSelected && styles.weekPillTextPast,
+                      ]}
+                    >
+                      W{week.weekNumber}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.weekPillRange,
+                        isSelected && styles.weekPillTextSelected,
+                        isPast && !isSelected && styles.weekPillTextPast,
+                      ]}
+                    >
+                      {week.computedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </Text>
+                  </Pressable>
+                );
+              }}
+            />
+
+            {selectedWeek && (
+              <WeekView
+                week={selectedWeek}
+                today={today}
+                programId={programId}
+                onActivityPress={(activityId: string) =>
+                  navigation.navigate('ActivityDetail', { activityId })
+                }
+                onAddActivity={(weekId: string, dayOfWeek: number) =>
+                  navigation.navigate('ActivityDetail', {
+                    weekId,
+                    dayOfWeek,
+                    programId,
+                  })
+                }
+              />
             )}
-          </View>
-        ))}
+          </>
+        )}
       </View>
 
-      {/* Criteria Editor Modal */}
       <CriteriaEditorModal
         visible={criteriaModalVisible}
         programId={programId}
         criteria={program.criteria}
         onClose={() => setCriteriaModalVisible(false)}
-        onSaved={fetchProgram}
+        onSaved={handleCriteriaSaved}
       />
     </ScrollView>
+  );
+}
+
+// ─── WeekView ────────────────────────────────────────────────────────────────
+
+type WeekViewProps = {
+  week: FlatWeek;
+  today: Date;
+  programId: string;
+  onActivityPress: (activityId: string) => void;
+  onAddActivity: (weekId: string, dayOfWeek: number) => void;
+};
+
+function WeekView({ week, today, onActivityPress, onAddActivity }: WeekViewProps) {
+  const byDay = useMemo<Map<number, ScheduledActivityResponse>>(() => {
+    const map = new Map<number, ScheduledActivityResponse>();
+    for (const a of week.activities) {
+      if (!map.has(a.day_of_week)) map.set(a.day_of_week, a);
+    }
+    return map;
+  }, [week.activities]);
+
+  const weekStart = new Date(week.computedStart);
+  weekStart.setHours(0, 0, 0, 0);
+
+  return (
+    <View style={styles.weekView}>
+      <View style={styles.weekViewHeader}>
+        <Text style={styles.weekViewTitle}>
+          Week {week.weekNumber} · {week.phaseName}
+        </Text>
+        <Text style={styles.weekViewRange}>{formatWeekRange(weekStart)}</Text>
+      </View>
+
+      {[1, 2, 3, 4, 5, 6, 0].map((dayIndex) => {
+        const activity = byDay.get(dayIndex) ?? null;
+        const dayDate = new Date(weekStart);
+        dayDate.setDate(dayDate.getDate() + dayIndex);
+
+        const isToday =
+          dayDate.getFullYear() === today.getFullYear() &&
+          dayDate.getMonth() === today.getMonth() &&
+          dayDate.getDate() === today.getDate();
+        const isPast = dayDate < today && !isToday;
+
+        return (
+          <DayRow
+            key={dayIndex}
+            dayName={DAY_NAMES[dayIndex]}
+            dayDate={dayDate}
+            activity={activity}
+            isToday={isToday}
+            isPast={isPast}
+            onPress={activity ? () => onActivityPress(activity.id) : undefined}
+            onAdd={() => onAddActivity(week.id, dayIndex)}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+// ─── DayRow ──────────────────────────────────────────────────────────────────
+
+type DayRowProps = {
+  dayName: string;
+  dayDate: Date;
+  activity: ScheduledActivityResponse | null;
+  isToday: boolean;
+  isPast: boolean;
+  onPress?: () => void;
+  onAdd: () => void;
+};
+
+function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onAdd }: DayRowProps) {
+  const dateNum = dayDate.getDate();
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.dayRow,
+        isToday && styles.dayRowToday,
+        pressed && activity && styles.dayRowPressed,
+      ]}
+      onPress={onPress}
+      disabled={!activity}
+    >
+      <View style={styles.dayLabel}>
+        <Text style={[styles.dayName, isToday && styles.dayNameToday, isPast && styles.dayNamePast]}>
+          {dayName}
+        </Text>
+        <Text style={[styles.dayDate, isToday && styles.dayDateToday, isPast && styles.dayDatePast]}>
+          {dateNum}
+        </Text>
+      </View>
+
+      {activity ? (
+        <>
+          <View
+            style={[
+              styles.activityIconCircle,
+              isToday && styles.activityIconCircleToday,
+              isPast && styles.activityIconCirclePast,
+            ]}
+          >
+            <Ionicons
+              name={getActivityIcon(activity.activity_type)}
+              size={16}
+              color={isToday ? '#FFF' : isPast ? Colors.textSecondary : Colors.primary}
+            />
+          </View>
+          <View style={styles.activityInfo}>
+            <Text
+              style={[
+                styles.activityType,
+                isPast && !isToday && styles.activityTypePast,
+              ]}
+              numberOfLines={1}
+            >
+              {activity.activity_type}
+            </Text>
+            <Text style={[styles.activitySummary, isPast && !isToday && styles.activitySummaryPast]} numberOfLines={1}>
+              {formatPrescriptionSummary(activity.prescription)}
+            </Text>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color={isPast && !isToday ? '#CCC' : Colors.textSecondary}
+          />
+        </>
+      ) : (
+        <>
+          <View style={styles.restDot} />
+          <Text style={styles.restText}>Rest</Text>
+          <Pressable style={styles.addButton} onPress={onAdd} hitSlop={8}>
+            <Ionicons name="add-circle-outline" size={20} color={Colors.textSecondary} />
+          </Pressable>
+        </>
+      )}
+    </Pressable>
   );
 }
 
@@ -188,6 +442,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  errorText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    paddingVertical: 12,
+  },
+
+  // Header
   headerSection: {
     backgroundColor: Colors.surface,
     padding: 20,
@@ -209,11 +474,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginBottom: 4,
+    lineHeight: 20,
   },
   dates: {
     fontSize: 13,
     color: Colors.textSecondary,
   },
+
+  // Section
   section: {
     backgroundColor: Colors.surface,
     padding: 16,
@@ -229,18 +497,19 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: 12,
   },
-  editButton: {
+  editSettingsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  editButtonText: {
+  editSettingsBtnText: {
     fontSize: 13,
     color: Colors.primary,
     fontWeight: '600',
   },
+
+  // Criteria
   criteriaGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -265,72 +534,154 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
   },
-  phaseContainer: {
-    marginBottom: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.background,
-    overflow: 'hidden',
-  },
-  phaseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
+
+  // Week Selector
+  weekSelectorContent: {
+    paddingVertical: 8,
     gap: 8,
   },
-  phaseName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    flex: 1,
+  weekPill: {
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    minWidth: 60,
   },
-  phaseWeekCount: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+  weekPillSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  weeksContainer: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+  weekPillCurrent: {
+    borderColor: Colors.primary,
   },
-  weekContainer: {
-    marginBottom: 12,
+  weekPillPast: {
+    opacity: 0.6,
   },
-  weekLabel: {
+  weekPillNumber: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 6,
+    color: Colors.textPrimary,
   },
-  activityRow: {
+  weekPillRange: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  weekPillTextSelected: {
+    color: '#FFF',
+  },
+  weekPillTextPast: {
+    color: Colors.textSecondary,
+  },
+
+  // Week View
+  weekView: {
+    marginTop: 16,
+  },
+  weekViewHeader: {
+    marginBottom: 12,
+  },
+  weekViewTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  weekViewRange: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+
+  // Day Row
+  dayRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingLeft: 4,
-    paddingRight: 4,
-    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    marginBottom: 2,
+    gap: 10,
   },
-  activityRowPressed: {
-    backgroundColor: '#E8E8E8',
+  dayRowToday: {
+    backgroundColor: '#FEF0F0',
   },
-  activityDay: {
+  dayRowPressed: {
+    backgroundColor: '#F0F0F0',
+  },
+  dayLabel: {
     width: 36,
+    alignItems: 'center',
+  },
+  dayName: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
-  activityContent: {
+  dayNameToday: {
+    color: Colors.primary,
+  },
+  dayNamePast: {
+    color: '#CCC',
+  },
+  dayDate: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginTop: 1,
+  },
+  dayDateToday: {
+    color: Colors.primary,
+  },
+  dayDatePast: {
+    color: '#CCC',
+  },
+  activityIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEE2E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityIconCircleToday: {
+    backgroundColor: Colors.primary,
+  },
+  activityIconCirclePast: {
+    backgroundColor: '#F0F0F0',
+  },
+  activityInfo: {
     flex: 1,
   },
   activityType: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.textPrimary,
   },
-  activityPrescription: {
-    fontSize: 12,
+  activityTypePast: {
     color: Colors.textSecondary,
   },
-  errorText: {
-    fontSize: 16,
+  activitySummary: {
+    fontSize: 12,
     color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  activitySummaryPast: {
+    color: '#CCC',
+  },
+  restDot: {
+    width: 32,
+    height: 32,
+  },
+  restText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#CCC',
+    fontStyle: 'italic',
+  },
+  addButton: {
+    padding: 2,
   },
 });

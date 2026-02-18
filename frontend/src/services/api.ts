@@ -412,3 +412,21 @@ export async function updateActivity(
     body: JSON.stringify(input),
   });
 }
+
+export interface CreateActivityInput {
+  day_of_week: number;
+  activity_type: string;
+  prescription?: Record<string, any>;
+  notes?: string;
+}
+
+export async function createActivity(
+  programId: string,
+  weekId: string,
+  input: CreateActivityInput,
+): Promise<ActivityDetail> {
+  return apiFetch<ActivityDetail>(`/api/v1/programs/${programId}/weeks/${weekId}/activities`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}

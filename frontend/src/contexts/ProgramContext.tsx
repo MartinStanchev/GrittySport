@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getPrograms, getUpcomingActivities } from '../services/api';
 import type { ProgramSummary, UpcomingActivity } from '../services/api';
 import { useAuth } from './AuthContext';
@@ -7,17 +7,21 @@ interface ProgramContextType {
   activeProgram: ProgramSummary | null;
   upcomingActivities: UpcomingActivity[];
   isLoading: boolean;
+  openChatRequest: string | null;
   refreshProgram: () => Promise<void>;
   refreshUpcoming: () => Promise<void>;
+  requestOpenChat: (context: string) => void;
+  clearOpenChatRequest: () => void;
 }
 
 const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
 
-export function ProgramProvider({ children }: { children: React.ReactNode }) {
+export function ProgramProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [activeProgram, setActiveProgram] = useState<ProgramSummary | null>(null);
   const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [openChatRequest, setOpenChatRequest] = useState<string | null>(null);
 
   const refreshProgram = useCallback(async () => {
     try {
@@ -40,6 +44,14 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const requestOpenChat = useCallback((context: string) => {
+    setOpenChatRequest(context);
+  }, []);
+
+  const clearOpenChatRequest = useCallback(() => {
+    setOpenChatRequest(null);
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       setActiveProgram(null);
@@ -56,7 +68,16 @@ export function ProgramProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <ProgramContext.Provider
-      value={{ activeProgram, upcomingActivities, isLoading, refreshProgram, refreshUpcoming }}
+      value={{
+        activeProgram,
+        upcomingActivities,
+        isLoading,
+        openChatRequest,
+        refreshProgram,
+        refreshUpcoming,
+        requestOpenChat,
+        clearOpenChatRequest,
+      }}
     >
       {children}
     </ProgramContext.Provider>

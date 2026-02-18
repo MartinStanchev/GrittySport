@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -13,25 +14,33 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { getActivityIcon, formatActivityDate, dayAbbrev } from '../constants/activityIcons';
-import { getActivity, updateActivity } from '../services/api';
-import type { ActivityDetail, UpdateActivityInput } from '../services/api';
+import { getActivity, updateActivity, createActivity } from '../services/api';
+import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import { useProgram } from '../contexts/ProgramContext';
 
+const ACTIVITY_TYPES = [
+  'Easy Run', 'Interval Run', 'Long Run',
+  'Strength Training', 'Swim', 'Cycling',
+  'Mobility', 'Yoga', 'Rest', 'Drill',
+];
+
 export default function ActivityDetailScreen({ route, navigation }: any) {
-  const { activityId } = route.params;
+  const { activityId, weekId, dayOfWeek: createDayOfWeek, programId: createProgramId } = route.params ?? {};
+  const isCreateMode = !activityId;
   const { refreshUpcoming } = useProgram();
 
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isCreateMode);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit mode state
-  const [editing, setEditing] = useState(false);
+  // Edit / create state
+  const [editing, setEditing] = useState(isCreateMode);
+  const [editActivityType, setEditActivityType] = useState('Easy Run');
   const [editPrescription, setEditPrescription] = useState<Record<string, any>>({});
   const [editNotes, setEditNotes] = useState('');
-  const [editDayOfWeek, setEditDayOfWeek] = useState(0);
+  const [editDayOfWeek, setEditDayOfWeek] = useState<number>(createDayOfWeek ?? 1);
   const [saving, setSaving] = useState(false);
 
   const fetchActivity = useCallback(async () => {
@@ -48,12 +57,13 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
   }, [activityId]);
 
   useEffect(() => {
-    fetchActivity();
-  }, [fetchActivity]);
+    if (!isCreateMode) fetchActivity();
+  }, [isCreateMode, fetchActivity]);
 
   const enterEditMode = () => {
     const doEdit = () => {
       if (!activity) return;
+      setEditActivityType(activity.activity_type);
       setEditPrescription({ ...activity.prescription });
       setEditNotes(activity.notes || '');
       setEditDayOfWeek(activity.day_of_week);
@@ -76,22 +86,16 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
     }
   };
 
-  const cancelEdit = () => {
-    setEditing(false);
-  };
-
   const saveEdit = async () => {
     if (!activity) return;
     setSaving(true);
     try {
       const input: UpdateActivityInput = {};
-
       if (JSON.stringify(editPrescription) !== JSON.stringify(activity.prescription)) {
         input.prescription = editPrescription;
       }
       const newNotes = editNotes.trim();
-      const oldNotes = (activity.notes || '').trim();
-      if (newNotes !== oldNotes) {
+      if (newNotes !== (activity.notes || '').trim()) {
         input.notes = newNotes;
       }
       if (editDayOfWeek !== activity.day_of_week) {
@@ -109,11 +113,29 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
       refreshUpcoming();
     } catch (e: any) {
       const msg = e.message || 'Failed to save changes';
-      if (Platform.OS === 'web') {
-        window.alert(msg);
-      } else {
-        Alert.alert('Error', msg);
-      }
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Error', msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveCreate = async () => {
+    setSaving(true);
+    try {
+      const input: CreateActivityInput = {
+        day_of_week: editDayOfWeek,
+        activity_type: editActivityType,
+        prescription: Object.keys(editPrescription).length > 0 ? editPrescription : undefined,
+        notes: editNotes.trim() || undefined,
+      };
+      await createActivity(createProgramId, weekId, input);
+      refreshUpcoming();
+      navigation.goBack();
+    } catch (e: any) {
+      const msg = e.message || 'Failed to create activity';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Error', msg);
     } finally {
       setSaving(false);
     }
@@ -127,7 +149,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
     );
   }
 
-  if (error || !activity) {
+  if (error || (!isCreateMode && !activity)) {
     return (
       <View style={styles.center}>
         <Ionicons name="alert-circle-outline" size={48} color={Colors.textSecondary} />
@@ -139,123 +161,177 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
     );
   }
 
-  const icon = getActivityIcon(activity.activity_type);
+  const icon = getActivityIcon(isCreateMode ? editActivityType : activity!.activity_type);
+  const currentActivityType = isCreateMode ? editActivityType : activity!.activity_type;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.iconCircle}>
-          <Ionicons name={icon} size={32} color={Colors.primary} />
-        </View>
-        <Text style={styles.activityType}>{activity.activity_type}</Text>
-        <Text style={styles.date}>{formatActivityDate(activity.date)}</Text>
-        <View style={styles.contextRow}>
-          <View style={styles.contextBadge}>
-            <Text style={styles.contextBadgeText}>{activity.phase_name}</Text>
+    <KeyboardAvoidingView
+      style={styles.kavContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+    >
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        {!isCreateMode && activity && (
+          <View style={styles.header}>
+            <View style={styles.iconCircle}>
+              <Ionicons name={icon} size={32} color={Colors.primary} />
+            </View>
+            <Text style={styles.activityType}>{activity.activity_type}</Text>
+            <Text style={styles.date}>{formatActivityDate(activity.date)}</Text>
+            <View style={styles.contextRow}>
+              <View style={styles.contextBadge}>
+                <Text style={styles.contextBadgeText}>{activity.phase_name}</Text>
+              </View>
+              <Text style={styles.contextSep}>·</Text>
+              <Text style={styles.contextText}>Week {activity.week_number}</Text>
+            </View>
+            <Text style={styles.programName}>{activity.program_name}</Text>
           </View>
-          <Text style={styles.contextSep}>-</Text>
-          <Text style={styles.contextText}>Week {activity.week_number}</Text>
-        </View>
-        <Text style={styles.programName}>{activity.program_name}</Text>
-      </View>
+        )}
 
-      {/* Day of Week (edit mode) */}
-      {editing && (
+        {/* Day of Week (visible in edit and create mode) */}
+        {editing && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Day of Week</Text>
+            <View style={styles.dayPicker}>
+              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                <Pressable
+                  key={i}
+                  style={[styles.dayButton, editDayOfWeek === i && styles.dayButtonActive]}
+                  onPress={() => setEditDayOfWeek(i)}
+                >
+                  <Text style={[styles.dayButtonText, editDayOfWeek === i && styles.dayButtonTextActive]}>
+                    {dayAbbrev(i)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Activity Type picker (create mode only) */}
+        {isCreateMode && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Activity Type</Text>
+            <View style={styles.typePicker}>
+              {ACTIVITY_TYPES.map((type) => (
+                <Pressable
+                  key={type}
+                  style={[styles.typeChip, editActivityType === type && styles.typeChipActive]}
+                  onPress={() => {
+                    setEditActivityType(type);
+                    setEditPrescription({});
+                  }}
+                >
+                  <Ionicons
+                    name={getActivityIcon(type)}
+                    size={14}
+                    color={editActivityType === type ? '#FFF' : Colors.textSecondary}
+                  />
+                  <Text style={[styles.typeChipText, editActivityType === type && styles.typeChipTextActive]}>
+                    {type}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Prescription */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Day of Week</Text>
-          <View style={styles.dayPicker}>
-            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-              <Pressable
-                key={i}
-                style={[styles.dayButton, editDayOfWeek === i && styles.dayButtonActive]}
-                onPress={() => setEditDayOfWeek(i)}
-              >
-                <Text style={[styles.dayButtonText, editDayOfWeek === i && styles.dayButtonTextActive]}>
-                  {dayAbbrev(i)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={styles.cardTitle}>Prescription</Text>
+          {editing ? (
+            <PrescriptionEditor
+              activityType={currentActivityType}
+              prescription={editPrescription}
+              onChange={setEditPrescription}
+            />
+          ) : (
+            <PrescriptionDisplay
+              activityType={activity!.activity_type}
+              prescription={activity!.prescription}
+            />
+          )}
         </View>
-      )}
 
-      {/* Prescription */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Prescription</Text>
-        {editing ? (
-          <PrescriptionEditor
-            activityType={activity.activity_type}
-            prescription={editPrescription}
-            onChange={setEditPrescription}
-          />
-        ) : (
-          <PrescriptionDisplay
-            activityType={activity.activity_type}
-            prescription={activity.prescription}
-          />
-        )}
-      </View>
+        {/* Notes */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Notes</Text>
+          {editing ? (
+            <TextInput
+              style={styles.notesInput}
+              value={editNotes}
+              onChangeText={setEditNotes}
+              multiline
+              placeholder="Add notes..."
+              placeholderTextColor="#BBB"
+              textAlignVertical="top"
+            />
+          ) : (
+            <Text style={styles.notesText}>
+              {activity!.notes || 'No notes'}
+            </Text>
+          )}
+        </View>
 
-      {/* Notes */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Notes</Text>
-        {editing ? (
-          <TextInput
-            style={styles.notesInput}
-            value={editNotes}
-            onChangeText={setEditNotes}
-            multiline
-            placeholder="Add notes..."
-            placeholderTextColor="#BBB"
-          />
-        ) : (
-          <Text style={styles.notesText}>
-            {activity.notes || 'No notes'}
-          </Text>
-        )}
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actions}>
-        {editing ? (
-          <>
-            <Pressable
-              style={[styles.actionButton, styles.saveButton]}
-              onPress={saveEdit}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#FFF" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark" size={18} color="#FFF" />
-                  <Text style={styles.actionButtonTextLight}>Save Changes</Text>
-                </>
+        {/* Action Buttons */}
+        <View style={styles.actions}>
+          {editing ? (
+            <>
+              <Pressable
+                style={[styles.actionButton, styles.saveButton]}
+                onPress={isCreateMode ? saveCreate : saveEdit}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color="#FFF" />
+                    <Text style={styles.actionButtonTextLight}>
+                      {isCreateMode ? 'Add Activity' : 'Save Changes'}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+              {!isCreateMode && (
+                <Pressable
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={() => setEditing(false)}
+                  disabled={saving}
+                >
+                  <Text style={styles.actionButtonTextDark}>Cancel</Text>
+                </Pressable>
               )}
-            </Pressable>
-            <Pressable style={[styles.actionButton, styles.cancelButton]} onPress={cancelEdit} disabled={saving}>
-              <Text style={styles.actionButtonTextDark}>Cancel</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <Pressable style={[styles.actionButton, styles.primaryButton]} disabled>
-              <Ionicons name="play" size={18} color="#FFF" />
-              <Text style={styles.actionButtonTextLight}>Record This Activity</Text>
-            </Pressable>
-            <Pressable style={[styles.actionButton, styles.editButton]} onPress={enterEditMode}>
-              <Ionicons name="pencil" size={18} color={Colors.primary} />
-              <Text style={[styles.actionButtonTextDark, { color: Colors.primary }]}>Edit</Text>
-            </Pressable>
-          </>
-        )}
-      </View>
-    </ScrollView>
+            </>
+          ) : (
+            <>
+              <Pressable style={[styles.actionButton, styles.primaryButton]} disabled>
+                <Ionicons name="play" size={18} color="#FFF" />
+                <Text style={styles.actionButtonTextLight}>Record This Activity</Text>
+              </Pressable>
+              <Pressable style={[styles.actionButton, styles.editButton]} onPress={enterEditMode}>
+                <Ionicons name="pencil" size={18} color={Colors.primary} />
+                <Text style={[styles.actionButtonTextDark, { color: Colors.primary }]}>Edit</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  kavContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
@@ -362,22 +438,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 12,
   },
-  notesInput: {
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    color: Colors.textPrimary,
-    minHeight: 80,
-    textAlignVertical: 'top',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  notesText: {
-    fontSize: 14,
-    color: Colors.textPrimary,
-    lineHeight: 20,
-  },
   dayPicker: {
     flexDirection: 'row',
     gap: 6,
@@ -399,6 +459,47 @@ const styles = StyleSheet.create({
   },
   dayButtonTextActive: {
     color: '#FFF',
+  },
+  typePicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#F0F0F0',
+  },
+  typeChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  typeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  typeChipTextActive: {
+    color: '#FFF',
+  },
+  notesInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: Colors.textPrimary,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  notesText: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+    lineHeight: 20,
   },
   actions: {
     gap: 10,

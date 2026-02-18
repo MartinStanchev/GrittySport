@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { Colors } from '../constants/colors';
@@ -51,8 +51,10 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const keyboardHeight = useKeyboardHeight();
-  const { activeProgram, upcomingActivities, refreshProgram, refreshUpcoming } =
-    useProgram();
+  const {
+    activeProgram, upcomingActivities, refreshProgram, refreshUpcoming,
+    openChatRequest, clearOpenChatRequest,
+  } = useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatContext, setChatContext] = useState<string>('free_chat');
@@ -211,6 +213,17 @@ export default function HomeScreen() {
       );
     }
   }, [clearChat]);
+
+  // Auto-open chat when another screen requests it (e.g. after saving program edits)
+  useFocusEffect(
+    useCallback(() => {
+      if (openChatRequest) {
+        clearOpenChatRequest();
+        setChatContext(openChatRequest);
+        setChatOpen(true);
+      }
+    }, [openChatRequest, clearOpenChatRequest]),
+  );
 
   const inputBottomPadding = keyboardHeight > 0 ? 4 : Math.max(insets.bottom, 8);
 
