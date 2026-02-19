@@ -99,6 +99,9 @@ func main() {
 	programHandler := handlers.NewProgramHandler(programService, chatService)
 	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, chatMemoryEnabled)
 
+	workoutService := services.NewWorkoutService(pool)
+	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
@@ -125,15 +128,22 @@ func main() {
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Get("/chat/history", chatHandler.History)
+		r.Delete("/chat/memory", chatHandler.ClearMemory)
 
 		r.Get("/programs", programHandler.List)
 		r.Get("/programs/{id}", programHandler.Get)
 		r.Put("/programs/{id}", programHandler.Update)
+		r.Delete("/programs/{id}", programHandler.Delete)
 		r.Get("/programs/{id}/criteria", programHandler.GetCriteria)
 		r.Put("/programs/{id}/criteria", programHandler.UpdateCriteria)
 		r.Get("/activities/upcoming", programHandler.GetUpcoming)
 		r.Get("/activities/{activityId}", programHandler.GetActivity)
+		r.Post("/programs/{id}/weeks/{weekId}/activities", programHandler.CreateActivity)
 		r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
+
+		r.Post("/workouts", workoutHandler.Create)
+		r.Get("/workouts", workoutHandler.List)
+		r.Get("/workouts/{workoutId}", workoutHandler.Get)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

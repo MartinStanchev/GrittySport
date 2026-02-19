@@ -51,3 +51,16 @@ export function formatActivityDate(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
+
+const MANUAL_ACTIVITY_TYPES = ['strength', 'mobility', 'drill', 'yoga', 'recovery'];
+const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'swim', 'cycling', 'bike'];
+
+export function isManualActivity(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  return MANUAL_ACTIVITY_TYPES.some((t) => normalized.includes(t));
+}
+
+export function isGPSActivity(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  return GPS_ACTIVITY_TYPES.some((t) => normalized.includes(t));
+}

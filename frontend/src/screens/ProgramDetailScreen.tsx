@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   ScrollView,
@@ -14,12 +15,13 @@ import { Colors } from '../constants/colors';
 import {
   getActivityIcon,
   formatPrescriptionSummary,
+  isManualActivity,
+  dayAbbrev,
 } from '../constants/activityIcons';
-import { getProgram } from '../services/api';
+import { getProgram, deleteProgram, clearChatMemory } from '../services/api';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { useProgram } from '../contexts/ProgramContext';
 
 type FlatWeek = {
   id: string;
@@ -57,6 +59,7 @@ function formatDate(dateStr?: string) {
 export default function ProgramDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { programId } = route.params;
+  const { refreshProgram } = useProgram();
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
@@ -76,9 +79,49 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     }
   }, [programId, navigation]);
 
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      'Delete Program',
+      'This will permanently delete the program and all its data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteProgram(programId);
+              await refreshProgram();
+              // Offer to clear Grit's memory after deletion
+              Alert.alert(
+                "Clear Grit's Memory?",
+                "Grit may still remember details from this program. Clear his coaching memory so he starts fresh?",
+                [
+                  { text: 'Keep Memory', style: 'cancel', onPress: () => navigation.goBack() },
+                ]);
+            } catch {
+              Alert.alert('Error', 'Failed to delete program');
+            }
+          },
+        },
+      ],
+    );
+  }, [programId, navigation, refreshProgram]);
+
   useEffect(() => {
     fetchProgram();
   }, [fetchProgram]);
+
+  // Set delete button in header once program name is loaded
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={handleDelete} hitSlop={8} style={{ marginRight: 4 }}>
+          <Ionicons name="trash-outline" size={20} color={Colors.primary} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, handleDelete]);
 
   const flatWeeks = useMemo<FlatWeek[]>(() => {
     if (!program) return [];
@@ -264,9 +307,11 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
               <WeekView
                 week={selectedWeek}
                 today={today}
-                programId={programId}
                 onActivityPress={(activityId: string) =>
                   navigation.navigate('ActivityDetail', { activityId })
+                }
+                onRecordActivity={(activityId: string, activityType: string) =>
+                  navigation.navigate('RecordManual', { scheduledActivityId: activityId, activityType })
                 }
                 onAddActivity={(weekId: string, dayOfWeek: number) =>
                   navigation.navigate('ActivityDetail', {
@@ -297,12 +342,12 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
 type WeekViewProps = {
   week: FlatWeek;
   today: Date;
-  programId: string;
   onActivityPress: (activityId: string) => void;
+  onRecordActivity: (activityId: string, activityType: string) => void;
   onAddActivity: (weekId: string, dayOfWeek: number) => void;
 };
 
-function WeekView({ week, today, onActivityPress, onAddActivity }: WeekViewProps) {
+function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivity }: WeekViewProps) {
   const byDay = useMemo<Map<number, ScheduledActivityResponse>>(() => {
     const map = new Map<number, ScheduledActivityResponse>();
     for (const a of week.activities) {
@@ -337,12 +382,13 @@ function WeekView({ week, today, onActivityPress, onAddActivity }: WeekViewProps
         return (
           <DayRow
             key={dayIndex}
-            dayName={DAY_NAMES[dayIndex]}
+            dayName={dayAbbrev(dayIndex)}
             dayDate={dayDate}
             activity={activity}
             isToday={isToday}
             isPast={isPast}
             onPress={activity ? () => onActivityPress(activity.id) : undefined}
+            onRecord={activity && isManualActivity(activity.activity_type) ? () => onRecordActivity(activity.id, activity.activity_type) : undefined}
             onAdd={() => onAddActivity(week.id, dayIndex)}
           />
         );
@@ -360,10 +406,11 @@ type DayRowProps = {
   isToday: boolean;
   isPast: boolean;
   onPress?: () => void;
+  onRecord?: () => void;
   onAdd: () => void;
 };
 
-function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onAdd }: DayRowProps) {
+function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onRecord, onAdd }: DayRowProps) {
   const dateNum = dayDate.getDate();
 
   return (
@@ -414,6 +461,11 @@ function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onAdd }:
               {formatPrescriptionSummary(activity.prescription)}
             </Text>
           </View>
+          {onRecord && (
+            <Pressable onPress={onRecord} hitSlop={10} style={styles.recordIconBtn}>
+              <Ionicons name="play-circle-outline" size={20} color={Colors.primary} />
+            </Pressable>
+          )}
           <Ionicons
             name="chevron-forward"
             size={14}
@@ -683,5 +735,9 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: 2,
+  },
+  recordIconBtn: {
+    padding: 4,
+    marginRight: 4,
   },
 });

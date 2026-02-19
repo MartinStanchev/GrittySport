@@ -357,6 +357,14 @@ export async function updateProgram(
   });
 }
 
+export async function deleteProgram(id: string): Promise<void> {
+  await apiFetch<{ deleted: boolean }>(`/api/v1/programs/${id}`, { method: 'DELETE' });
+}
+
+export async function clearChatMemory(): Promise<void> {
+  await apiFetch<{ cleared: boolean }>('/api/v1/chat/memory', { method: 'DELETE' });
+}
+
 export async function getProgramCriteria(id: string): Promise<CriterionResponse[]> {
   return apiFetch<CriterionResponse[]>(`/api/v1/programs/${id}/criteria`);
 }
@@ -429,4 +437,54 @@ export async function createActivity(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+// Workout types
+
+export interface WorkoutResponse {
+  id: string;
+  user_id: string;
+  scheduled_activity_id?: string;
+  activity_type: string;
+  recorded_data: Record<string, any>;
+  source: string;
+  started_at: string;
+  finished_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveWorkoutInput {
+  scheduled_activity_id?: string;
+  activity_type: string;
+  recorded_data: Record<string, any>;
+  source: 'manual';
+  started_at: string;
+  finished_at?: string;
+  notes?: string;
+}
+
+export async function saveWorkout(input: SaveWorkoutInput): Promise<WorkoutResponse> {
+  return apiFetch<WorkoutResponse>('/api/v1/workouts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getWorkouts(params?: {
+  limit?: number;
+  offset?: number;
+  activity_type?: string;
+}): Promise<WorkoutResponse[]> {
+  const p = new URLSearchParams();
+  if (params?.limit) p.set('limit', String(params.limit));
+  if (params?.offset) p.set('offset', String(params.offset));
+  if (params?.activity_type) p.set('activity_type', params.activity_type);
+  const query = p.toString();
+  return apiFetch<WorkoutResponse[]>(`/api/v1/workouts${query ? `?${query}` : ''}`);
+}
+
+export async function getWorkout(id: string): Promise<WorkoutResponse> {
+  return apiFetch<WorkoutResponse>(`/api/v1/workouts/${id}`);
 }

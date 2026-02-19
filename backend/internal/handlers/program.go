@@ -96,7 +96,11 @@ func (h *ProgramHandler) GetCriteria(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
 	programID := chi.URLParam(r, "id")
+
+	// Fetch old criteria for diff before update
+	oldCriteria, _ := h.programService.GetCriteria(r.Context(), programID)
 
 	var input []models.SaveCriterionInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -110,11 +114,34 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Notify Grit of settings changes
+	if diff := buildCriteriaDiff(oldCriteria, input); diff != "" {
+		content := fmt.Sprintf(
+			"The user manually updated their program settings. Changes: %s. Take this into account in future coaching.",
+			diff,
+		)
+		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, "free_chat", nil, nil)
+	}
+
 	responses := make([]models.ProgramCriterionResponse, len(criteria))
 	for i, c := range criteria {
 		responses[i] = c.ToResponse()
 	}
 	writeJSON(w, http.StatusOK, responses)
+}
+
+func buildCriteriaDiff(old []models.ProgramCriterion, updated []models.SaveCriterionInput) string {
+	oldMap := make(map[string]string, len(old))
+	for _, c := range old {
+		oldMap[c.Key] = c.Value
+	}
+	var changes []string
+	for _, c := range updated {
+		if prev, ok := oldMap[c.Key]; ok && prev != c.Value {
+			changes = append(changes, fmt.Sprintf("%s changed from '%s' to '%s' manually by the user", c.Label, prev, c.Value))
+		}
+	}
+	return strings.Join(changes, ", ")
 }
 
 func (h *ProgramHandler) GetUpcoming(w http.ResponseWriter, r *http.Request) {
@@ -146,6 +173,33 @@ func (h *ProgramHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, activity)
+}
+
+func (h *ProgramHandler) CreateActivity(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	programID := chi.URLParam(r, "id")
+	weekID := chi.URLParam(r, "weekId")
+
+	var input models.SaveActivityInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if input.ActivityType == "" {
+		writeError(w, http.StatusBadRequest, "activity_type is required")
+		return
+	}
+	if input.DayOfWeek < 0 || input.DayOfWeek > 6 {
+		writeError(w, http.StatusBadRequest, "day_of_week must be 0-6")
+		return
+	}
+
+	activity, err := h.programService.CreateActivity(r.Context(), programID, weekID, userID, input)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create activity")
+		return
+	}
+	writeJSON(w, http.StatusCreated, activity)
 }
 
 func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) {
@@ -213,6 +267,21 @@ func buildActivityDiff(old *models.ActivityDetailResponse, input models.UpdateAc
 		changes = append(changes, fmt.Sprintf("type changed from '%s' to '%s'", old.ActivityType, *input.ActivityType))
 	}
 	return strings.Join(changes, ", ")
+}
+
+func (h *ProgramHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	programID := chi.URLParam(r, "id")
+	err := h.programService.DeleteProgram(r.Context(), programID, userID)
+	if err == pgx.ErrNoRows {
+		writeError(w, http.StatusNotFound, "program not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete program")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
 }
 
 func dayName(d int) string {

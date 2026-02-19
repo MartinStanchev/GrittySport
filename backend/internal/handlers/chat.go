@@ -429,3 +429,13 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 		"has_more": hasMore,
 	})
 }
+
+func (h *ChatHandler) ClearMemory(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if err := h.chatService.ClearMemory(r.Context(), userID); err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("Failed to clear chat memory")
+		writeError(w, http.StatusInternalServerError, "failed to clear memory")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"cleared": true})
+}

@@ -416,20 +416,28 @@ func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID strin
 		limit = 5
 	}
 
-	today := time.Now().Format("2006-01-02")
+	// Use start of current week (Monday) so current-week activities always show
+	// even if some days have already passed.
+	now := time.Now()
+	daysToMonday := int(now.Weekday()) - 1
+	if daysToMonday < 0 {
+		daysToMonday = 6 // Sunday
+	}
+	weekStart := now.AddDate(0, 0, -daysToMonday).Format("2006-01-02")
 
 	rows, err := s.pool.Query(ctx,
 		`SELECT sa.id, sa.activity_type, sa.day_of_week, sa.prescription, sa.notes,
 		        w.week_number, ph.name,
-		        w.start_date
+		        COALESCE(w.start_date, p.start_date + ((w.week_number - 1) * 7 || ' days')::interval) AS computed_start
 		 FROM scheduled_activities sa
 		 JOIN weeks w ON w.id = sa.week_id
 		 JOIN phases ph ON ph.id = w.phase_id
 		 JOIN programs p ON p.id = ph.program_id
 		 WHERE p.user_id = $1 AND p.status = 'active'
-		   AND (w.start_date + (sa.day_of_week || ' days')::interval)::date >= $2
-		 ORDER BY w.start_date, sa.day_of_week, sa.order_index
-		 LIMIT $3`, userID, today, limit)
+		   AND (COALESCE(w.start_date, p.start_date + ((w.week_number - 1) * 7 || ' days')::interval)
+		        + (sa.day_of_week || ' days')::interval)::date >= $2
+		 ORDER BY computed_start, sa.day_of_week, sa.order_index
+		 LIMIT $3`, userID, weekStart, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -438,14 +446,11 @@ func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID strin
 	var activities []models.UpcomingActivityResponse
 	for rows.Next() {
 		var a models.UpcomingActivityResponse
-		var weekStartDate *time.Time
-		if err := rows.Scan(&a.ID, &a.ActivityType, &a.DayOfWeek, &a.Prescription, &a.Notes, &a.WeekNumber, &a.PhaseName, &weekStartDate); err != nil {
+		var computedStart time.Time
+		if err := rows.Scan(&a.ID, &a.ActivityType, &a.DayOfWeek, &a.Prescription, &a.Notes, &a.WeekNumber, &a.PhaseName, &computedStart); err != nil {
 			return nil, err
 		}
-		if weekStartDate != nil {
-			actDate := weekStartDate.AddDate(0, 0, a.DayOfWeek)
-			a.Date = actDate.Format("2006-01-02")
-		}
+		a.Date = computedStart.AddDate(0, 0, a.DayOfWeek).Format("2006-01-02")
 		activities = append(activities, a)
 	}
 	if activities == nil {
@@ -517,6 +522,44 @@ func (s *ProgramService) GetActivityDetail(ctx context.Context, activityID strin
 	return &a, nil
 }
 
+func (s *ProgramService) CreateActivity(ctx context.Context, programID, weekID, userID string, input models.SaveActivityInput) (*models.ActivityDetailResponse, error) {
+	var ownerID string
+	err := s.pool.QueryRow(ctx,
+		`SELECT p.user_id FROM weeks w
+		 JOIN phases ph ON ph.id = w.phase_id
+		 JOIN programs p ON p.id = ph.program_id
+		 WHERE w.id = $1 AND p.id = $2`, weekID, programID,
+	).Scan(&ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("week not found in program: %w", err)
+	}
+	if ownerID != userID {
+		return nil, fmt.Errorf("unauthorized")
+	}
+
+	var orderIndex int
+	_ = s.pool.QueryRow(ctx,
+		`SELECT COALESCE(MAX(order_index) + 1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
+		weekID, input.DayOfWeek,
+	).Scan(&orderIndex)
+
+	prescription := input.Prescription
+	if prescription == nil {
+		prescription = json.RawMessage("{}")
+	}
+
+	var activityID string
+	if err = s.pool.QueryRow(ctx,
+		`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		weekID, input.DayOfWeek, input.ActivityType, prescription, nilIfEmpty(input.Notes), orderIndex,
+	).Scan(&activityID); err != nil {
+		return nil, fmt.Errorf("create activity: %w", err)
+	}
+
+	return s.GetActivityDetail(ctx, activityID)
+}
+
 func (s *ProgramService) UpdateActivity(ctx context.Context, programID, activityID, userID string, input models.UpdateActivityInput) (*models.ActivityDetailResponse, error) {
 	// Verify ownership: activity belongs to program belongs to user
 	var ownerID string
@@ -551,6 +594,18 @@ func (s *ProgramService) UpdateActivity(ctx context.Context, programID, activity
 	}
 
 	return s.GetActivityDetail(ctx, activityID)
+}
+
+func (s *ProgramService) DeleteProgram(ctx context.Context, programID, userID string) error {
+	result, err := s.pool.Exec(ctx,
+		`DELETE FROM programs WHERE id = $1 AND user_id = $2`, programID, userID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func nilIfEmpty(s string) *string {

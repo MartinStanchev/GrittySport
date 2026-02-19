@@ -91,6 +91,47 @@
 - Frontend: Shared utilities extracted to `activityIcons.ts` (icon mapping, formatPrescriptionSummary, dayAbbrev, formatActivityDate)
 - **Code simplification pass:** Removed duplicated DAY_NAMES/DAY_LABELS and formatPrescription from ProgramDetailScreen and ActivityDetailScreen in favor of shared activityIcons.ts utilities. Simplified UpcomingActivityCard Pressable wrapping. Removed unused parameter from Go buildActivityDiff function
 
+## Training Plan UX Overhaul + Program Editing Improvements — Done
+- **Bug fix: Upcoming activities not showing** — `GetUpcomingActivities` SQL query now uses `COALESCE(w.start_date, p.start_date + ((week_number-1)*7 days))` to handle NULL week start dates (AI often omits them). Threshold changed from "today" to "start of current week" (Monday) so current-week activities always appear.
+- **Training plan view redesign** — `ProgramDetailScreen` now shows a horizontal scrollable week selector (pills with W1…Wn + date) that auto-scrolls to the current week. Below it, a day-by-day (Mon–Sun) view shows each day's activity icon, type, and prescription summary; today is highlighted; past days are greyed; rest days shown explicitly. Activities are tappable → `ActivityDetailScreen`.
+- **Criteria edits notify Grit** — `PUT /api/v1/programs/:id/criteria` now fetches old criteria before saving, builds a diff, and inserts a `system` chat message so Grit is aware of changed settings.
+- **Post-edit chat redirect** — After saving criteria edits or activity edits, the app navigates to the Home tab and auto-opens the Grit chat (via `openChatRequest` state in `ProgramContext` + `useFocusEffect` in `HomeScreen`). Grit has already received a system message about the change.
+- **Deviation:** No schema changes — activity dates in the training plan are derived on the frontend from `week.start_date` (or program start + week offset), avoiding a backend migration.
+
+## Task 8: Activity Recording — Manual Logging — Done
+- **Migration** `007_create_workouts.sql`: `workouts` table with `recorded_data JSONB`, `source` (manual/gps/garmin/apple_health), timestamps, indexes
+- **Backend**: `models/workout.go` (Workout + SaveWorkoutInput), `services/workout.go` (Create/GetByID/ListByUser with extracted `workoutColumns` + `scanWorkout` helpers), `handlers/workout.go` (POST/GET /api/v1/workouts, GET /api/v1/workouts/{workoutId})
+- **RecordManualScreen**: Two-phase screen (type-select → recording → summary). Activity type selector for free-form workouts; prescription pre-fill when linked via `scheduledActivityId`. Strength form: exercise list with sets/reps/weight/RPE, checkmarks, rest timer modal. Mobility form: per-exercise countdown timers with play/pause/complete. Drill form: name, description, free-text notes. Summary phase shows logged data with notes field + Save/Discard.
+- **HistoryScreen**: Replaced placeholder with real FlatList of workouts from `GET /api/v1/workouts`, showing icon, type, date, duration, key stat (sets for strength, completion for mobility). Pull-to-refresh + empty state.
+- **Entry points**: (1) HomeScreen program card "Log Workout" outline button; (2) HomeScreen FAB "+" (bottom-right, above chat bar); (3) UpcomingActivityCard "Log" pill button (manual types) / disabled "GPS" pill (GPS types); (4) ActivityDetailScreen "Record This Activity" button (enabled for manual, "Coming Soon" alert for GPS); (5) ProgramDetailScreen day view record icon on each manual activity row.
+- **Helpers**: `isManualActivity()` and `isGPSActivity()` added to `activityIcons.ts`; `WorkoutResponse`/`SaveWorkoutInput` interfaces + `saveWorkout`/`getWorkouts`/`getWorkout` functions added to `api.ts`. `RecordManual` route added to both `HomeStackNavigator` and `ProgramsStackNavigator`.
+- **Code simplifier**: Removed duplicate `WorkoutResponse` model (identical to `Workout`); extracted `workoutColumns` const and `scanWorkout` helper in service; removed local `DAY_NAMES` from ProgramDetailScreen (now uses shared `dayAbbrev()`); `inferWorkoutType` moved to module scope; removed empty style objects.
+- **Deviation**: Migration is `007_create_workouts.sql` (not `006` as in task spec — `006` is already taken by chat memory).
+
+## Bug Fixes: Task 8 Post-Implementation — Done
+- **WorkoutContext** (`contexts/WorkoutContext.tsx`): Global workout state (ActiveWorkout, ExerciseLog, MobilityExerciseLog types) — moves all workout state out of RecordManualScreen so it persists across navigation
+- **ActiveWorkoutBanner** (`components/ActiveWorkoutBanner.tsx`): Persistent banner at app top during recording — shows elapsed timer (derived from `startedAt`, accurate after nav away), taps to return via `navigationRef`
+- **App.tsx**: Added `WorkoutProvider` + `navigationRef`, `ActiveWorkoutBanner` rendered above `BottomTabNavigator`
+- **RecordManualScreen rewrite**: All workout state now from `WorkoutContext`; timer bar hidden during type-select phase (was shown twice redundantly); resumes existing workout on mount if context has one
+- **HomeScreen scroll + FAB fix**: Wrapped header + comingUp in `ScrollView` to restore scrollability; FAB moved from `position: absolute` (floating too high) to inline `fabRow` View directly above chat bar, right-aligned
+
+## Program Delete in Detail View + Grit Memory Management — Done
+- **Backend**: `ClearMemory` service method + `DELETE /api/v1/chat/memory` endpoint wipes all `chat_memory` rows for a user. `clearChatMemory()` added to `api.ts`.
+- **ProgramDetailScreen**: Trash icon in header (set via `navigation.setOptions` headerRight). Tapping shows delete confirmation; after deletion refreshes ProgramContext and offers "Clear Grit's Memory?" prompt so Grit starts fresh with the new program.
+- **ProgramsScreen**: Delete flow now also calls `offerMemoryClear()` after successful deletion.
+- **SettingsScreen**: New "Grit AI" section with "Clear Grit's Memory" button + explanation text + confirmation dialog. Memory is gated (feature flag) but the clear endpoint always works.
+- **Architecture note**: `chat_memory` is per `(user_id, context)`, not per-program — clearing all memory is the correct approach when a program is deleted, since summaries may reference program-specific details that would mislead Grit after deletion.
+
+## Log Activity + Workout Detail + Delete Program — Done
+- **Backend**: `DeleteProgram` service method + `Delete` handler (`DELETE /api/v1/programs/{id}`, returns 200+JSON); cascades to child tables via DB constraints. `deleteProgram()` added to `api.ts`.
+- **LogActivityScreen** (`screens/LogActivityScreen.tsx`): Form-based (no live timer) after-the-fact activity logger. Step 1: type picker (run/cycling/swim/strength/mobility/drill). Step 2: date (prev/next day arrows), duration (hours+minutes), type-specific fields (distance+auto-pace for run, distance+speed for cycling, distance+laps for swim, exercise list for strength, mobility exercise list), and notes. Saves via `saveWorkout()`.
+- **WorkoutDetailScreen** (`screens/WorkoutDetailScreen.tsx`): Read-only view of a saved workout. Shows icon, type label, date, duration, and type-specific data (run stats, cycling stats, swim stats, strength exercise+sets table, mobility exercise list with completion). Uses `normalizeActivityType()` helper to avoid duplicate branch logic.
+- **HistoryStackNavigator** (`navigation/HistoryStackNavigator.tsx`): New stack wrapping HistoryScreen + WorkoutDetailScreen + LogActivityScreen. `BottomTabNavigator` updated to use this instead of bare HistoryScreen.
+- **HistoryScreen**: Each workout row now wrapped in `Pressable` → `WorkoutDetail`. Added "+" header button → `LogActivity`. Focus listener refreshes list on return from child screens.
+- **HomeStackNavigator**: Added `LogActivity` screen. FAB "+" now shows Alert with "Record Workout (Live)" vs "Log Past Activity" options.
+- **ProgramsScreen**: Long-press context menu now includes "Delete" (destructive) in both active and archived states; calls `deleteProgram()` with nested confirmation alert.
+- **Code simplifier**: `buildRecordedData` signature simplified to take pre-computed `dist`/`durationSec`; `normalizeActivityType` extracted in WorkoutDetailScreen to deduplicate branch logic; `formatDateRange` moved to module scope in ProgramsScreen; long-press options array consolidated; HistoryScreen initial `useEffect` load removed (focus listener handles both initial and subsequent loads).
+
 ## Bug Fixes: Chat Keyboard, Typing Indicator, Multiple Programs — Done
 - **Keyboard/scroll (mobile):** Replaced manual `paddingBottom` root container with `KeyboardAvoidingView` (`behavior="padding"` on iOS, `"height"` on Android). Changed `keyboardDismissMode` from `"on-drag"` to `"none"` — keyboard no longer closes when scrolling through messages. Bottom padding moved to input container only.
 - **Unified typing indicator:** Removed the two-state dots/spinner switch. Now always shows a single `ActivityIndicator` with a dynamic label ("Thinking..." when idle, tool name label during tool calls). Eliminates the flickering component swap between tool phases.

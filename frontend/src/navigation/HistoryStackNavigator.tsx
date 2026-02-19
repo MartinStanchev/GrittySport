@@ -1,13 +1,12 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from '../screens/HomeScreen';
-import ActivityDetailScreen from '../screens/ActivityDetailScreen';
-import RecordManualScreen from '../screens/RecordManualScreen';
+import HistoryScreen from '../screens/HistoryScreen';
+import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import LogActivityScreen from '../screens/LogActivityScreen';
 import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
 
-export default function HomeStackNavigator() {
+export default function HistoryStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -16,19 +15,14 @@ export default function HomeStackNavigator() {
       }}
     >
       <Stack.Screen
-        name="HomeMain"
-        component={HomeScreen}
+        name="HistoryMain"
+        component={HistoryScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="ActivityDetail"
-        component={ActivityDetailScreen}
-        options={{ title: 'Activity' }}
-      />
-      <Stack.Screen
-        name="RecordManual"
-        component={RecordManualScreen}
-        options={{ title: 'Log Workout', headerBackTitle: 'Back' }}
+        name="WorkoutDetail"
+        component={WorkoutDetailScreen}
+        options={{ title: 'Workout' }}
       />
       <Stack.Screen
         name="LogActivity"

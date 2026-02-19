@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { getActivityIcon, formatActivityDate, dayAbbrev } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
@@ -311,7 +311,17 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
             </>
           ) : (
             <>
-              <Pressable style={[styles.actionButton, styles.primaryButton]} disabled>
+              <Pressable
+                style={[styles.actionButton, styles.primaryButton, activity && !isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type) && styles.actionButtonDisabled]}
+                onPress={() => {
+                  if (!activity) return;
+                  if (isManualActivity(activity.activity_type)) {
+                    navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type });
+                  } else if (isGPSActivity(activity.activity_type)) {
+                    Alert.alert('Coming Soon', 'GPS workout tracking will be available in a future update.');
+                  }
+                }}
+              >
                 <Ionicons name="play" size={18} color="#FFF" />
                 <Text style={styles.actionButtonTextLight}>Record This Activity</Text>
               </Pressable>
@@ -515,7 +525,9 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: Colors.primary,
-    opacity: 0.5,
+  },
+  actionButtonDisabled: {
+    opacity: 0.4,
   },
   editButton: {
     backgroundColor: '#FEE2E5',

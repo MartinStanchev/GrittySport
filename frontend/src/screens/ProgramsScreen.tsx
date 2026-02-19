@@ -11,9 +11,18 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { getPrograms, updateProgram } from '../services/api';
+import { getPrograms, updateProgram, deleteProgram, clearChatMemory } from '../services/api';
 import type { ProgramSummary } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
+
+function formatDateRange(start: string, end?: string): string {
+  const s = new Date(start + 'T00:00:00');
+  const startStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (!end) return `${startStr} — ongoing`;
+  const e = new Date(end + 'T00:00:00');
+  const endStr = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return `${startStr} — ${endStr}`;
+}
 
 interface ProgramsScreenProps {
   navigation: any;
@@ -90,14 +99,49 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     [fetchPrograms, refreshProgram],
   );
 
-  const formatDateRange = (start: string, end?: string) => {
-    const s = new Date(start + 'T00:00:00');
-    const startStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (!end) return `${startStr} — ongoing`;
-    const e = new Date(end + 'T00:00:00');
-    const endStr = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return `${startStr} — ${endStr}`;
-  };
+  const offerMemoryClear = useCallback(() => {
+    Alert.alert(
+      "Clear Grit's Memory?",
+      "Grit may still remember details from this program. Clear his coaching memory so he starts fresh?",
+      [
+        { text: 'Keep Memory', style: 'cancel' },
+        {
+          text: 'Clear Memory',
+          style: 'destructive',
+          onPress: async () => {
+            try { await clearChatMemory(); } catch { /* non-critical */ }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const handleDelete = useCallback(
+    (programId: string) => {
+      Alert.alert(
+        'Delete Program',
+        'This will permanently delete the program and all its data. This cannot be undone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await deleteProgram(programId);
+                await fetchPrograms();
+                await refreshProgram();
+                offerMemoryClear();
+              } catch {
+                Alert.alert('Error', 'Failed to delete program');
+              }
+            },
+          },
+        ],
+      );
+    },
+    [fetchPrograms, refreshProgram, offerMemoryClear],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: ProgramSummary }) => (
@@ -105,15 +149,13 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         style={styles.programCard}
         onPress={() => navigation.navigate('ProgramDetail', { programId: item.id })}
         onLongPress={() => {
-          if (item.status === 'active') {
-            handleArchive(item.id);
-          } else {
-            Alert.alert('Program Options', undefined, [
-              { text: 'Set as Active', onPress: () => handleSetActive(item.id) },
-              { text: 'Archive', style: 'destructive', onPress: () => handleArchive(item.id) },
-              { text: 'Cancel', style: 'cancel' },
-            ]);
-          }
+          const options = [
+            ...(item.status !== 'active' ? [{ text: 'Set as Active', onPress: () => handleSetActive(item.id) }] : []),
+            { text: 'Archive', style: 'destructive' as const, onPress: () => handleArchive(item.id) },
+            { text: 'Delete', style: 'destructive' as const, onPress: () => handleDelete(item.id) },
+            { text: 'Cancel', style: 'cancel' as const },
+          ];
+          Alert.alert('Program Options', undefined, options);
         }}
       >
         <View style={styles.programCardHeader}>
@@ -133,7 +175,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         <Text style={styles.programDates}>{formatDateRange(item.start_date, item.end_date)}</Text>
       </Pressable>
     ),
-    [navigation, handleSetActive, handleArchive],
+    [navigation, handleSetActive, handleArchive, handleDelete],
   );
 
   if (loading) {

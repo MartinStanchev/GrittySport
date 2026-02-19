@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { clearChatMemory } from '../services/api';
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser } = useAuth();
@@ -110,6 +111,40 @@ export default function SettingsScreen() {
           <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </TouchableOpacity>
 
+        <Text style={styles.sectionHeader}>Grit AI</Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>Coaching Memory</Text>
+          <Text style={styles.helpText}>
+            Grit remembers key details from past conversations to personalise coaching. Clearing memory resets this.
+          </Text>
+          <TouchableOpacity
+            style={styles.clearMemoryButton}
+            onPress={() =>
+              Alert.alert(
+                "Clear Grit's Memory",
+                "This will erase all of Grit's coaching memory. He won't remember past conversations or program details. Continue?",
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Clear Memory',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await clearChatMemory();
+                        Alert.alert('Done', "Grit's memory has been cleared.");
+                      } catch {
+                        Alert.alert('Error', 'Failed to clear memory. Please try again.');
+                      }
+                    },
+                  },
+                ],
+              )
+            }
+          >
+            <Text style={styles.clearMemoryText}>Clear Grit's Memory</Text>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
@@ -200,6 +235,25 @@ const styles = StyleSheet.create({
   saveText: {
     color: Colors.surface,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  helpText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  clearMemoryButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  clearMemoryText: {
+    color: Colors.primary,
+    fontSize: 15,
     fontWeight: '600',
   },
   logoutButton: {

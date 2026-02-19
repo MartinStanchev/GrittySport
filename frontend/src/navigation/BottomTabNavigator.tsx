@@ -1,7 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
-import HistoryScreen from '../screens/HistoryScreen';
+import HistoryStackNavigator from './HistoryStackNavigator';
 import ProgramsStackNavigator from './ProgramsStackNavigator';
 import SettingsScreen from '../screens/SettingsScreen';
 import { Colors } from '../constants/colors';
@@ -37,8 +37,9 @@ export default function BottomTabNavigator() {
       />
       <Tab.Screen
         name="History"
-        component={HistoryScreen}
+        component={HistoryStackNavigator}
         options={{
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="time" size={size} color={color} />
           ),

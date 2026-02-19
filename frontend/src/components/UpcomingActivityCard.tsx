@@ -1,18 +1,20 @@
-import React from 'react';
 import { Pressable, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { getActivityIcon, formatPrescriptionSummary, formatActivityDate } from '../constants/activityIcons';
+import { getActivityIcon, formatPrescriptionSummary, formatActivityDate, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import type { UpcomingActivity } from '../services/api';
 
 interface UpcomingActivityCardProps {
   activity: UpcomingActivity;
   onPress?: () => void;
+  onRecord?: () => void;
 }
 
-export function UpcomingActivityCard({ activity, onPress }: UpcomingActivityCardProps) {
+export function UpcomingActivityCard({ activity, onPress, onRecord }: UpcomingActivityCardProps) {
   const summary = formatPrescriptionSummary(activity.prescription);
   const icon = getActivityIcon(activity.activity_type);
+  const manual = isManualActivity(activity.activity_type);
+  const gps = isGPSActivity(activity.activity_type);
 
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => pressed && onPress && styles.pressed}>
@@ -28,6 +30,23 @@ export function UpcomingActivityCard({ activity, onPress }: UpcomingActivityCard
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{activity.phase_name}</Text>
         </View>
+        {(manual || gps) && (
+          <Pressable
+            style={[styles.logPill, gps && styles.logPillGPS]}
+            onPress={manual ? onRecord : undefined}
+            disabled={gps}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={gps ? 'navigate-outline' : 'play-circle-outline'}
+              size={12}
+              color={gps ? '#AAA' : Colors.primary}
+            />
+            <Text style={[styles.logPillText, gps && styles.logPillTextGPS]}>
+              {gps ? 'GPS' : 'Log'}
+            </Text>
+          </Pressable>
+        )}
         {onPress && <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} style={styles.chevron} />}
       </View>
     </Pressable>
@@ -83,13 +102,36 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    marginRight: 6,
   },
   badgeText: {
     fontSize: 10,
     color: Colors.textSecondary,
     fontWeight: '600',
   },
+  logPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 6,
+  },
+  logPillGPS: {
+    borderColor: '#CCC',
+  },
+  logPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  logPillTextGPS: {
+    color: '#AAA',
+  },
   chevron: {
-    marginLeft: 6,
+    marginLeft: 2,
   },
 });

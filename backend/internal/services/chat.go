@@ -139,3 +139,8 @@ func (s *ChatService) GetMemory(ctx context.Context, userID, chatContext string)
 	}
 	return summary, nil
 }
+
+func (s *ChatService) ClearMemory(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM chat_memory WHERE user_id = $1`, userID)
+	return err
+}

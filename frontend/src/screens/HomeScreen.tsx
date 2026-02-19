@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -245,75 +246,105 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Top Zone */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>GRITTY FITNESS</Text>
-
-        {activeProgram ? (
-          <View style={styles.programCard}>
-            <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
-            {activeProgram.sport && (
-              <Text style={styles.activeProgramSport}>{activeProgram.sport}</Text>
-            )}
-            {progressText && (
-              <Text style={styles.activeProgramWeek}>{progressText}</Text>
-            )}
-            {activeProgram.end_date && (
-              <View style={styles.progressBarContainer}>
-                <View
-                  style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]}
-                />
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.programCard}>
-            <Ionicons
-              name="barbell-outline"
-              size={32}
-              color={Colors.textSecondary}
-              style={styles.programIcon}
-            />
-            <Text style={styles.programText}>No active program</Text>
-            <Text style={styles.programSubtext}>
-              Let Grit build your personalized training program
-            </Text>
-            <Pressable style={styles.createButton} onPress={openProgramCreation}>
-              <Text style={styles.createButtonText}>Create Your Program</Text>
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {/* Middle Zone */}
-      <View style={styles.comingUp}>
-        <Text style={styles.sectionTitle}>Coming up</Text>
-        {upcomingActivities.length > 0 ? (
-          upcomingActivities.map((activity) => (
-            <UpcomingActivityCard
-              key={activity.id}
-              activity={activity}
-              onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
-            />
-          ))
-        ) : (
-          <View style={styles.emptyCard}>
-            <Ionicons
-              name="calendar-outline"
-              size={24}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.emptyText}>No upcoming activities</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={{ flex: 1 }} />
-
-      {/* Bottom Zone — Chat Bar */}
-      <View
-        style={[styles.chatBar, { paddingBottom: Math.max(insets.bottom, 8) }]}
+      {/* Scrollable Content — padded so it scrolls past the floating bottom bar */}
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={styles.scrollContentContainer}
+        showsVerticalScrollIndicator={false}
       >
+        {/* Top Zone */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>GRITTY FITNESS</Text>
+
+          {activeProgram ? (
+            <View style={styles.programCard}>
+              <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
+              {activeProgram.sport && (
+                <Text style={styles.activeProgramSport}>{activeProgram.sport}</Text>
+              )}
+              {progressText && (
+                <Text style={styles.activeProgramWeek}>{progressText}</Text>
+              )}
+              {activeProgram.end_date && (
+                <View style={styles.progressBarContainer}>
+                  <View
+                    style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]}
+                  />
+                </View>
+              )}
+              <Pressable
+                style={styles.logWorkoutBtn}
+                onPress={() => navigation.navigate('RecordManual')}
+              >
+                <Ionicons name="play-circle-outline" size={16} color={Colors.primary} />
+                <Text style={styles.logWorkoutBtnText}>Log Workout</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.programCard}>
+              <Ionicons
+                name="barbell-outline"
+                size={32}
+                color={Colors.textSecondary}
+                style={styles.programIcon}
+              />
+              <Text style={styles.programText}>No active program</Text>
+              <Text style={styles.programSubtext}>
+                Let Grit build your personalized training program
+              </Text>
+              <Pressable style={styles.createButton} onPress={openProgramCreation}>
+                <Text style={styles.createButtonText}>Create Your Program</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* Middle Zone */}
+        <View style={styles.comingUp}>
+          <Text style={styles.sectionTitle}>Coming up</Text>
+          {upcomingActivities.length > 0 ? (
+            upcomingActivities.map((activity) => (
+              <UpcomingActivityCard
+                key={activity.id}
+                activity={activity}
+                onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
+                onRecord={() => navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type })}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyCard}>
+              <Ionicons
+                name="calendar-outline"
+                size={24}
+                color={Colors.textSecondary}
+              />
+              <Text style={styles.emptyText}>No upcoming activities</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Floating bottom — FAB + chat bar overlaid on scroll content */}
+      <View style={[styles.floatingBottom, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {/* FAB Row — Log Workout */}
+        <View style={styles.fabRow}>
+          <Pressable
+            style={styles.fab}
+            onPress={() =>
+              Alert.alert('Add Workout', undefined, [
+                { text: 'Record Workout (Live)', onPress: () => navigation.navigate('RecordManual') },
+                { text: 'Log Past Activity', onPress: () => navigation.navigate('LogActivity') },
+                { text: 'Cancel', style: 'cancel' },
+              ])
+            }
+            hitSlop={8}
+          >
+            <Ionicons name="add" size={28} color="#FFF" />
+          </Pressable>
+        </View>
+
+        {/* Chat Bar */}
+        <View style={styles.chatBar}>
         <Pressable style={styles.chatBarInner} onPress={() => openChat()}>
           <View style={styles.chatBarAvatar}>
             <Text style={styles.chatBarAvatarText}>G</Text>
@@ -323,6 +354,7 @@ export default function HomeScreen() {
             <Ionicons name="arrow-up" size={18} color={Colors.textSecondary} />
           </View>
         </Pressable>
+        </View>
       </View>
 
       {/* Chat Modal */}
@@ -548,6 +580,52 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.primary,
     borderRadius: 3,
+  },
+  logWorkoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+  },
+  logWorkoutBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: 160,
+  },
+  floatingBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  fabRow: {
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  fab: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
   },
   comingUp: {
     paddingHorizontal: 20,
