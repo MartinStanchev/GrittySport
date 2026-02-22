@@ -14,6 +14,8 @@ type Workout struct {
 	Source              string          `json:"source"`
 	StartedAt           time.Time       `json:"started_at"`
 	FinishedAt          *time.Time      `json:"finished_at,omitempty"`
+	GPSRoute            json.RawMessage `json:"gps_route,omitempty"`
+	HeartRateData       json.RawMessage `json:"heart_rate_data,omitempty"`
 	Notes               *string         `json:"notes,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
@@ -26,5 +28,7 @@ type SaveWorkoutInput struct {
 	Source              string          `json:"source"`
 	StartedAt           string          `json:"started_at"`
 	FinishedAt          *string         `json:"finished_at,omitempty"`
+	GPSRoute            json.RawMessage `json:"gps_route,omitempty"`
+	HeartRateData       json.RawMessage `json:"heart_rate_data,omitempty"`
 	Notes               *string         `json:"notes,omitempty"`
 }

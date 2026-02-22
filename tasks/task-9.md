@@ -1,5 +1,14 @@
 ## Feature 9: Activity Recording — GPS Tracking
 
+❯ Okay we have the ability to log a manual activity and to track a live activity without GPS. Now lets implement task 9 @../tasks/task-9.md where we will add the           
+  option
+    to log a GPS activity like a run, or cycling. Read through the task description and the current progress at @../PROGRESS.md . Then if needed research how this            feature                                                                                                                                                                 
+    works on other apps live strava, mapmyfitness, polar beat etc. This feature needs to be complete so that users can directly switch from these apps to this one. We        need a full map support, GPS, speed with current and average readings, cadence and more. Then we should save all metrics from those activities so that we can do          
+  analytics and statistics on them, like average cadence, pace per kilometer, speed per kilometer and more. If the user clicks on track an activity via the plus sign,      
+  they should still be able to track it towards their current active program. They should have the option to add it to their program later after it is finished as          
+  well. They should be able to start this live GPS activity tracking from the program activity as well and it should have the targets that are set in that screen in        
+  the activity tracking as well. Make sure to make this feature complete and competitive to the other apps.
+
 ### Goal
 Users can record GPS-based workouts (running, cycling) with live map, pace, distance, and optional heart rate from a BLE monitor. Offline recording works without internet.
 

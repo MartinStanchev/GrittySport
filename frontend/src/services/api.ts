@@ -397,6 +397,9 @@ export interface ActivityDetail {
   week_number: number;
   phase_name: string;
   date: string;
+  linked_workout_id?: string;
+  linked_workout_recorded_at?: string;
+  linked_workout_source?: string;
 }
 
 export interface UpdateActivityInput {
@@ -450,6 +453,8 @@ export interface WorkoutResponse {
   source: string;
   started_at: string;
   finished_at?: string;
+  gps_route?: Record<string, any>;
+  heart_rate_data?: Record<string, any>;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -459,9 +464,11 @@ export interface SaveWorkoutInput {
   scheduled_activity_id?: string;
   activity_type: string;
   recorded_data: Record<string, any>;
-  source: 'manual';
+  source: 'manual' | 'gps' | 'garmin' | 'apple_health';
   started_at: string;
   finished_at?: string;
+  gps_route?: Record<string, any>;
+  heart_rate_data?: Record<string, any>;
   notes?: string;
 }
 
@@ -487,4 +494,11 @@ export async function getWorkouts(params?: {
 
 export async function getWorkout(id: string): Promise<WorkoutResponse> {
   return apiFetch<WorkoutResponse>(`/api/v1/workouts/${id}`);
+}
+
+export async function linkWorkoutToActivity(workoutId: string, scheduledActivityId: string): Promise<void> {
+  await apiFetch<unknown>(`/api/v1/workouts/${workoutId}/link`, {
+    method: 'PUT',
+    body: JSON.stringify({ scheduled_activity_id: scheduledActivityId }),
+  });
 }

@@ -4,6 +4,8 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   run: 'walk-outline',
   easy_run: 'walk-outline',
   interval: 'speedometer-outline',
+  walk: 'walk-outline',
+  trail_run: 'walk-outline',
   swim: 'water-outline',
   strength: 'barbell-outline',
   rest: 'bed-outline',
@@ -12,6 +14,8 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   yoga: 'body-outline',
   cycling: 'bicycle-outline',
   bike: 'bicycle-outline',
+  indoor_cycling: 'bicycle-outline',
+  indoor_run: 'walk-outline',
   drill: 'flag-outline',
 };
 
@@ -52,8 +56,8 @@ export function formatActivityDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-const MANUAL_ACTIVITY_TYPES = ['strength', 'mobility', 'drill', 'yoga', 'recovery'];
-const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'swim', 'cycling', 'bike'];
+const MANUAL_ACTIVITY_TYPES = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling'];
+const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'trail_run', 'walk', 'swim', 'cycling', 'bike'];
 
 export function isManualActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');

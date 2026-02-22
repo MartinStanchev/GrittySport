@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import MapView, { Polyline, UrlTile } from '../components/NativeMap';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
-import { getWorkout } from '../services/api';
+import { getWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
+import { formatPaceSecPerKm, formatSpeedKph, isRunSport } from '../services/gpsUtils';
+import { formatTime } from '../constants/workoutUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +31,7 @@ function formatDate(iso: string): string {
 function formatPace(paceSecPerKm: number): string {
   if (!paceSecPerKm) return '—';
   const m = Math.floor(paceSecPerKm / 60);
-  const s = paceSecPerKm % 60;
+  const s = Math.floor(paceSecPerKm % 60);
   return `${m}:${String(s).padStart(2, '0')} /km`;
 }
 
@@ -44,6 +47,8 @@ function normalizeActivityType(type: string): NormalizedType {
   if (t.includes('drill')) return 'drill';
   return 'other';
 }
+
+type LinkOption = { id: string; activityType: string; dateLabel: string };
 
 const ACTIVITY_TYPE_LABELS: Record<NormalizedType, string> = {
   run: 'Running',
@@ -160,10 +165,84 @@ function MobilityDetail({ data }: { data: Record<string, any> }) {
   );
 }
 
+function GPSDetail({ workout }: { workout: WorkoutResponse }) {
+  const route = workout.gps_route ?? {};
+  const summary = workout.recorded_data ?? {};
+  const isRun = isRunSport(workout.activity_type);
+  const laps: any[] = route.laps ?? [];
+
+  const points: { latitude: number; longitude: number }[] = (route.points ?? []).map((p: any) => ({
+    latitude: p.lat,
+    longitude: p.lng,
+  }));
+
+  const mapRegion =
+    points.length > 1
+      ? {
+          latitude: (points[0].latitude + points[points.length - 1].latitude) / 2,
+          longitude: (points[0].longitude + points[points.length - 1].longitude) / 2,
+          latitudeDelta: Math.abs(points[0].latitude - points[points.length - 1].latitude) * 2 + 0.01,
+          longitudeDelta: Math.abs(points[0].longitude - points[points.length - 1].longitude) * 2 + 0.01,
+        }
+      : { latitude: 51.5074, longitude: -0.1278, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+
+  return (
+    <>
+      {points.length > 1 && (
+        <MapView
+          style={styles.gpsMap}
+          region={mapRegion}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+        >
+          {Platform.OS === 'android' && (
+            <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
+          )}
+          <Polyline coordinates={points} strokeColor={Colors.primary} strokeWidth={4} />
+        </MapView>
+      )}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>GPS Stats</Text>
+        <StatRow label="Distance" value={summary.distance_km ? `${Number(summary.distance_km).toFixed(2)} km` : '—'} />
+        {isRun && <StatRow label="Avg Pace" value={formatPaceSecPerKm(summary.avg_pace_sec_per_km ?? 0)} />}
+        {!isRun && <StatRow label="Avg Speed" value={summary.avg_speed_kph ? `${formatSpeedKph(summary.avg_speed_kph)} km/h` : '—'} />}
+        <StatRow label="Elevation Gain" value={summary.elevation_gain_m ? `+${summary.elevation_gain_m} m` : '—'} />
+        {summary.avg_hr && <StatRow label="Avg Heart Rate" value={`${summary.avg_hr} bpm`} />}
+        {summary.max_hr && <StatRow label="Max Heart Rate" value={`${summary.max_hr} bpm`} />}
+      </View>
+      {laps.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lap Splits</Text>
+          <View style={styles.lapHeader}>
+            <Text style={[styles.lapCell, styles.lapCellLabel]}>Lap</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel]}>Dist</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel]}>Time</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel]}>{isRun ? 'Pace' : 'Speed'}</Text>
+          </View>
+          {laps.map((lap: any) => (
+            <View key={lap.lap_number} style={styles.lapRow}>
+              <Text style={styles.lapCell}>{lap.lap_number}</Text>
+              <Text style={styles.lapCell}>{(lap.distance_m / 1000).toFixed(2)} km</Text>
+              <Text style={styles.lapCell}>{formatTime(Math.round(lap.duration_sec))}</Text>
+              <Text style={styles.lapCell}>
+                {isRun
+                  ? formatPaceSecPerKm(lap.avg_pace_sec_per_km)
+                  : `${formatSpeedKph(lap.avg_speed_kph)} km/h`}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </>
+  );
+}
+
 function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
   const data = workout.recorded_data ?? {};
   const normalized = normalizeActivityType(workout.activity_type);
 
+  if (workout.source === 'gps') return <GPSDetail workout={workout} />;
   if (normalized === 'run') return <RunDetail data={data} />;
   if (normalized === 'cycling') return <CyclingDetail data={data} />;
   if (normalized === 'swim') return <SwimDetail data={data} />;
@@ -181,13 +260,68 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const [workout, setWorkout] = useState<WorkoutResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [linkSheetVisible, setLinkSheetVisible] = useState(false);
+  const [linkOptions, setLinkOptions] = useState<LinkOption[]>([]);
+  const slideAnim = useRef(new Animated.Value(200)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
+  const loadWorkout = useCallback(() => {
     getWorkout(workoutId)
       .then(setWorkout)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [workoutId]);
+
+  useEffect(() => { loadWorkout(); }, [loadWorkout]);
+
+  const openLinkSheet = useCallback((options: LinkOption[]) => {
+    setLinkOptions(options);
+    setLinkSheetVisible(true);
+    Animated.parallel([
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 320 }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [slideAnim, opacityAnim]);
+
+  const closeLinkSheet = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: 200, duration: 180, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => setLinkSheetVisible(false));
+  }, [slideAnim, opacityAnim]);
+
+  const handleLink = useCallback(async (activityId: string) => {
+    if (!workout) return;
+    closeLinkSheet();
+    try {
+      await linkWorkoutToActivity(workout.id, activityId);
+      loadWorkout();
+    } catch {
+      Alert.alert('Error', 'Could not link workout.');
+    }
+  }, [workout, closeLinkSheet, loadWorkout]);
+
+  const handleLinkToProgram = useCallback(async () => {
+    if (!workout) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const activities = await getUpcomingActivities();
+      if (activities.length === 0) {
+        Alert.alert('No Activities', 'No upcoming program activities found.');
+        return;
+      }
+      const options = activities.slice(0, 5).map((a) => ({
+        id: a.id,
+        activityType: a.activity_type,
+        dateLabel: a.date === today
+          ? 'Today'
+          : new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      }));
+      openLinkSheet(options);
+    } catch {
+      Alert.alert('Error', 'Could not load program activities.');
+    }
+  }, [workout, openLinkSheet]);
 
   if (loading) {
     return (
@@ -211,6 +345,7 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const date = formatDate(workout.started_at);
 
   return (
+    <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header card */}
       <View style={styles.headerCard}>
@@ -242,7 +377,48 @@ export default function WorkoutDetailScreen({ route }: Props) {
           <Text style={styles.notesText}>{workout.notes}</Text>
         </View>
       ) : null}
+
+      {/* Link to Program */}
+      {!workout.scheduled_activity_id && (
+        <Pressable style={styles.linkBtn} onPress={handleLinkToProgram}>
+          <Ionicons name="link-outline" size={16} color={Colors.primary} />
+          <Text style={styles.linkBtnText}>Link to Program Activity</Text>
+        </Pressable>
+      )}
     </ScrollView>
+
+    <Modal visible={linkSheetVisible} transparent animationType="none" onRequestClose={closeLinkSheet}>
+      <Animated.View style={[styles.sheetBackdrop, { opacity: opacityAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeLinkSheet} />
+        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Link to Program Activity</Text>
+            <Text style={styles.sheetSubtitle}>Select the scheduled activity for this workout</Text>
+          </View>
+          <View style={styles.sheetSeparator} />
+          {linkOptions.map((opt, i) => (
+            <View key={opt.id}>
+              {i > 0 && <View style={styles.sheetSeparator} />}
+              <Pressable style={styles.sheetRow} onPress={() => handleLink(opt.id)}>
+                <View style={[styles.sheetRowIcon, { backgroundColor: Colors.primary + '18' }]}>
+                  <Ionicons name={getActivityIcon(opt.activityType)} size={22} color={Colors.primary} />
+                </View>
+                <View style={styles.sheetRowText}>
+                  <Text style={styles.sheetRowTitle}>{activityTypeLabel(opt.activityType)}</Text>
+                  <Text style={styles.sheetRowSubtitle}>{opt.dateLabel}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+          ))}
+          <View style={styles.sheetSeparator} />
+          <Pressable style={[styles.sheetRow, styles.sheetCancelRow]} onPress={closeLinkSheet}>
+            <Text style={styles.sheetCancelText}>Cancel</Text>
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+    </>
   );
 }
 
@@ -415,5 +591,113 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: Colors.textPrimary,
     lineHeight: 22,
+  },
+  gpsMap: {
+    height: 200,
+    borderRadius: 14,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  lapHeader: {
+    flexDirection: 'row',
+    paddingBottom: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E0E0E0',
+    marginBottom: 4,
+  },
+  lapRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#F0F0F0',
+  },
+  lapCell: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  lapCellLabel: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  linkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  linkBtnText: {
+    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  sheetHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 3,
+  },
+  sheetSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#EBEBEB',
+    marginHorizontal: 18,
+  },
+  sheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    gap: 14,
+  },
+  sheetRowIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetRowText: { flex: 1 },
+  sheetRowTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary },
+  sheetRowSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  sheetCancelRow: { justifyContent: 'center' },
+  sheetCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    flex: 1,
   },
 });

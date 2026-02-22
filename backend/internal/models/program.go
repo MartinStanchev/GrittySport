@@ -287,6 +287,10 @@ type ActivityDetailResponse struct {
 	PhaseName    string          `json:"phase_name"`
 	Date         string          `json:"date"`
 	UserID       string          `json:"-"`
+	// Linked recorded workout (if any)
+	LinkedWorkoutID         *string    `json:"linked_workout_id,omitempty"`
+	LinkedWorkoutRecordedAt *time.Time `json:"linked_workout_recorded_at,omitempty"`
+	LinkedWorkoutSource     *string    `json:"linked_workout_source,omitempty"`
 }
 
 type UpdateActivityInput struct {

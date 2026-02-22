@@ -14,11 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
-import { saveWorkout } from '../services/api';
+import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type LogType = 'run' | 'cycling' | 'swim' | 'strength' | 'mobility' | 'drill';
+type LogType = 'run' | 'walk' | 'cycling' | 'indoor_cycling' | 'indoor_run' | 'swim' | 'strength' | 'mobility' | 'drill';
 
 interface SetLog {
   reps: string;
@@ -35,8 +35,11 @@ interface MobilityExLog {
 }
 
 const TYPE_OPTIONS: { type: LogType; label: string }[] = [
-  { type: 'run', label: 'Running' },
+  { type: 'run', label: 'Run' },
+  { type: 'walk', label: 'Walk' },
   { type: 'cycling', label: 'Cycling' },
+  { type: 'indoor_run', label: 'Indoor Run' },
+  { type: 'indoor_cycling', label: 'Indoor Cycling' },
   { type: 'swim', label: 'Swimming' },
   { type: 'strength', label: 'Strength' },
   { type: 'mobility', label: 'Mobility' },
@@ -45,7 +48,10 @@ const TYPE_OPTIONS: { type: LogType; label: string }[] = [
 
 const DISPLAY_LABELS: Record<LogType, string> = {
   run: 'Running',
+  walk: 'Walking',
   cycling: 'Cycling',
+  indoor_run: 'Indoor Run',
+  indoor_cycling: 'Indoor Cycling',
   swim: 'Swimming',
   strength: 'Strength Training',
   mobility: 'Mobility / Yoga',
@@ -72,11 +78,11 @@ function buildRecordedData(
   exercises: ExerciseLog[],
   mobilityExercises: MobilityExLog[],
 ): Record<string, unknown> {
-  if (type === 'run') {
+  if (type === 'run' || type === 'walk' || type === 'indoor_run') {
     const avgPaceSec = dist > 0 && durationSec > 0 ? Math.round(durationSec / dist) : 0;
     return { distance_km: dist || 0, avg_pace_sec_per_km: avgPaceSec };
   }
-  if (type === 'cycling') {
+  if (type === 'cycling' || type === 'indoor_cycling') {
     const avgSpeed = dist > 0 && durationSec > 0 ? Math.round((dist / durationSec) * 3600 * 10) / 10 : 0;
     return { distance_km: dist || 0, avg_speed_kph: avgSpeed };
   }
@@ -299,9 +305,11 @@ export default function LogActivityScreen({ navigation }: Props) {
 
   // Auto-computed stats
   const dist = parseFloat(distanceKm);
-  const avgPaceSec = selectedType === 'run' && dist > 0 && durationSec > 0
+  const isPaceType = selectedType === 'run' || selectedType === 'walk' || selectedType === 'indoor_run';
+  const isSpeedType = selectedType === 'cycling' || selectedType === 'indoor_cycling';
+  const avgPaceSec = isPaceType && dist > 0 && durationSec > 0
     ? Math.round(durationSec / dist) : 0;
-  const avgSpeed = selectedType === 'cycling' && dist > 0 && durationSec > 0
+  const avgSpeed = isSpeedType && dist > 0 && durationSec > 0
     ? Math.round((dist / durationSec) * 3600 * 10) / 10 : 0;
 
   async function handleSave() {
@@ -317,7 +325,7 @@ export default function LogActivityScreen({ navigation }: Props) {
       const finishedAt = new Date(startedAt.getTime() + durationSec * 1000);
       const recordedData = buildRecordedData(selectedType, dist, durationSec, laps, exercises, mobilityExercises);
 
-      await saveWorkout({
+      const savedWorkout = await saveWorkout({
         activity_type: selectedType,
         recorded_data: recordedData,
         source: 'manual',
@@ -326,6 +334,24 @@ export default function LogActivityScreen({ navigation }: Props) {
         notes: notes.trim() || undefined,
       });
       navigation.goBack();
+
+      // Offer to link to today's scheduled activity
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const activities = await getUpcomingActivities();
+        const todayActivity = activities.find((a) => a.date === today);
+        if (todayActivity) {
+          const label = todayActivity.activity_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+          Alert.alert(
+            'Link to Program?',
+            `Link this workout to your "${label}" activity?`,
+            [
+              { text: 'Skip', style: 'cancel' },
+              { text: 'Link', onPress: () => linkWorkoutToActivity(savedWorkout.id, todayActivity.id) },
+            ]
+          );
+        }
+      } catch { /* ignore */ }
     } catch {
       Alert.alert('Error', 'Failed to save activity. Please try again.');
     } finally {
@@ -408,7 +434,7 @@ export default function LogActivityScreen({ navigation }: Props) {
         </View>
 
         {/* Type-specific fields */}
-        {(selectedType === 'run' || selectedType === 'cycling') && (
+        {(isPaceType || isSpeedType) && (
           <View style={styles.fieldBlock}>
             <Text style={styles.fieldLabel}>Distance (km)</Text>
             <TextInput
@@ -419,10 +445,10 @@ export default function LogActivityScreen({ navigation }: Props) {
               value={distanceKm}
               onChangeText={setDistanceKm}
             />
-            {selectedType === 'run' && avgPaceSec > 0 && (
+            {isPaceType && avgPaceSec > 0 && (
               <Text style={styles.computedStat}>Avg pace: {formatPace(avgPaceSec)}</Text>
             )}
-            {selectedType === 'cycling' && avgSpeed > 0 && (
+            {isSpeedType && avgSpeed > 0 && (
               <Text style={styles.computedStat}>Avg speed: {avgSpeed} km/h</Text>
             )}
           </View>

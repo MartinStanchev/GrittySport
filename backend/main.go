@@ -144,6 +144,7 @@ func main() {
 		r.Post("/workouts", workoutHandler.Create)
 		r.Get("/workouts", workoutHandler.List)
 		r.Get("/workouts/{workoutId}", workoutHandler.Get)
+		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

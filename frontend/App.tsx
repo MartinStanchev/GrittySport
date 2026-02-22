@@ -1,7 +1,9 @@
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import NetInfo from '@react-native-community/netinfo';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ProgramProvider } from './src/contexts/ProgramContext';
 import { WorkoutProvider } from './src/contexts/WorkoutContext';
@@ -10,6 +12,7 @@ import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthStackNavigator from './src/navigation/AuthStackNavigator';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { navigationRef } from './src/navigation/navigationRef';
+import { syncPendingWorkouts } from './src/services/syncService';
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -37,6 +40,21 @@ function RootNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Sync on app foreground
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') syncPendingWorkouts();
+    });
+    // Sync when network reconnects
+    const netInfoSub = NetInfo.addEventListener((state) => {
+      if (state.isConnected) syncPendingWorkouts();
+    });
+    return () => {
+      appStateSub.remove();
+      netInfoSub();
+    };
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

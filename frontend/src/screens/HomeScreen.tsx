@@ -24,6 +24,7 @@ import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
+import { FABActionSheet } from '../components/FABActionSheet';
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -62,6 +63,7 @@ export default function HomeScreen() {
   const [inputText, setInputText] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
+  const [fabSheetVisible, setFabSheetVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -309,6 +311,7 @@ export default function HomeScreen() {
                 activity={activity}
                 onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
                 onRecord={() => navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type })}
+                onRecordGPS={() => navigation.navigate('RecordGPS', { scheduledActivityId: activity.id, activityType: activity.activity_type })}
               />
             ))
           ) : (
@@ -330,13 +333,7 @@ export default function HomeScreen() {
         <View style={styles.fabRow}>
           <Pressable
             style={styles.fab}
-            onPress={() =>
-              Alert.alert('Add Workout', undefined, [
-                { text: 'Record Workout (Live)', onPress: () => navigation.navigate('RecordManual') },
-                { text: 'Log Past Activity', onPress: () => navigation.navigate('LogActivity') },
-                { text: 'Cancel', style: 'cancel' },
-              ])
-            }
+            onPress={() => setFabSheetVisible(true)}
             hitSlop={8}
           >
             <Ionicons name="add" size={28} color="#FFF" />
@@ -356,6 +353,13 @@ export default function HomeScreen() {
         </Pressable>
         </View>
       </View>
+
+      <FABActionSheet
+        visible={fabSheetVisible}
+        onClose={() => setFabSheetVisible(false)}
+        onStartWorkout={() => navigation.navigate('RecordManual')}
+        onLogActivity={() => navigation.navigate('LogActivity')}
+      />
 
       {/* Chat Modal */}
       <Modal

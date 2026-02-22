@@ -3,6 +3,9 @@ import HomeScreen from '../screens/HomeScreen';
 import ActivityDetailScreen from '../screens/ActivityDetailScreen';
 import RecordManualScreen from '../screens/RecordManualScreen';
 import LogActivityScreen from '../screens/LogActivityScreen';
+import RecordGPSScreen from '../screens/RecordGPSScreen';
+import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
+import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
@@ -34,6 +37,21 @@ export default function HomeStackNavigator() {
         name="LogActivity"
         component={LogActivityScreen}
         options={{ title: 'Log Activity' }}
+      />
+      <Stack.Screen
+        name="RecordGPS"
+        component={RecordGPSScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="WorkoutSummary"
+        component={WorkoutSummaryScreen}
+        options={{ title: 'Workout Summary' }}
+      />
+      <Stack.Screen
+        name="WorkoutDetail"
+        component={WorkoutDetailScreen}
+        options={{ title: 'Workout' }}
       />
     </Stack.Navigator>
   );

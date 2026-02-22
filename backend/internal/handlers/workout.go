@@ -89,3 +89,27 @@ func (h *WorkoutHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, workout)
 }
+
+func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	workoutID := chi.URLParam(r, "workoutId")
+
+	var body struct {
+		ScheduledActivityID string `json:"scheduled_activity_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ScheduledActivityID == "" {
+		writeError(w, http.StatusBadRequest, "scheduled_activity_id is required")
+		return
+	}
+
+	if err := h.workoutService.LinkToActivity(r.Context(), workoutID, body.ScheduledActivityID, userID); err != nil {
+		if err.Error() == "workout not found" {
+			writeError(w, http.StatusNotFound, "workout not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to link workout")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}

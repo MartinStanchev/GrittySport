@@ -8,9 +8,10 @@ interface UpcomingActivityCardProps {
   activity: UpcomingActivity;
   onPress?: () => void;
   onRecord?: () => void;
+  onRecordGPS?: () => void;
 }
 
-export function UpcomingActivityCard({ activity, onPress, onRecord }: UpcomingActivityCardProps) {
+export function UpcomingActivityCard({ activity, onPress, onRecord, onRecordGPS }: UpcomingActivityCardProps) {
   const summary = formatPrescriptionSummary(activity.prescription);
   const icon = getActivityIcon(activity.activity_type);
   const manual = isManualActivity(activity.activity_type);
@@ -32,17 +33,16 @@ export function UpcomingActivityCard({ activity, onPress, onRecord }: UpcomingAc
         </View>
         {(manual || gps) && (
           <Pressable
-            style={[styles.logPill, gps && styles.logPillGPS]}
-            onPress={manual ? onRecord : undefined}
-            disabled={gps}
+            style={styles.logPill}
+            onPress={manual ? onRecord : onRecordGPS}
             hitSlop={8}
           >
             <Ionicons
               name={gps ? 'navigate-outline' : 'play-circle-outline'}
               size={12}
-              color={gps ? '#AAA' : Colors.primary}
+              color={Colors.primary}
             />
-            <Text style={[styles.logPillText, gps && styles.logPillTextGPS]}>
+            <Text style={styles.logPillText}>
               {gps ? 'GPS' : 'Log'}
             </Text>
           </Pressable>
@@ -120,16 +120,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginRight: 6,
   },
-  logPillGPS: {
-    borderColor: '#CCC',
-  },
   logPillText: {
     fontSize: 11,
     fontWeight: '700',
     color: Colors.primary,
-  },
-  logPillTextGPS: {
-    color: '#AAA',
   },
   chevron: {
     marginLeft: 2,

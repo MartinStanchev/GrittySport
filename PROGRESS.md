@@ -136,3 +136,46 @@
 - **Keyboard/scroll (mobile):** Replaced manual `paddingBottom` root container with `KeyboardAvoidingView` (`behavior="padding"` on iOS, `"height"` on Android). Changed `keyboardDismissMode` from `"on-drag"` to `"none"` — keyboard no longer closes when scrolling through messages. Bottom padding moved to input container only.
 - **Unified typing indicator:** Removed the two-state dots/spinner switch. Now always shows a single `ActivityIndicator` with a dynamic label ("Thinking..." when idle, tool name label during tool calls). Eliminates the flickering component swap between tool phases.
 - **Multiple programs per chat:** Added `ONE PROGRAM PER CONVERSATION` section to `program_creation.txt` — Grit is instructed to call `create_draft_program` only once, never propose a second program, and switch to coaching mode after `confirm_program_save` succeeds.
+
+## Task 9: GPS Activity Tracking — Done
+- **Dependencies**: `expo-location`, `react-native-maps`, `expo-sqlite`, `@react-native-community/netinfo`, `react-native-ble-plx` (dev build required for BLE + maps). Location/BLE permissions + background location mode added to `app.json`.
+- **GPS Types** (`types/gps.ts`): `GPSPoint`, `HRReading`, `Lap`, `GPSRouteData`, `HRData`, `GPSSummaryData`, `HRZoneDistribution` interfaces.
+- **GPS Utilities** (`services/gpsUtils.ts`): Haversine distance, rolling pace (10-point window), current speed, altitude smoothing (sliding median), cumulative elevation gain (1m threshold), lap computation, HR zone distribution (5-zone model), `buildFinalGPSPayload()`, sport classification helpers.
+- **Backend**: `GPSRoute` + `HeartRateData json.RawMessage` added to `Workout` and `SaveWorkoutInput` models. `workoutColumns`, `scanWorkout`, and `Create()` INSERT updated. No migration needed (columns already existed in `007_create_workouts.sql`).
+- **Offline Storage** (`services/offlineStorage.ts`): SQLite `pending_workouts` table; `savePendingWorkout`, `getPendingWorkouts`, `markSynced`, `clearSynced`.
+- **Sync Service** (`services/syncService.ts`): Uploads unsynced pending workouts to API; triggered from `App.tsx` via AppState (foreground) and NetInfo (reconnect) listeners.
+- **BLE Service** (`services/bleService.ts`): Singleton scanning for Heart Rate Profile (UUID `0x180D`), connects to `0x2A37` characteristic, parses uint8/uint16 HR measurement format per BLE GATT spec. Gracefully degrades (try/catch) in Expo Go.
+- **WorkoutContext extended**: Added `ActiveGPSWorkout` state branch, `startGPSWorkout`/`updateGPSWorkout`/`clearGPSWorkout`, and derived `workoutMode: 'manual'|'gps'|null` — no changes to existing manual workout types.
+- **RecordGPSScreen**: Full-screen map (Apple Maps on iOS, OpenStreetMap UrlTile on Android), live route polyline, metrics panel (distance hero metric, pace/speed, time, HR with zone colour, avg pace/speed, elevation gain, lap counter), idle→recording→paused→stopped state machine, auto-pause (3 consecutive points < 0.5 m/s), auto-lap (every 1 km) + manual lap button, BLE HR modal, discard confirmation.
+- **WorkoutSummaryScreen**: Static route map, stats grid (distance, time, avg pace/speed, best lap, elevation, HR), HR zone bar chart, lap splits table with colour-coded lap times, notes input, offline-first save (tries API → falls back to SQLite + "Saved offline" banner).
+- **ActiveWorkoutBanner updated**: GPS mode shows distance + location-pin icon and navigates to `RecordGPS`; manual mode unchanged.
+- **UpcomingActivityCard**: GPS pill now enabled and calls `onRecordGPS` prop.
+- **ActivityDetailScreen**: GPS activities navigate to `RecordGPS` (removed "Coming Soon" alert).
+- **HomeScreen FAB**: Added "Start GPS Activity" option; `UpcomingActivityCard` gets `onRecordGPS` prop.
+- **WorkoutDetailScreen**: GPS workouts show static route map + lap splits table above existing stats.
+- **HistoryScreen**: GPS workouts show `distance_km` as key stat.
+- **Navigation**: `RecordGPS` + `WorkoutSummary` added to all three stack navigators (Home, Programs, History).
+- **Deviation**: OpenStreetMap tiles via `react-native-maps UrlTile` instead of Google Maps (no API key required). Map provider: Apple Maps on iOS (default), OSM UrlTile on Android.
+- **Deviation**: BLE + maps require `npx expo prebuild` + native dev build — not compatible with Expo Go.
+- **Platform fix**: `react-native-maps`, `react-native-ble-plx`, and `expo-sqlite` are native-only. Created `.native.ts(x)` + `.web.ts(x)` platform-specific files for `NativeMap`, `bleService`, and `offlineStorage` so `expo start --tunnel` (web bundler) no longer fails.
+
+## GPS Activity UX Fixes — Done
+- **Banner crash fixed**: `RecordGPSScreen` now derives `activityType` and `scheduledActivityId` from route params with safe fallback to existing `activeGPSWorkout` context — no crash when navigating back via the red `ActiveWorkoutBanner`.
+- **Grey header removed**: Replaced the redundant semi-transparent `rgba(0,0,0,0.5)` header bar with a small circular close button (top-left of map area).
+- **Map default location**: On mount, fetches current location (no prompt if permission not yet granted) and pans the map there. Fallback changed from London to world-level view.
+- **Concurrent workout guard**: `WorkoutContext` uses refs to detect active sessions — `startGPSWorkout` returns early if a manual workout is running; `startWorkout` returns early if a GPS session is running. Both entry screens show an alert and navigate back if the other mode is active.
+- **Unified activity type selector**: `RecordManualScreen` now shows all activity types in two sections — Outdoor GPS (Run, Walk, Cycling with GPS badge) and Indoor & Gym (Indoor Run, Indoor Cycling, Strength, Mobility, Drill). Selecting a GPS type navigates directly to `RecordGPS`. "Start GPS Activity" FAB option removed.
+- **New activity types**: `walk`, `indoor_run`, `indoor_cycling` added to `activityIcons.ts` with correct GPS/manual classification. `LogActivityScreen` also updated.
+- **Custom FAB action sheet** (`components/FABActionSheet.tsx`): Replaces plain `Alert.alert`. Animated bottom sheet springs up from the "+" button with two rows: "Start Workout" and "Log Past Activity". Tapping the backdrop dismisses it.
+
+## Task 9.5: GPS & Workout UX Additional Fixes — Done
+- **Workout-program linking**: Backend `ActivityDetailResponse` now includes `linked_workout_id/source/recorded_at` via LEFT JOIN on workouts table. New `PUT /api/v1/workouts/{id}/link` endpoint (`LinkToActivity` service). Frontend: `ActivityDetailScreen` shows "View Recording" button if linked; after GPS/log save, offers to link to today's scheduled activity via Alert; `WorkoutDetailScreen` shows "Link to Program" button for unlinked workouts. `WorkoutDetail` route added to Home + Programs stacks.
+- **GPS activity locking**: `RecordGPSScreen` mount effect blocks navigation to a different GPS activity while one is recording — shows "GPS Session Active" alert and navigates back.
+- **Map centering with 5s delay**: `followsUserLocation` removed; `onPanDrag` handler sets a `userMovedMapRef` flag; `handleNewPoint` skips `animateToRegion` for 5 seconds after user manually pans. Auto-following resumes after the cooldown.
+- **Pre-start GPS state**: `startGPSWorkout` moved from mount effect to `handleStart` — the GPS workout context (and red banner) is only created when user actually presses Start. Pressing back before Start navigates cleanly with no orphaned state. `handleDiscard` skips confirmation alert in pre-start mode.
+
+## GPS Bug Fix + Testing Infrastructure — Done
+- **Critical auto-pause fix**: `location.coords.speed` returns `-1` on iOS when unknown (not `null`), causing `?? 0` to pass through `-1`, which is below the 0.5 m/s threshold — auto-pause fired on every point, silently stopping recording after 3 GPS callbacks. Fixed by computing instantaneous speed from haversine distance between consecutive points (same approach as Strava), skipping auto-pause check when there is insufficient data (`timeDelta < 0.5 s`).
+- **Relaxed accuracy filter**: `MAX_ACCURACY_METRES` raised from 30 to 50 to allow points during GPS cold-start (first 30–60 s when accuracy is often 30–50 m).
+- **Dev GPS simulation**: `frontend/src/services/gpsSimRoute.ts` generates a synthetic 1 km circular route (200 points, ~3 m/s jogging pace). `RecordGPSScreen` shows a "Sim Route (Dev)" button in `__DEV__` mode that feeds points into `handleNewPoint` at 50 ms intervals (33× real-time), exercising the full recording pipeline without going outdoors.
+- **Unit tests**: `frontend/src/__tests__/gpsUtils.test.ts` — 32 Jest tests for all pure functions in `gpsUtils.ts`. Jest configured via `jest.config.js` + `ts-jest`; `"test"` script added to `package.json`.

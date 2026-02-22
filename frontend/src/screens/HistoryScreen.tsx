@@ -28,6 +28,10 @@ function formatDate(iso: string): string {
 function keyStat(workout: WorkoutResponse): string {
   const data = workout.recorded_data ?? {};
   const type = workout.activity_type.toLowerCase();
+  // GPS workouts — show distance
+  if (workout.source === 'gps' && data.distance_km) {
+    return `${Number(data.distance_km).toFixed(2)} km`;
+  }
   if (type.includes('strength') || type.includes('weight')) {
     const exercises: any[] = data.exercises ?? [];
     const totalSets = exercises.reduce((sum, ex) => sum + (ex.sets?.length ?? 0), 0);
@@ -38,6 +42,8 @@ function keyStat(workout: WorkoutResponse): string {
     const done = exercises.filter((e) => e.completed).length;
     return exercises.length > 0 ? `${done}/${exercises.length} done` : 'Completed';
   }
+  // Non-GPS run/cycling with distance
+  if (data.distance_km) return `${Number(data.distance_km).toFixed(2)} km`;
   return 'Completed';
 }
 

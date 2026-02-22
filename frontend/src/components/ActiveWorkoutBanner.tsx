@@ -6,12 +6,14 @@ import { Colors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { navigationRef } from '../navigation/navigationRef';
+import { formatDistanceKm } from '../services/gpsUtils';
 
 export function ActiveWorkoutBanner() {
-  const { activeWorkout } = useWorkout();
+  const { activeWorkout, activeGPSWorkout, workoutMode } = useWorkout();
   const insets = useSafeAreaInsets();
   const [elapsed, setElapsed] = useState(0);
 
+  // Manual workout timer
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording') return;
     const tick = () =>
@@ -21,26 +23,50 @@ export function ActiveWorkoutBanner() {
     return () => clearInterval(interval);
   }, [activeWorkout?.startedAt, activeWorkout?.phase]);
 
-  if (!activeWorkout || activeWorkout.phase !== 'recording') return null;
+  if (workoutMode === null) return null;
 
   function handlePress() {
-    if (navigationRef.isReady()) {
+    if (!navigationRef.isReady()) return;
+    if (workoutMode === 'gps') {
+      navigationRef.navigate('Home', { screen: 'RecordGPS' });
+    } else {
       navigationRef.navigate('Home', { screen: 'RecordManual' });
     }
   }
 
-  return (
-    <Pressable style={[styles.banner, { paddingTop: insets.top + 10 }]} onPress={handlePress}>
-      <View style={styles.pulsingDot} />
-      <Ionicons name="fitness-outline" size={16} color="#FFF" style={styles.icon} />
-      <Text style={styles.type} numberOfLines={1}>
-        {activeWorkout.activityDisplayType}
-      </Text>
-      <Text style={styles.timer}>{formatTime(elapsed)}</Text>
-      <Text style={styles.returnLabel}>Tap to return</Text>
-      <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
-    </Pressable>
-  );
+  if (workoutMode === 'gps' && activeGPSWorkout) {
+    const distKm = formatDistanceKm(activeGPSWorkout.totalDistanceM);
+    const isRecording = activeGPSWorkout.recordingState === 'recording';
+    return (
+      <Pressable style={[styles.banner, { paddingTop: insets.top + 10 }]} onPress={handlePress}>
+        <View style={[styles.pulsingDot, !isRecording && styles.pausedDot]} />
+        <Ionicons name="location-outline" size={16} color="#FFF" style={styles.icon} />
+        <Text style={styles.type} numberOfLines={1}>
+          {activeGPSWorkout.activityDisplayType}
+        </Text>
+        <Text style={styles.timer}>{distKm} km</Text>
+        <Text style={styles.returnLabel}>Tap to return</Text>
+        <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+      </Pressable>
+    );
+  }
+
+  if (workoutMode === 'manual' && activeWorkout && activeWorkout.phase === 'recording') {
+    return (
+      <Pressable style={[styles.banner, { paddingTop: insets.top + 10 }]} onPress={handlePress}>
+        <View style={styles.pulsingDot} />
+        <Ionicons name="fitness-outline" size={16} color="#FFF" style={styles.icon} />
+        <Text style={styles.type} numberOfLines={1}>
+          {activeWorkout.activityDisplayType}
+        </Text>
+        <Text style={styles.timer}>{formatTime(elapsed)}</Text>
+        <Text style={styles.returnLabel}>Tap to return</Text>
+        <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.7)" />
+      </Pressable>
+    );
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({
@@ -58,6 +84,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#FFF',
     opacity: 0.9,
+  },
+  pausedDot: {
+    opacity: 0.4,
   },
   icon: {
     marginRight: 2,

@@ -17,6 +17,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { Colors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
 import { getActivity, saveWorkout } from '../services/api';
+import { isGPSActivity } from '../constants/activityIcons';
 import {
   useWorkout,
   type WorkoutType,
@@ -52,27 +53,68 @@ const BLANK_MOBILITY: MobilityExerciseLog[] = [
   { name: '', targetDurationSeconds: 60, remainingSeconds: 60, timerActive: false, completed: false },
 ];
 
-const DISPLAY_TYPE_LABELS: Record<WorkoutType, string> = {
+const DISPLAY_TYPE_LABELS: Record<string, string> = {
   strength: 'Strength Training',
   mobility: 'Mobility / Recovery',
   drill: 'Sport-Specific Drill',
+  indoor_run: 'Indoor Run',
+  indoor_cycling: 'Indoor Cycling',
 };
 
 // ─────────────────────────────────────────────
 // TYPE SELECTOR
 // ─────────────────────────────────────────────
 
-function TypeSelector({ onSelect }: { onSelect: (type: WorkoutType) => void }) {
-  const options: { type: WorkoutType; icon: keyof typeof Ionicons.glyphMap; label: string; desc: string }[] = [
-    { type: 'strength', icon: 'barbell-outline', label: 'Strength Training', desc: 'Log sets, reps, and weight' },
-    { type: 'mobility', icon: 'body-outline', label: 'Mobility / Recovery', desc: 'Timed exercises with countdowns' },
-    { type: 'drill', icon: 'flag-outline', label: 'Sport-Specific Drill', desc: 'Drill session with notes' },
-  ];
+interface TypeOption {
+  activityType: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  desc: string;
+}
 
+const GPS_OPTIONS: TypeOption[] = [
+  { activityType: 'run', icon: 'walk-outline', label: 'Run', desc: 'Outdoor run with GPS tracking' },
+  { activityType: 'walk', icon: 'walk-outline', label: 'Walk', desc: 'Walk or hike with GPS tracking' },
+  { activityType: 'cycling', icon: 'bicycle-outline', label: 'Cycling', desc: 'Outdoor cycling with GPS tracking' },
+];
+
+const INDOOR_OPTIONS: TypeOption[] = [
+  { activityType: 'indoor_run', icon: 'walk-outline', label: 'Indoor Run', desc: 'Treadmill or indoor track' },
+  { activityType: 'indoor_cycling', icon: 'bicycle-outline', label: 'Indoor Cycling', desc: 'Stationary bike or spin class' },
+  { activityType: 'strength', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight' },
+  { activityType: 'mobility', icon: 'body-outline', label: 'Mobility', desc: 'Timed exercises with countdowns' },
+  { activityType: 'drill', icon: 'flag-outline', label: 'Drill', desc: 'Drill session with notes' },
+];
+
+function TypeSelector({
+  onSelectManual,
+  onSelectGPS,
+}: {
+  onSelectManual: (activityType: string) => void;
+  onSelectGPS: (activityType: string) => void;
+}) {
   return (
     <View style={styles.typeSelectorContainer}>
-      {options.map((opt) => (
-        <Pressable key={opt.type} style={styles.typeOption} onPress={() => onSelect(opt.type)}>
+      <Text style={styles.typeSectionHeader}>Outdoor</Text>
+      {GPS_OPTIONS.map((opt) => (
+        <Pressable key={opt.activityType} style={styles.typeOption} onPress={() => onSelectGPS(opt.activityType)}>
+          <View style={[styles.typeIconCircle, styles.typeIconGPS]}>
+            <Ionicons name={opt.icon} size={24} color={Colors.primary} />
+          </View>
+          <View style={styles.typeOptionText}>
+            <View style={styles.typeOptionTitleRow}>
+              <Text style={styles.typeOptionLabel}>{opt.label}</Text>
+              <View style={styles.gpsBadge}><Text style={styles.gpsBadgeText}>GPS</Text></View>
+            </View>
+            <Text style={styles.typeOptionDesc}>{opt.desc}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+        </Pressable>
+      ))}
+
+      <Text style={[styles.typeSectionHeader, { marginTop: 16 }]}>Indoor & Gym</Text>
+      {INDOOR_OPTIONS.map((opt) => (
+        <Pressable key={opt.activityType} style={styles.typeOption} onPress={() => onSelectManual(opt.activityType)}>
           <View style={styles.typeIconCircle}>
             <Ionicons name={opt.icon} size={24} color={Colors.primary} />
           </View>
@@ -479,7 +521,7 @@ export default function RecordManualScreen() {
   const navigation = useNavigation<any>();
   const { scheduledActivityId, activityType: paramActivityType } = route.params ?? {};
 
-  const { activeWorkout, startWorkout, updateWorkout, clearWorkout } = useWorkout();
+  const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode } = useWorkout();
 
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [restTimerVisible, setRestTimerVisible] = useState(false);
@@ -516,9 +558,24 @@ export default function RecordManualScreen() {
 
   // On mount: if no active workout, start one (from params or wait for type-select)
   useEffect(() => {
+    if (workoutMode === 'gps') {
+      Alert.alert(
+        'GPS Workout In Progress',
+        'You have a GPS workout in progress. Finish it before starting a new workout.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+
     if (activeWorkout) return; // resume existing
 
     if (!scheduledActivityId && !paramActivityType) return; // type-select will handle it
+
+    // If the param type is a GPS activity, redirect to RecordGPS
+    if (paramActivityType && isGPSActivity(paramActivityType)) {
+      navigation.replace('RecordGPS', { activityType: paramActivityType });
+      return;
+    }
 
     if (scheduledActivityId) {
       setIsLoadingActivity(true);
@@ -582,10 +639,11 @@ export default function RecordManualScreen() {
     return [strength, mobility, drill];
   }
 
-  function handleTypeSelect(type: WorkoutType) {
+  function handleManualTypeSelect(activityType: string) {
+    const type = inferWorkoutType(activityType);
     startWorkout({
       workoutType: type,
-      activityDisplayType: DISPLAY_TYPE_LABELS[type],
+      activityDisplayType: DISPLAY_TYPE_LABELS[activityType] ?? activityType,
       startedAt: new Date(),
       strengthExercises: BLANK_STRENGTH,
       mobilityExercises: BLANK_MOBILITY,
@@ -697,7 +755,12 @@ export default function RecordManualScreen() {
           </View>
         )}
 
-        {phase === 'type-select' && <TypeSelector onSelect={handleTypeSelect} />}
+        {phase === 'type-select' && (
+          <TypeSelector
+            onSelectManual={handleManualTypeSelect}
+            onSelectGPS={(activityType) => navigation.navigate('RecordGPS', { activityType })}
+          />
+        )}
 
         {phase === 'recording' && activeWorkout?.workoutType === 'strength' && (
           <StrengthLogger
@@ -778,16 +841,21 @@ const styles = StyleSheet.create({
   activityBannerLabel: { fontSize: 11, color: Colors.primary, fontWeight: '700', letterSpacing: 0.5 },
   activityBannerName: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginTop: 2 },
 
-  typeSelectorContainer: { paddingTop: 8 },
+  typeSelectorContainer: { paddingTop: 4 },
+  typeSectionHeader: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
   typeOption: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14,
-    padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
   },
   typeIconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF0F0', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  typeIconGPS: { backgroundColor: Colors.primary + '14' },
   typeOptionText: { flex: 1 },
+  typeOptionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typeOptionLabel: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary },
   typeOptionDesc: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  gpsBadge: { backgroundColor: Colors.primary + '18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  gpsBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.primary, letterSpacing: 0.5 },
 
   exerciseBlock: {
     backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12,

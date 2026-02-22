@@ -1,5 +1,8 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import type { GPSPoint, HRReading, Lap } from '../types/gps';
+
+// ---- Manual workout types (unchanged) ----
 
 export type WorkoutType = 'strength' | 'mobility' | 'drill';
 
@@ -43,19 +46,89 @@ export interface ActiveWorkout {
   workoutNotes: string;
 }
 
+// ---- GPS workout types ----
+
+export type GPSRecordingState = 'idle' | 'recording' | 'paused' | 'stopped';
+
+export interface ActiveGPSWorkout {
+  activityType: string;
+  activityDisplayType: string;
+  scheduledActivityId?: string;
+  startedAt: Date;
+  finishedAt?: Date;
+  recordingState: GPSRecordingState;
+  // Collected data
+  points: GPSPoint[];
+  hrReadings: HRReading[];
+  laps: Lap[];
+  // Current lap tracking
+  lapStartIndex: number;
+  lapStartDistanceM: number;
+  // Live metrics
+  totalDistanceM: number;
+  elevationGainM: number;
+  currentPaceSecPerKm: number;
+  avgPaceSecPerKm: number;
+  currentSpeedKph: number;
+  avgSpeedKph: number;
+  currentHR: number | null;
+  avgHR: number | null;
+  // Pause tracking
+  autoPausedDurationSec: number;
+  lastAutoPauseStart: number | null;
+  // BLE
+  hrDeviceName?: string;
+  // Notes (filled in summary screen)
+  workoutNotes: string;
+}
+
+export type WorkoutMode = 'manual' | 'gps';
+
+// Fields that are initialised automatically when a GPS workout is started
+type GPSWorkoutInitFields =
+  | 'recordingState' | 'points' | 'hrReadings' | 'laps'
+  | 'lapStartIndex' | 'lapStartDistanceM'
+  | 'totalDistanceM' | 'elevationGainM'
+  | 'currentPaceSecPerKm' | 'avgPaceSecPerKm'
+  | 'currentSpeedKph' | 'avgSpeedKph'
+  | 'currentHR' | 'avgHR'
+  | 'autoPausedDurationSec' | 'lastAutoPauseStart'
+  | 'workoutNotes';
+
+export type StartGPSWorkoutOpts = Omit<ActiveGPSWorkout, GPSWorkoutInitFields>;
+
+// ---- Context ----
+
 interface WorkoutContextType {
+  // Manual
   activeWorkout: ActiveWorkout | null;
   startWorkout: (workout: Omit<ActiveWorkout, 'phase' | 'workoutNotes' | 'finishedAt'>) => void;
   updateWorkout: (updates: Partial<ActiveWorkout>) => void;
   clearWorkout: () => void;
+  // GPS
+  activeGPSWorkout: ActiveGPSWorkout | null;
+  startGPSWorkout: (opts: StartGPSWorkoutOpts) => void;
+  updateGPSWorkout: (updates: Partial<ActiveGPSWorkout>) => void;
+  clearGPSWorkout: () => void;
+  // Derived
+  workoutMode: WorkoutMode | null;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | null>(null);
 
 export function WorkoutProvider({ children }: { children: ReactNode }) {
   const [activeWorkout, setActiveWorkout] = useState<ActiveWorkout | null>(null);
+  const [activeGPSWorkout, setActiveGPSWorkout] = useState<ActiveGPSWorkout | null>(null);
 
+  // Refs for reading latest state inside stable callbacks
+  const activeWorkoutRef = useRef<ActiveWorkout | null>(null);
+  const activeGPSWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
+  activeWorkoutRef.current = activeWorkout;
+  activeGPSWorkoutRef.current = activeGPSWorkout;
+
+  // Manual
   const startWorkout = useCallback((workout: Omit<ActiveWorkout, 'phase' | 'workoutNotes' | 'finishedAt'>) => {
+    if (activeGPSWorkoutRef.current !== null) return; // GPS session in progress
     setActiveWorkout({ ...workout, phase: 'recording', workoutNotes: '', finishedAt: undefined });
   }, []);
 
@@ -67,8 +140,50 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
     setActiveWorkout(null);
   }, []);
 
+  // GPS
+  const startGPSWorkout = useCallback((opts: StartGPSWorkoutOpts) => {
+    if (activeWorkoutRef.current !== null) return; // manual session in progress
+    setActiveGPSWorkout({
+      ...opts,
+      recordingState: 'idle',
+      points: [],
+      hrReadings: [],
+      laps: [],
+      lapStartIndex: 0,
+      lapStartDistanceM: 0,
+      totalDistanceM: 0,
+      elevationGainM: 0,
+      currentPaceSecPerKm: 0,
+      avgPaceSecPerKm: 0,
+      currentSpeedKph: 0,
+      avgSpeedKph: 0,
+      currentHR: null,
+      avgHR: null,
+      autoPausedDurationSec: 0,
+      lastAutoPauseStart: null,
+      workoutNotes: '',
+    });
+  }, []);
+
+  const updateGPSWorkout = useCallback((updates: Partial<ActiveGPSWorkout>) => {
+    setActiveGPSWorkout((prev) => (prev ? { ...prev, ...updates } : prev));
+  }, []);
+
+  const clearGPSWorkout = useCallback(() => {
+    setActiveGPSWorkout(null);
+  }, []);
+
+  const workoutMode: WorkoutMode | null =
+    activeWorkout !== null ? 'manual' : activeGPSWorkout !== null ? 'gps' : null;
+
   return (
-    <WorkoutContext.Provider value={{ activeWorkout, startWorkout, updateWorkout, clearWorkout }}>
+    <WorkoutContext.Provider
+      value={{
+        activeWorkout, startWorkout, updateWorkout, clearWorkout,
+        activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout,
+        workoutMode,
+      }}
+    >
       {children}
     </WorkoutContext.Provider>
   );

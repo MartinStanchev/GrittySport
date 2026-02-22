@@ -311,14 +311,24 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
             </>
           ) : (
             <>
+              {activity?.linked_workout_id && (
+                <Pressable
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={() => navigation.navigate('WorkoutDetail', { workoutId: activity.linked_workout_id })}
+                >
+                  <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
+                  <Text style={[styles.actionButtonTextDark, { color: '#4CAF50' }]}>View Recording</Text>
+                </Pressable>
+              )}
               <Pressable
                 style={[styles.actionButton, styles.primaryButton, activity && !isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type) && styles.actionButtonDisabled]}
+                disabled={!activity || (!isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type))}
                 onPress={() => {
                   if (!activity) return;
                   if (isManualActivity(activity.activity_type)) {
                     navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type });
                   } else if (isGPSActivity(activity.activity_type)) {
-                    Alert.alert('Coming Soon', 'GPS workout tracking will be available in a future update.');
+                    navigation.navigate('RecordGPS', { scheduledActivityId: activity.id, activityType: activity.activity_type });
                   }
                 }}
               >

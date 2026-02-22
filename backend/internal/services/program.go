@@ -505,14 +505,18 @@ func (s *ProgramService) GetActivityDetail(ctx context.Context, activityID strin
 	var weekStartDate *time.Time
 	err := s.pool.QueryRow(ctx,
 		`SELECT sa.id, sa.activity_type, sa.day_of_week, sa.prescription, sa.notes, sa.order_index,
-		        w.week_number, ph.name, p.id, p.name, p.user_id, w.start_date
+		        w.week_number, ph.name, p.id, p.name, p.user_id, w.start_date,
+		        wo.id, wo.started_at, wo.source
 		 FROM scheduled_activities sa
 		 JOIN weeks w ON w.id = sa.week_id
 		 JOIN phases ph ON ph.id = w.phase_id
 		 JOIN programs p ON p.id = ph.program_id
-		 WHERE sa.id = $1`, activityID,
+		 LEFT JOIN workouts wo ON wo.scheduled_activity_id = sa.id AND wo.user_id = p.user_id
+		 WHERE sa.id = $1
+		 LIMIT 1`, activityID,
 	).Scan(&a.ID, &a.ActivityType, &a.DayOfWeek, &a.Prescription, &a.Notes, &a.OrderIndex,
-		&a.WeekNumber, &a.PhaseName, &a.ProgramID, &a.ProgramName, &a.UserID, &weekStartDate)
+		&a.WeekNumber, &a.PhaseName, &a.ProgramID, &a.ProgramName, &a.UserID, &weekStartDate,
+		&a.LinkedWorkoutID, &a.LinkedWorkoutRecordedAt, &a.LinkedWorkoutSource)
 	if err != nil {
 		return nil, err
 	}

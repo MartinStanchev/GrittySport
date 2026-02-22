@@ -15,7 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.grittyfitness.app"
+      "bundleIdentifier": "com.grittyfitness.app",
+      "backgroundModes": ["location"],
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Gritty Fitness uses your location to track your workout route, distance, and pace.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Gritty Fitness uses background location to continue tracking your workout when the app is in the background.",
+        "NSBluetoothPeripheralUsageDescription": "Gritty Fitness connects to heart rate monitors via Bluetooth.",
+        "NSBluetoothAlwaysUsageDescription": "Gritty Fitness connects to heart rate monitors via Bluetooth."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,13 +31,28 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.grittyfitness.app"
+      "package": "com.grittyfitness.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-sqlite",
+      "react-native-ble-plx",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Gritty Fitness uses background location to continue tracking your workout."
+        }
+      ]
     ]
   }
 }
