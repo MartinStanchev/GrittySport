@@ -18,7 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
+import { useAuth } from '../contexts/AuthContext';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import type { WorkoutResponse } from '../services/api';
 import { savePendingWorkout } from '../services/offlineStorage';
 import {
@@ -28,28 +30,15 @@ import {
   formatDistanceKm,
   isRunSport,
   computeHRZoneDistribution,
+  HR_ZONE_COLORS,
 } from '../services/gpsUtils';
 import type { Lap, HRZone } from '../types/gps';
-
-const HR_ZONE_COLORS: Record<HRZone, string> = {
-  1: '#6CABDD',
-  2: '#4CAF50',
-  3: '#FFC107',
-  4: '#FF9800',
-  5: '#F44336',
-};
-
-const HR_ZONE_LABELS: Record<HRZone, string> = {
-  1: 'Zone 1\nRecovery',
-  2: 'Zone 2\nAerobic',
-  3: 'Zone 3\nTempo',
-  4: 'Zone 4\nThreshold',
-  5: 'Zone 5\nMax',
-};
 
 export default function WorkoutSummaryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { activeGPSWorkout, clearGPSWorkout } = useWorkout();
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
@@ -71,6 +60,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
     points: workout.points,
     laps: workout.laps,
     hrReadings: workout.hrReadings,
+    cadenceReadings: workout.cadenceReadings,
     totalDistanceM: workout.totalDistanceM,
     autoPausedDurationSec: workout.autoPausedDurationSec,
     startedAt: workout.startedAt,
@@ -87,7 +77,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   }
 
   const hrZoneDist = hrData && hrData.readings.length > 0
-    ? computeHRZoneDistribution(hrData.readings, 185)
+    ? computeHRZoneDistribution(hrData.readings, maxHR)
     : null;
   const hrZoneTotalSec = hrZoneDist
     ? (Object.values(hrZoneDist) as number[]).reduce((s, v) => s + v, 0)
@@ -284,6 +274,12 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
             {routeData.max_hr && (
               <StatCard label="Max HR" value={`${routeData.max_hr}`} unit="bpm" />
             )}
+            {routeData.avg_cadence && (
+              <StatCard label="Avg Cadence" value={`${routeData.avg_cadence}`} unit="spm" />
+            )}
+            {routeData.max_cadence && (
+              <StatCard label="Max Cadence" value={`${routeData.max_cadence}`} unit="spm" />
+            )}
             <StatCard label="Laps" value={`${workout.laps.length}`} />
           </View>
 
@@ -313,6 +309,23 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 ))}
               </View>
             </View>
+          )}
+
+          {/* Charts */}
+          {hrData && hrData.readings.length > 5 && (
+            <HROverTimeChart readings={hrData.readings} maxHR={maxHR} />
+          )}
+
+          {workout.points.length > 10 && isRun && (
+            <PaceOverTimeChart points={workout.points} />
+          )}
+
+          {workout.points.length > 10 && !isRun && (
+            <SpeedOverTimeChart points={workout.points} />
+          )}
+
+          {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
+            <CadenceChart readings={hrData.cadence_readings} />
           )}
 
           {/* Lap splits */}

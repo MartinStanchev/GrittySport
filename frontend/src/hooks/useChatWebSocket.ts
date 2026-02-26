@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { getAccessToken, getWsBaseUrl } from '../services/api';
+import { getValidAccessToken, getWsBaseUrl } from '../services/api';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
 export interface ChatMessage {
@@ -37,28 +37,63 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const reconnectDelayRef = useRef(1000);
+  const connectingRef = useRef(false);
   const mountedRef = useRef(true);
   const streamingContentRef = useRef('');
   const optionsRef = useRef(options);
   const historyLoadedRef = useRef(false);
-  const chatContextRef = useRef('free_chat');
   const lastActivityRef = useRef<number>(Date.now());
   optionsRef.current = options;
 
+  // Track whether we've given up on auth — stops reconnect loop when logged out
+  const authFailedRef = useRef(false);
+
   const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (connectingRef.current) return;
+    if (authFailedRef.current) return;
+    connectingRef.current = true;
 
-    const token = await getAccessToken();
-    if (!token || !mountedRef.current) return;
+    // Cancel any pending reconnect since we're connecting now
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
+    }
+
+    const token = await getValidAccessToken();
+    if (!token || !mountedRef.current) {
+      connectingRef.current = false;
+      // Token is null — either not logged in or refresh failed.
+      // Stop trying to reconnect until next explicit connect() call.
+      authFailedRef.current = true;
+      if (__DEV__) {
+        console.log('[WS] No valid token available — stopping reconnect');
+      }
+      return;
+    }
+
+    if (__DEV__) {
+      console.log('[WS] Connecting with token...');
+    }
 
     const wsUrl = `${getWsBaseUrl()}/api/ws/chat?token=${encodeURIComponent(token)}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
+    // Track whether this socket ever successfully opened.
+    // If it closes without opening, it was an auth/network rejection — don't retry immediately.
+    let didOpen = false;
+
     ws.onopen = () => {
+      didOpen = true;
+      connectingRef.current = false;
+      authFailedRef.current = false;
       if (!mountedRef.current) return;
       setIsConnected(true);
       reconnectDelayRef.current = 1000;
+      if (__DEV__) {
+        console.log('[WS] Connected successfully');
+      }
     };
 
     ws.onmessage = (event) => {
@@ -158,11 +193,27 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     };
 
     ws.onclose = () => {
+      connectingRef.current = false;
       if (!mountedRef.current) return;
       setIsConnected(false);
 
+      if (!didOpen) {
+        // Socket closed before opening — likely auth rejection (401).
+        // Try once more with a fresh token; if that also fails, connect()
+        // will set authFailedRef and stop the loop.
+        if (__DEV__) {
+          console.log('[WS] Connection rejected (never opened) — retrying in 5s');
+        }
+        reconnectTimeoutRef.current = setTimeout(connect, 5000);
+        return;
+      }
+
+      // Normal disconnect — reconnect with exponential backoff
       const delay = reconnectDelayRef.current;
       reconnectDelayRef.current = Math.min(delay * 2, 30000);
+      if (__DEV__) {
+        console.log(`[WS] Disconnected — reconnecting in ${delay}ms`);
+      }
       reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
 
@@ -182,12 +233,10 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   }, []);
 
   const sendMessage = useCallback(
-    (content: string, context = 'free_chat') => {
+    (content: string) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       setQuickReplies([]);
-      chatContextRef.current = context;
-
       lastActivityRef.current = Date.now();
 
       const userMsg: ChatMessage = {
@@ -204,7 +253,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
         JSON.stringify({
           type: 'user_message',
           content,
-          context,
         }),
       );
     },
@@ -212,7 +260,7 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   );
 
   const respondToProposal = useCallback(
-    (action: 'accept' | 'deny', context = 'free_chat', content?: string) => {
+    (action: 'accept' | 'deny', content?: string) => {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       setIsGritTyping(true);
@@ -223,7 +271,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
         JSON.stringify({
           type: 'proposal_response',
           action,
-          context,
           content: content || '',
         }),
       );
@@ -243,8 +290,7 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
-          type: 'clear_context',
-          context: chatContextRef.current,
+          type: 'clear_chat',
         }),
       );
     }
@@ -284,6 +330,7 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
 
   useEffect(() => {
     mountedRef.current = true;
+    authFailedRef.current = false; // Reset on mount — user may have logged in
     connect();
 
     return () => {

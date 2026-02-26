@@ -42,16 +42,16 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	testPool.Exec(ctx, "DELETE FROM refresh_tokens")
-	testPool.Exec(ctx, "DELETE FROM users")
+	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 	os.Exit(code)
 }
 
 func cleanTables(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
-	testPool.Exec(ctx, "DELETE FROM refresh_tokens")
-	testPool.Exec(ctx, "DELETE FROM users")
+	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 }
 
 func newService() *services.AuthService {

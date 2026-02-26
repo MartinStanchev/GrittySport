@@ -10,8 +10,14 @@ import {
   formatSpeedKph,
   formatDistanceKm,
   buildFinalGPSPayload,
+  downsample,
+  computePaceTimeSeries,
+  computeSpeedTimeSeries,
+  getHRZone,
+  getHRZoneColor,
+  HR_ZONE_COLORS,
 } from '../services/gpsUtils';
-import type { GPSPoint, HRReading } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading } from '../types/gps';
 
 // Helper: build a minimal GPSPoint
 function pt(lat: number, lng: number, opts: Partial<GPSPoint> = {}): GPSPoint {
@@ -351,5 +357,148 @@ describe('buildFinalGPSPayload', () => {
       finishedAt: new Date(400_000), // 400 s total
     });
     expect(result.routeData.duration_sec).toBe(300); // 400 - 100
+  });
+});
+
+// ─── downsample ──────────────────────────────────────────────────────────
+
+describe('downsample', () => {
+  it('returns original array when length <= maxPoints', () => {
+    const items = [1, 2, 3];
+    expect(downsample(items, 5)).toBe(items); // same reference
+    expect(downsample(items, 3)).toBe(items);
+  });
+
+  it('downsamples to exactly maxPoints items', () => {
+    const items = Array.from({ length: 100 }, (_, i) => i);
+    const result = downsample(items, 10);
+    expect(result).toHaveLength(10);
+  });
+
+  it('preserves first element', () => {
+    const items = Array.from({ length: 50 }, (_, i) => i);
+    const result = downsample(items, 5);
+    expect(result[0]).toBe(0);
+  });
+
+  it('works with HR readings', () => {
+    const readings: HRReading[] = Array.from({ length: 200 }, (_, i) => ({
+      bpm: 60 + i,
+      timestamp: i * 1000,
+    }));
+    const result = downsample(readings, 20);
+    expect(result).toHaveLength(20);
+    expect(result[0].bpm).toBe(60);
+  });
+
+  it('works with cadence readings', () => {
+    const readings: CadenceReading[] = Array.from({ length: 100 }, (_, i) => ({
+      spm: 160 + (i % 20),
+      timestamp: i * 1000,
+    }));
+    const result = downsample(readings, 15);
+    expect(result).toHaveLength(15);
+  });
+});
+
+// ─── getHRZone / getHRZoneColor ──────────────────────────────────────────
+
+describe('getHRZone', () => {
+  const maxHR = 200;
+
+  it('returns zone 1 for < 60% max HR', () => {
+    expect(getHRZone(100, maxHR)).toBe(1); // 50%
+    expect(getHRZone(119, maxHR)).toBe(1); // 59.5%
+  });
+
+  it('returns zone 2 for 60-69% max HR', () => {
+    expect(getHRZone(120, maxHR)).toBe(2); // 60%
+    expect(getHRZone(139, maxHR)).toBe(2); // 69.5%
+  });
+
+  it('returns zone 3 for 70-79% max HR', () => {
+    expect(getHRZone(140, maxHR)).toBe(3); // 70%
+    expect(getHRZone(159, maxHR)).toBe(3); // 79.5%
+  });
+
+  it('returns zone 4 for 80-89% max HR', () => {
+    expect(getHRZone(160, maxHR)).toBe(4); // 80%
+    expect(getHRZone(179, maxHR)).toBe(4); // 89.5%
+  });
+
+  it('returns zone 5 for >= 90% max HR', () => {
+    expect(getHRZone(180, maxHR)).toBe(5); // 90%
+    expect(getHRZone(200, maxHR)).toBe(5); // 100%
+  });
+});
+
+describe('getHRZoneColor', () => {
+  it('returns correct color for each zone', () => {
+    expect(getHRZoneColor(100, 200)).toBe(HR_ZONE_COLORS[1]); // zone 1
+    expect(getHRZoneColor(130, 200)).toBe(HR_ZONE_COLORS[2]); // zone 2
+    expect(getHRZoneColor(150, 200)).toBe(HR_ZONE_COLORS[3]); // zone 3
+    expect(getHRZoneColor(170, 200)).toBe(HR_ZONE_COLORS[4]); // zone 4
+    expect(getHRZoneColor(190, 200)).toBe(HR_ZONE_COLORS[5]); // zone 5
+  });
+});
+
+// ─── computePaceTimeSeries ───────────────────────────────────────────────
+
+describe('computePaceTimeSeries', () => {
+  it('returns empty for fewer than 2 points', () => {
+    expect(computePaceTimeSeries([])).toEqual([]);
+    expect(computePaceTimeSeries([pt(0, 0)])).toEqual([]);
+  });
+
+  it('returns pace time series from a steady route', () => {
+    // 30 points, 100m apart, 30s interval → 300 s/km pace (5:00/km)
+    const points = straightRoute(30, 100, 30000);
+    const series = computePaceTimeSeries(points, 5);
+    expect(series.length).toBeGreaterThan(0);
+
+    // All paces should be roughly 300 s/km (5:00/km)
+    for (const p of series) {
+      expect(p.paceSecPerKm).toBeGreaterThan(200);
+      expect(p.paceSecPerKm).toBeLessThan(400);
+      expect(p.elapsedMin).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('elapsed time increases monotonically', () => {
+    const points = straightRoute(50, 100, 10000);
+    const series = computePaceTimeSeries(points, 5);
+    for (let i = 1; i < series.length; i++) {
+      expect(series[i].elapsedMin).toBeGreaterThan(series[i - 1].elapsedMin);
+    }
+  });
+});
+
+// ─── computeSpeedTimeSeries ──────────────────────────────────────────────
+
+describe('computeSpeedTimeSeries', () => {
+  it('returns empty for fewer than 2 points', () => {
+    expect(computeSpeedTimeSeries([])).toEqual([]);
+    expect(computeSpeedTimeSeries([pt(0, 0)])).toEqual([]);
+  });
+
+  it('returns speed time series from a steady route', () => {
+    // 30 points, 100m apart, 10s interval → 10 m/s = 36 km/h
+    const points = straightRoute(30, 100, 10000);
+    const series = computeSpeedTimeSeries(points, 5);
+    expect(series.length).toBeGreaterThan(0);
+
+    for (const p of series) {
+      expect(p.speedKph).toBeGreaterThan(25);
+      expect(p.speedKph).toBeLessThan(50);
+      expect(p.elapsedMin).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('elapsed time increases monotonically', () => {
+    const points = straightRoute(50, 100, 10000);
+    const series = computeSpeedTimeSeries(points, 5);
+    for (let i = 1; i < series.length; i++) {
+      expect(series[i].elapsedMin).toBeGreaterThan(series[i - 1].elapsedMin);
+    }
   });
 });

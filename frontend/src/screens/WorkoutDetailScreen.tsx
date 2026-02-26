@@ -9,6 +9,8 @@ import { getWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../ser
 import type { WorkoutResponse } from '../services/api';
 import { formatPaceSecPerKm, formatSpeedKph, isRunSport } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
+import { useAuth } from '../contexts/AuthContext';
+import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -168,8 +170,11 @@ function MobilityDetail({ data }: { data: Record<string, any> }) {
 function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   const route = workout.gps_route ?? {};
   const summary = workout.recorded_data ?? {};
+  const hrData = workout.heart_rate_data;
   const isRun = isRunSport(workout.activity_type);
   const laps: any[] = route.laps ?? [];
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
 
   const points: { latitude: number; longitude: number }[] = (route.points ?? []).map((p: any) => ({
     latitude: p.lat,
@@ -210,7 +215,26 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
         <StatRow label="Elevation Gain" value={summary.elevation_gain_m ? `+${summary.elevation_gain_m} m` : '—'} />
         {summary.avg_hr && <StatRow label="Avg Heart Rate" value={`${summary.avg_hr} bpm`} />}
         {summary.max_hr && <StatRow label="Max Heart Rate" value={`${summary.max_hr} bpm`} />}
+        {summary.avg_cadence && <StatRow label="Avg Cadence" value={`${summary.avg_cadence} spm`} />}
       </View>
+
+      {/* Charts */}
+      {hrData?.readings && hrData.readings.length > 5 && (
+        <HROverTimeChart readings={hrData.readings} maxHR={maxHR} />
+      )}
+
+      {route.points && route.points.length > 10 && isRun && (
+        <PaceOverTimeChart points={route.points} />
+      )}
+
+      {route.points && route.points.length > 10 && !isRun && (
+        <SpeedOverTimeChart points={route.points} />
+      )}
+
+      {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
+        <CadenceChart readings={hrData.cadence_readings} />
+      )}
+
       {laps.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lap Splits</Text>

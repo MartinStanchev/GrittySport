@@ -2,24 +2,25 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
+import { dayAbbrev } from '../constants/activityIcons';
+
+interface ActivityProposal {
+  day_of_week: number;
+  activity_type: string;
+  prescription: any;
+}
+
+interface TemplateWeek {
+  activities: ActivityProposal[];
+}
 
 interface PhaseProposal {
   name: string;
   order_index: number;
   start_date?: string;
   end_date?: string;
-  weeks: WeekProposal[];
-}
-
-interface WeekProposal {
-  week_number: number;
-  activities: ActivityProposal[];
-}
-
-interface ActivityProposal {
-  day_of_week: number;
-  activity_type: string;
-  prescription: any;
+  duration_weeks: number;
+  template_week: TemplateWeek;
 }
 
 interface ProgramProposalData {
@@ -38,13 +39,11 @@ interface ProgramProposalCardProps {
   disabled?: boolean;
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: ProgramProposalCardProps) {
   const [expandedPhase, setExpandedPhase] = useState<number | null>(null);
 
-  const totalWeeks = data.phases.reduce((sum, p) => sum + p.weeks.length, 0);
-  const activitiesPerWeek = data.phases[0]?.weeks[0]?.activities.length || 0;
+  const totalWeeks = data.phases.reduce((sum, p) => sum + p.duration_weeks, 0);
+  const activitiesPerWeek = data.phases[0]?.template_week?.activities?.length || 0;
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -98,28 +97,21 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
                 color={Colors.textSecondary}
               />
               <Text style={styles.phaseName}>{phase.name}</Text>
-              <Text style={styles.phaseWeeks}>{phase.weeks.length}w</Text>
+              <Text style={styles.phaseWeeks}>{phase.duration_weeks}w</Text>
             </TouchableOpacity>
 
-            {expandedPhase === idx && (
+            {expandedPhase === idx && phase.template_week && (
               <View style={styles.weeksList}>
-                {phase.weeks.slice(0, 2).map((week) => (
-                  <View key={week.week_number} style={styles.weekRow}>
-                    <Text style={styles.weekLabel}>Week {week.week_number}</Text>
-                    <View style={styles.activitiesList}>
-                      {week.activities.map((act, aIdx) => (
-                        <Text key={aIdx} style={styles.activityText}>
-                          {DAY_NAMES[act.day_of_week]}: {act.activity_type}
-                        </Text>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-                {phase.weeks.length > 2 && (
-                  <Text style={styles.moreText}>
-                    +{phase.weeks.length - 2} more weeks
-                  </Text>
-                )}
+                <Text style={styles.templateLabel}>
+                  Template week · repeats {phase.duration_weeks}w
+                </Text>
+                <View style={styles.activitiesList}>
+                  {phase.template_week.activities.map((act, aIdx) => (
+                    <Text key={aIdx} style={styles.activityText}>
+                      {dayAbbrev(act.day_of_week)}: {act.activity_type}
+                    </Text>
+                  ))}
+                </View>
               </View>
             )}
           </View>
@@ -233,14 +225,12 @@ const styles = StyleSheet.create({
     paddingLeft: 22,
     paddingBottom: 4,
   },
-  weekRow: {
-    marginBottom: 6,
-  },
-  weekLabel: {
+  templateLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.textSecondary,
-    marginBottom: 2,
+    marginBottom: 4,
+    fontStyle: 'italic',
   },
   activitiesList: {
     paddingLeft: 8,
@@ -249,12 +239,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     lineHeight: 18,
-  },
-  moreText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 2,
   },
   actions: {
     flexDirection: 'row',

@@ -46,16 +46,16 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	testPool.Exec(ctx, "DELETE FROM refresh_tokens")
-	testPool.Exec(ctx, "DELETE FROM users")
+	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 	os.Exit(code)
 }
 
 func cleanTables(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
-	testPool.Exec(ctx, "DELETE FROM refresh_tokens")
-	testPool.Exec(ctx, "DELETE FROM users")
+	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 }
 
 func setupRouter() (*chi.Mux, *services.AuthService) {
@@ -190,7 +190,7 @@ func TestRefreshEndpoint_200(t *testing.T) {
 	r.ServeHTTP(rec, req)
 
 	var regResp models.AuthResponse
-	json.NewDecoder(rec.Body).Decode(&regResp)
+	_ = json.NewDecoder(rec.Body).Decode(&regResp)
 
 	refreshBody := `{"refresh_token":"` + regResp.RefreshToken + `"}`
 	req = httptest.NewRequest(http.MethodPost, "/api/auth/refresh", bytes.NewBufferString(refreshBody))
@@ -203,7 +203,7 @@ func TestRefreshEndpoint_200(t *testing.T) {
 	}
 
 	var resp models.AuthResponse
-	json.NewDecoder(rec.Body).Decode(&resp)
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
 	if resp.RefreshToken == regResp.RefreshToken {
 		t.Error("expected rotated refresh token")
 	}

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { GPSPoint, HRReading, Lap } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
 
 // ---- Manual workout types (unchanged) ----
 
@@ -73,6 +73,10 @@ export interface ActiveGPSWorkout {
   avgSpeedKph: number;
   currentHR: number | null;
   avgHR: number | null;
+  // Cadence
+  cadenceReadings: CadenceReading[];
+  currentCadence: number | null;
+  avgCadence: number | null;
   // Pause tracking
   autoPausedDurationSec: number;
   lastAutoPauseStart: number | null;
@@ -92,6 +96,7 @@ type GPSWorkoutInitFields =
   | 'currentPaceSecPerKm' | 'avgPaceSecPerKm'
   | 'currentSpeedKph' | 'avgSpeedKph'
   | 'currentHR' | 'avgHR'
+  | 'cadenceReadings' | 'currentCadence' | 'avgCadence'
   | 'autoPausedDurationSec' | 'lastAutoPauseStart'
   | 'workoutNotes';
 
@@ -159,6 +164,9 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       avgSpeedKph: 0,
       currentHR: null,
       avgHR: null,
+      cadenceReadings: [],
+      currentCadence: null,
+      avgCadence: null,
       autoPausedDurationSec: 0,
       lastAutoPauseStart: null,
       workoutNotes: '',

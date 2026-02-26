@@ -179,3 +179,59 @@
 - **Relaxed accuracy filter**: `MAX_ACCURACY_METRES` raised from 30 to 50 to allow points during GPS cold-start (first 30–60 s when accuracy is often 30–50 m).
 - **Dev GPS simulation**: `frontend/src/services/gpsSimRoute.ts` generates a synthetic 1 km circular route (200 points, ~3 m/s jogging pace). `RecordGPSScreen` shows a "Sim Route (Dev)" button in `__DEV__` mode that feeds points into `handleNewPoint` at 50 ms intervals (33× real-time), exercising the full recording pipeline without going outdoors.
 - **Unit tests**: `frontend/src/__tests__/gpsUtils.test.ts` — 32 Jest tests for all pure functions in `gpsUtils.ts`. Jest configured via `jest.config.js` + `ts-jest`; `"test"` script added to `package.json`.
+
+## Unified System Prompt with On-Demand Skills — Done
+- **Replaced 3 context-based prompts with 1 unified prompt + skills**: Deleted `free_chat.txt`, `program_creation.txt`, `criteria_edit.txt`. New `backend/prompts/system.md` (unified) + `backend/prompts/skills/program_creation.md` and `criteria_edit.md` (on-demand skills).
+- **`read_skill` tool**: New Gemini function-calling tool that Grit calls to load skill instructions when it detects user intent (e.g., "create a program"). `SkillLoader` in `ai/gemini.go` loads `.md` skill files at startup and renders `{{.Criteria}}` from `questions.json`.
+- **Simplified `PromptLoader`**: Removed `BuildFreeChatPrompt`/`BuildProgramCreationPrompt`/`BuildCriteriaEditPrompt`, replaced with single `BuildSystemPrompt`. Removed `ProgramContext` field from `PromptParams` (Grit fetches program data on demand via `get_active_program` tool).
+- **Removed chat contexts**: Backend no longer switches prompts based on context. All messages saved with `context="chat"` (single stream). Frontend removed `chatContext` state, `chatContextRef`, and context parameters from `sendMessage`/`respondToProposal`/`clearChat`.
+- **`ProgramContext.tsx`**: `openChatRequest` simplified from `string` to `boolean`.
+- **Deviation**: Users can now say "create me a program" in free chat and Grit handles it directly via skill loading, instead of being told to tap a button.
+
+## Fix Program Creation: Session State + Tool Call Persistence — Done
+- **Root cause**: Tool call results (draft IDs, loaded skills) were lost between WS turns — only assistant text was saved to `chat_messages`. Grit forgot its draft program ID and created multiple drafts, re-read skills unnecessarily, and tried to confirm without proposing.
+- **Session state tracking** (`handlers/chat.go`): New `sessionState` struct (`activeDraftID`, `activeSkill`) persists across the WS connection loop. The `executeTool` callback captures state from `create_draft_program`, `get_draft_program`, `read_skill`, and `confirm_program_save` results. State is injected into the system prompt as an "Active session context" section so Grit knows the current draft ID and loaded skill without re-calling tools.
+- **Tool call summaries**: After each `ChatWithTools` turn with tool calls, a system message is saved to `chat_messages` summarizing which tools were called and the active draft ID. This provides context even after WS reconnect.
+- **Better error for confirm without propose**: `confirm_program_save` now returns an actionable error telling Grit to call `propose_program` first.
+- **Prompt improvements**: `program_creation.md` — reinforced ONE question per message rule, added 100-word limit during question phase, added "immediately call `propose_program`" instruction (don't describe program in text first), added "Handling large programs" section requiring every week to have activities. `system.md` — tightened default response limit from 200 to 100 words.
+- **Gemini role mapping**: `messagesToContents` maps "system" → "user" for Gemini compatibility (Gemini only accepts "user" and "model"). Added consecutive same-role message merging to satisfy alternating turn requirement.
+
+## Fix Program Proposal Modification + WS Reconnect — Done
+- **MALFORMED_FUNCTION_CALL handling** (`ai/gemini.go`): When Gemini tries to generate a tool call with output too large (e.g., regenerating a 19-week program JSON), it returns `MALFORMED_FUNCTION_CALL`. Extended the fallback mechanism to handle this on any round (not just round 0) — retries without tools using the original message history, with a hint telling Grit the tool call failed and to respond in text instead.
+- **`modify_pending_proposal` tool** (`tools/tools.go`): New tool allowing Grit to apply targeted edits to a pending program proposal without regenerating the entire program. Supports `swap_day`, `change_activity`, `update_prescription`, `remove_activity`, `add_activity` actions. Can target specific phases/weeks or apply changes across all weeks via `apply_to_all_weeks`. WS notification sends updated proposal to frontend.
+- **Prompt update**: `program_creation.md` — added "Modifying a proposed program" section instructing Grit to use `modify_pending_proposal` instead of re-calling `propose_program` for changes.
+- **WS reconnect fix** (`useChatWebSocket.ts`): Added `authFailedRef` to stop reconnect loop when `getValidAccessToken()` returns null (expired token + failed refresh). Prevents zombie reconnect loops. Ref resets on component mount (login). Added `__DEV__` console logs for WS connect/disconnect/auth-failure events.
+
+## Phase-Based Program Proposal — Done
+- **Problem**: `propose_program` required Gemini to generate entire program (phases→weeks→activities) in a single tool call. For 12-20 week programs, this exceeded Gemini's output token limits → `MALFORMED_FUNCTION_CALL`.
+- **Solution**: Split into two-step flow: `propose_program` creates skeleton (metadata, phase names/dates, criteria, NO weeks) → `add_proposal_phase` called once per phase with weeks and activities. Proposal auto-sent to frontend when all phases populated.
+- **`proposals.go`**: Added `TotalPhases` field to `PendingProposal` and `AllPhasesComplete()` method that checks all phases have non-empty weeks arrays.
+- **`tools.go`**: Removed nested `weeks` schema from `propose_program` phases — phases now only have `name`, `order_index`, `start_date`, `end_date`. Handler stores skeleton with empty `weeks: []` arrays and returns phase names/indices. New `add_proposal_phase` tool: takes `phase_index` + `weeks[]` array, populates the target phase, returns completion status (`phases_completed`/`phases_total`/`remaining_phases`).
+- **`chat.go`**: `propose_program` no longer sends `program_proposal` WS message. New `add_proposal_phase` case sends `program_proposal` only when `AllPhasesComplete()` returns true.
+- **`program_creation.md`**: Rewrote program generation section with two-step instructions (skeleton → per-phase population). Kept `modify_pending_proposal` instructions for post-proposal changes.
+- **Frontend**: Added `add_proposal_phase` tool label. No other changes — `ProgramProposalCard` renders the same full program JSON.
+
+## Task 9.6: Heart Rate Sensor & Post-Activity Summary — Done
+- **Backend**: Migration `009_add_max_heart_rate.sql` adds `max_heart_rate` column to users table. Updated `User` model, `ToResponse()`, all auth queries, and `UpdateUserInput`/UPDATE in user service.
+- **Dependencies**: `react-native-gifted-charts`, `react-native-svg`, `expo-sensors` installed.
+- **HRSensorModal** (`components/HRSensorModal.tsx`): Reusable BLE scanning/connection modal extracted from RecordGPSScreen. Used in both Settings and RecordGPSScreen.
+- **Settings HR section**: Max heart rate numeric input (dirty-checked, saves via updateUser), HR monitor connect/disconnect row opening HRSensorModal.
+- **Cadence detection** (`services/cadenceService.ts`): Accelerometer-based step cadence for run/walk using `expo-sensors`. Peak detection on acceleration magnitude at ~50Hz, 3-second sliding window for SPM. Web stub provided.
+- **WorkoutContext**: Added `cadenceReadings`, `currentCadence`, `avgCadence` to `ActiveGPSWorkout`.
+- **Swipeable metrics panel**: RecordGPSScreen metrics panel now horizontally swipeable (2 pages) — numeric metrics + LiveHRChart. Page indicator dots. Cadence row shown for run/walk activities. All hardcoded `185` maxHR replaced with `user.max_heart_rate`.
+- **LiveHRChart** (`components/LiveHRChart.tsx`): Real-time HR line chart using react-native-gifted-charts with zone-colored data points and BPM overlay.
+- **WorkoutCharts** (`components/WorkoutCharts.tsx`): 4 chart components (HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart) added to WorkoutSummaryScreen and WorkoutDetailScreen. Sport-specific rendering (pace for runs, speed for cycling).
+- **gpsUtils extensions**: `downsample<T>` (generic), `computePaceTimeSeries`, `computeSpeedTimeSeries`, `getHRZone`, `getHRZoneColor`, `HR_ZONE_COLORS`. `buildFinalGPSPayload` accepts optional cadenceReadings with avg/max cadence stats.
+- **Types**: `CadenceReading` added to `gps.ts`, cadence fields added to `GPSRouteData`, `GPSSummaryData`, `HRData`.
+- **Code simplifier**: Consolidated `downsampleReadings`/`downsampleCadence` into generic `downsample<T>`, extracted shared `getHRZoneColor`/`HR_ZONE_COLORS` to gpsUtils (removed duplicates from LiveHRChart and WorkoutCharts).
+- **Tests**: 17 new tests (49 total) covering `downsample`, `getHRZone`, `getHRZoneColor`, `computePaceTimeSeries`, `computeSpeedTimeSeries`. All passing.
+- **Linting**: Go build + golangci-lint clean. Frontend lint: 0 errors, pre-existing warnings only.
+
+## Template-Week Program Proposal — Done
+- **Problem**: Program creation via Gemini tool calls kept failing — even per-phase `add_proposal_phase` calls produced output too large or caused `unexpected EOF`.
+- **Solution**: Replaced two-step `propose_program` (skeleton) + `add_proposal_phase` (per-phase) with a single `propose_program` call using template weeks. Each phase has `duration_weeks` + `template_week` (single Mon-Sun pattern). Templates expanded into real weeks at save time.
+- **Backend**: `proposals.go` — removed `TotalPhases` and `AllPhasesComplete()`. `tools.go` — rewrote `propose_program` schema with `template_week`/`duration_weeks` per phase, removed `add_proposal_phase` tool entirely, rewrote `modify_pending_proposal` to operate on template activities (`applyTemplateModifications`), added `expandTemplatesToSaveInput()` for `confirm_program_save`. `chat.go` — `propose_program` sends WS `program_proposal` immediately, removed `add_proposal_phase` case, merged `propose_program`/`modify_pending_proposal` into single case.
+- **Frontend**: `ProgramProposalCard` — replaced `weeks[]` with `template_week`/`duration_weeks`, shows "Template week · repeats Xw" in expanded phase view. `toolLabels.ts` — removed `add_proposal_phase` entry.
+- **Prompt**: `program_creation.md` — single `propose_program` call with template week example JSON, updated `modify_pending_proposal` docs (removed `week_number`/`apply_to_all_weeks`).
+- **Trade-off**: All weeks within a phase are identical at creation (no progressive overload). Users edit individual activities post-save, and Grit uses `propose_adjustment`.
+- **Code simplifier**: Deduplicated `DAY_NAMES` in ProposalCard (uses shared `dayAbbrev()`), merged duplicate WS notification cases in chat.go, consistent error variable naming in tools.go.

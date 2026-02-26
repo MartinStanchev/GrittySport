@@ -79,6 +79,34 @@ export async function getAccessToken(): Promise<string | null> {
   return storageGet('access_token');
 }
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = JSON.parse(atob(payload));
+    const expiresAt = ((decoded.exp as number) ?? 0) * 1000;
+    // Consider expired if less than 30s remaining
+    return expiresAt <= Date.now() + 30_000;
+  } catch {
+    return true;
+  }
+}
+
+export async function getValidAccessToken(): Promise<string | null> {
+  const token = await getAccessToken();
+  if (!token) return null;
+
+  if (!isTokenExpired(token)) return token;
+
+  const refreshed = await attemptRefresh();
+  if (refreshed) return getAccessToken();
+
+  await clearTokens();
+  notifyAuthLost();
+  return null;
+}
+
 export async function getRefreshToken(): Promise<string | null> {
   return storageGet('refresh_token');
 }
@@ -184,6 +212,7 @@ export interface UserResponse {
   name: string;
   timezone?: string;
   units_preference: string;
+  max_heart_rate: number;
 }
 
 interface AuthResponse {
@@ -225,6 +254,7 @@ export interface UpdateUserInput {
   name?: string;
   timezone?: string;
   units_preference?: string;
+  max_heart_rate?: number;
 }
 
 export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {
@@ -238,7 +268,6 @@ export interface ChatMessageResponse {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
-  context: string;
   program_id?: string;
   metadata?: Record<string, unknown>;
   created_at: string;
@@ -250,12 +279,10 @@ interface ChatHistoryResponse {
 }
 
 export async function getChatHistory(
-  context?: string,
   limit?: number,
   before?: string,
 ): Promise<ChatHistoryResponse> {
   const params = new URLSearchParams();
-  if (context) params.set('context', context);
   if (limit) params.set('limit', String(limit));
   if (before) params.set('before', before);
   const query = params.toString();

@@ -7,10 +7,10 @@ interface ProgramContextType {
   activeProgram: ProgramSummary | null;
   upcomingActivities: UpcomingActivity[];
   isLoading: boolean;
-  openChatRequest: string | null;
+  openChatRequest: boolean;
   refreshProgram: () => Promise<void>;
   refreshUpcoming: () => Promise<void>;
-  requestOpenChat: (context: string) => void;
+  requestOpenChat: () => void;
   clearOpenChatRequest: () => void;
 }
 
@@ -21,7 +21,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [activeProgram, setActiveProgram] = useState<ProgramSummary | null>(null);
   const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [openChatRequest, setOpenChatRequest] = useState<string | null>(null);
+  const [openChatRequest, setOpenChatRequest] = useState(false);
 
   const refreshProgram = useCallback(async () => {
     try {
@@ -44,12 +44,12 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const requestOpenChat = useCallback((context: string) => {
-    setOpenChatRequest(context);
+  const requestOpenChat = useCallback(() => {
+    setOpenChatRequest(true);
   }, []);
 
   const clearOpenChatRequest = useCallback(() => {
-    setOpenChatRequest(null);
+    setOpenChatRequest(false);
   }, []);
 
   useEffect(() => {

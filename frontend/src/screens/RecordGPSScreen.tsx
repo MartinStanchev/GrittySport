@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import MapView, { Polyline, UrlTile } from '../components/NativeMap';
@@ -17,6 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { ActiveGPSWorkout } from '../contexts/WorkoutContext';
 import {
   haversineMetres,
@@ -30,9 +31,13 @@ import {
   formatSpeedKph,
   formatDistanceKm,
   isRunSport,
+  getHRZoneColor,
 } from '../services/gpsUtils';
 import { bleService } from '../services/bleService';
-import type { GPSPoint } from '../types/gps';
+import { cadenceService } from '../services/cadenceService';
+import HRSensorModal from '../components/HRSensorModal';
+import LiveHRChart from '../components/LiveHRChart';
+import type { GPSPoint, CadenceReading } from '../types/gps';
 
 export type RecordGPSParams = {
   scheduledActivityId?: string;
@@ -46,15 +51,12 @@ const AUTO_PAUSE_SPEED_THRESHOLD = 0.5; // m/s
 const AUTO_PAUSE_POINT_COUNT = 3;
 const AUTO_LAP_DISTANCE_M = 1000;
 
-interface BLEDevice {
-  id: string;
-  name: string;
-}
-
 export default function RecordGPSScreen({ route, navigation }: Props) {
   const params = route.params as RecordGPSParams | undefined;
   const insets = useSafeAreaInsets();
   const { activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout, workoutMode } = useWorkout();
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
 
   // Derive from route params (fresh navigation) or from existing context (returning via banner)
   const activityType = params?.activityType ?? activeGPSWorkout?.activityType ?? '';
@@ -65,6 +67,8 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const slowPointCountRef = useRef(0);
   const hrReadingsRef = useRef<{ bpm: number; timestamp: number }[]>([]);
+  const cadenceReadingsRef = useRef<CadenceReading[]>([]);
+  const showCadence = isRun || activityType === 'walk';
   // Ref so location-watcher callback always reads latest state without being recreated
   const gpsWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
   gpsWorkoutRef.current = activeGPSWorkout;
@@ -73,8 +77,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const followTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [hrModalVisible, setHRModalVisible] = useState(false);
-  const [discoveredDevices, setDiscoveredDevices] = useState<BLEDevice[]>([]);
-  const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
+  const [metricsPage, setMetricsPage] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const panelWidth = screenWidth - 32; // account for horizontal padding
 
   const workout = activeGPSWorkout;
   const recordingState = workout?.recordingState ?? 'idle';
@@ -110,6 +115,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     return () => {
       locationSubRef.current?.remove();
       locationSubRef.current = null;
+      cadenceService.stop();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -265,7 +271,18 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     // React 18 batches this with startGPSWorkout — functional updater sees the freshly initialised workout
     updateGPSWorkout({ recordingState: 'recording' });
     await startLocationWatcher();
-  }, [startGPSWorkout, updateGPSWorkout, startLocationWatcher, activityType, scheduledActivityId]);
+    // Start cadence tracking for run/walk activities
+    if (showCadence) {
+      cadenceService.start((spm) => {
+        const now = Date.now();
+        cadenceReadingsRef.current = [...cadenceReadingsRef.current, { spm, timestamp: now }];
+        const avg = Math.round(
+          cadenceReadingsRef.current.reduce((s, r) => s + r.spm, 0) / cadenceReadingsRef.current.length,
+        );
+        updateGPSWorkout({ cadenceReadings: cadenceReadingsRef.current, currentCadence: spm, avgCadence: avg });
+      });
+    }
+  }, [startGPSWorkout, updateGPSWorkout, startLocationWatcher, activityType, scheduledActivityId, showCadence]);
 
   const handlePause = useCallback(() => {
     updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: Date.now() });
@@ -298,6 +315,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         onPress: () => {
           locationSubRef.current?.remove();
           locationSubRef.current = null;
+          cadenceService.stop();
           const now = new Date();
           let autoPaused = gpsWorkoutRef.current?.autoPausedDurationSec ?? 0;
           if (gpsWorkoutRef.current?.lastAutoPauseStart) {
@@ -341,6 +359,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           locationSubRef.current?.remove();
           locationSubRef.current = null;
           bleService.disconnect();
+          cadenceService.stop();
           clearGPSWorkout();
           navigation.goBack();
         },
@@ -348,43 +367,17 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     ]);
   }, [clearGPSWorkout, navigation]);
 
-  // BLE scanning
-  const handleOpenHRModal = useCallback(async () => {
-    if (!bleService.available) {
-      Alert.alert(
-        'HR Monitor Unavailable',
-        'Heart rate monitor connectivity requires a native dev build (not Expo Go).'
-      );
-      return;
-    }
-    setDiscoveredDevices([]);
-    setHRModalVisible(true);
-    await bleService.scan((id, name) => {
-      setDiscoveredDevices((prev) => {
-        if (prev.find((d) => d.id === id)) return prev;
-        return [...prev, { id, name }];
-      });
-    }, 10000);
-  }, []);
+  const handleHRReading = useCallback((bpm: number) => {
+    const now = Date.now();
+    hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
+    const avg = Math.round(
+      hrReadingsRef.current.reduce((s, r) => s + r.bpm, 0) / hrReadingsRef.current.length,
+    );
+    updateGPSWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
+  }, [updateGPSWorkout]);
 
-  const handleConnectDevice = useCallback(async (deviceId: string) => {
-    setConnectingDeviceId(deviceId);
-    try {
-      await bleService.connect(deviceId, (bpm) => {
-        const now = Date.now();
-        hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
-        const avg = Math.round(
-          hrReadingsRef.current.reduce((s, r) => s + r.bpm, 0) / hrReadingsRef.current.length
-        );
-        updateGPSWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
-      });
-      setHRModalVisible(false);
-      updateGPSWorkout({ hrDeviceName: bleService.getDeviceName() ?? undefined });
-    } catch {
-      Alert.alert('Connection Failed', 'Could not connect to the heart rate monitor.');
-    } finally {
-      setConnectingDeviceId(null);
-    }
+  const handleHRConnected = useCallback((deviceName: string) => {
+    updateGPSWorkout({ hrDeviceName: deviceName });
   }, [updateGPSWorkout]);
 
   const polylineCoords = (workout?.points ?? []).map((p) => ({
@@ -398,7 +391,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       : null;
 
   const hrZoneColor = workout?.currentHR
-    ? getHRZoneColor(workout.currentHR)
+    ? getHRZoneColor(workout.currentHR, maxHR)
     : Colors.textSecondary;
 
   return (
@@ -448,48 +441,105 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 
       {/* Metrics panel */}
       <View style={[styles.metricsPanel, { paddingBottom: insets.bottom + 12 }]}>
-        {/* Distance — hero metric */}
-        <View style={styles.heroRow}>
-          <Text style={styles.heroValue}>{formatDistanceKm(workout?.totalDistanceM ?? 0)}</Text>
-          <Text style={styles.heroUnit}>km</Text>
-        </View>
+        {/* Swipeable metrics area */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          onMomentumScrollEnd={(e) => {
+            const page = Math.round(e.nativeEvent.contentOffset.x / panelWidth);
+            setMetricsPage(page);
+          }}
+          style={{ flexGrow: 0 }}
+        >
+          {/* Page 0: Numeric Metrics */}
+          <View style={{ width: panelWidth }}>
+            {/* Distance — hero metric */}
+            <View style={styles.heroRow}>
+              <Text style={styles.heroValue}>{formatDistanceKm(workout?.totalDistanceM ?? 0)}</Text>
+              <Text style={styles.heroUnit}>km</Text>
+            </View>
 
-        {/* Row 1: pace/speed, time, HR */}
-        <View style={styles.metricRow}>
-          <MetricCell
-            label={isRun ? 'Pace' : 'Speed'}
-            value={isRun ? formatPaceSecPerKm(workout?.currentPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.currentSpeedKph ?? 0)}`}
-            unit={isRun ? '/km' : 'km/h'}
-          />
-          <View style={styles.metricDivider} />
-          <MetricCell label="Time" value={formatTime(elapsed)} />
-          <View style={styles.metricDivider} />
-          <MetricCell
-            label="HR"
-            value={workout?.currentHR ? `${workout.currentHR}` : '—'}
-            unit={workout?.currentHR ? 'bpm' : undefined}
-            valueStyle={{ color: hrZoneColor }}
-          />
-        </View>
+            {/* Row 1: pace/speed, time, HR */}
+            <View style={styles.metricRow}>
+              <MetricCell
+                label={isRun ? 'Pace' : 'Speed'}
+                value={isRun ? formatPaceSecPerKm(workout?.currentPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.currentSpeedKph ?? 0)}`}
+                unit={isRun ? '/km' : 'km/h'}
+              />
+              <View style={styles.metricDivider} />
+              <MetricCell label="Time" value={formatTime(elapsed)} />
+              <View style={styles.metricDivider} />
+              <MetricCell
+                label="HR"
+                value={workout?.currentHR ? `${workout.currentHR}` : '—'}
+                unit={workout?.currentHR ? 'bpm' : undefined}
+                valueStyle={{ color: hrZoneColor }}
+              />
+            </View>
 
-        {/* Row 2: avg pace/speed, elevation, lap */}
-        <View style={styles.metricRow}>
-          <MetricCell
-            label={isRun ? 'Avg Pace' : 'Avg Speed'}
-            value={isRun ? formatPaceSecPerKm(workout?.avgPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.avgSpeedKph ?? 0)}`}
-            unit={isRun ? '/km' : 'km/h'}
-          />
-          <View style={styles.metricDivider} />
-          <MetricCell
-            label="Elev +"
-            value={`${workout?.elevationGainM ?? 0}`}
-            unit="m"
-          />
-          <View style={styles.metricDivider} />
-          <MetricCell
-            label="Lap"
-            value={`${(workout?.laps.length ?? 0) + 1}`}
-          />
+            {/* Row 2: avg pace/speed, avg HR, elevation */}
+            <View style={styles.metricRow}>
+              <MetricCell
+                label={isRun ? 'Avg Pace' : 'Avg Speed'}
+                value={isRun ? formatPaceSecPerKm(workout?.avgPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.avgSpeedKph ?? 0)}`}
+                unit={isRun ? '/km' : 'km/h'}
+              />
+              <View style={styles.metricDivider} />
+              <MetricCell
+                label="Avg HR"
+                value={workout?.avgHR ? `${workout.avgHR}` : '—'}
+                unit={workout?.avgHR ? 'bpm' : undefined}
+              />
+              <View style={styles.metricDivider} />
+              <MetricCell
+                label="Elev +"
+                value={`${workout?.elevationGainM ?? 0}`}
+                unit="m"
+              />
+            </View>
+
+            {/* Row 3: cadence (run/walk) + lap */}
+            <View style={styles.metricRow}>
+              {showCadence && (
+                <>
+                  <MetricCell
+                    label="Cadence"
+                    value={workout?.currentCadence ? `${workout.currentCadence}` : '—'}
+                    unit="spm"
+                  />
+                  <View style={styles.metricDivider} />
+                  <MetricCell
+                    label="Avg Cad"
+                    value={workout?.avgCadence ? `${workout.avgCadence}` : '—'}
+                    unit="spm"
+                  />
+                  <View style={styles.metricDivider} />
+                </>
+              )}
+              <MetricCell
+                label="Lap"
+                value={`${(workout?.laps.length ?? 0) + 1}`}
+              />
+            </View>
+          </View>
+
+          {/* Page 1: Live HR Graph */}
+          <View style={{ width: panelWidth }}>
+            <LiveHRChart
+              hrReadings={workout?.hrReadings ?? []}
+              maxHR={maxHR}
+              startedAt={workout?.startedAt ?? new Date()}
+              width={panelWidth}
+            />
+          </View>
+        </ScrollView>
+
+        {/* Page indicator dots */}
+        <View style={styles.pageIndicator}>
+          <View style={[styles.dot, metricsPage === 0 && styles.dotActive]} />
+          <View style={[styles.dot, metricsPage === 1 && styles.dotActive]} />
         </View>
 
         {/* Control buttons */}
@@ -529,7 +579,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         </View>
 
         {/* HR device row */}
-        <Pressable style={styles.hrRow} onPress={handleOpenHRModal}>
+        <Pressable style={styles.hrRow} onPress={() => setHRModalVisible(true)}>
           <Ionicons
             name={bleService.isConnected() ? 'heart' : 'heart-outline'}
             size={16}
@@ -543,40 +593,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
 
-      {/* BLE device modal */}
-      <Modal visible={hrModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Heart Rate Monitors</Text>
-            <Text style={styles.modalSubtitle}>Scanning for nearby devices...</Text>
-            {discoveredDevices.length === 0 ? (
-              <View style={styles.noDevices}>
-                <Ionicons name="bluetooth-outline" size={40} color={Colors.textSecondary} />
-                <Text style={styles.noDevicesText}>No devices found yet</Text>
-              </View>
-            ) : (
-              <ScrollView style={styles.deviceList}>
-                {discoveredDevices.map((device) => (
-                  <Pressable
-                    key={device.id}
-                    style={styles.deviceRow}
-                    onPress={() => handleConnectDevice(device.id)}
-                  >
-                    <Ionicons name="heart-outline" size={20} color={Colors.primary} />
-                    <Text style={styles.deviceName}>{device.name}</Text>
-                    {connectingDeviceId === device.id && (
-                      <Text style={styles.connectingLabel}>Connecting...</Text>
-                    )}
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-            <Pressable style={styles.modalClose} onPress={() => { bleService.stopScan(); setHRModalVisible(false); }}>
-              <Text style={styles.modalCloseText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <HRSensorModal
+        visible={hrModalVisible}
+        onClose={() => setHRModalVisible(false)}
+        onConnected={handleHRConnected}
+        onReading={handleHRReading}
+      />
     </View>
   );
 }
@@ -601,17 +623,6 @@ function MetricCell({
       </View>
     </View>
   );
-}
-
-function getHRZoneColor(bpm: number): string {
-  // Rough zones based on typical max HR ~185
-  const maxHR = 185;
-  const pct = bpm / maxHR;
-  if (pct < 0.6) return '#6CABDD'; // Zone 1 - blue
-  if (pct < 0.7) return '#4CAF50'; // Zone 2 - green
-  if (pct < 0.8) return '#FFC107'; // Zone 3 - amber
-  if (pct < 0.9) return '#FF9800'; // Zone 4 - orange
-  return '#F44336';                 // Zone 5 - red
 }
 
 const styles = StyleSheet.create({
@@ -695,36 +706,20 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   hrRowText: { fontSize: 12, color: Colors.textSecondary },
-  // Modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalSheet: {
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    minHeight: 300,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 16 },
-  noDevices: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  noDevicesText: { color: Colors.textSecondary, fontSize: 14 },
-  deviceList: { maxHeight: 200 },
-  deviceRow: {
+  pageIndicator: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 2,
   },
-  deviceName: { flex: 1, fontSize: 15, color: Colors.textPrimary },
-  connectingLabel: { fontSize: 12, color: Colors.textSecondary },
-  modalClose: {
-    marginTop: 16,
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#F0F0F0',
-    borderRadius: 12,
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#D0D0D0',
   },
-  modalCloseText: { color: Colors.textPrimary, fontWeight: '600' },
+  dotActive: {
+    backgroundColor: Colors.primary,
+  },
 });

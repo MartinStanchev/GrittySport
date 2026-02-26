@@ -166,7 +166,7 @@ func (s *ProgramService) SaveProgramWithCriteria(ctx context.Context, userID str
 	if err != nil {
 		return nil, fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Archive any existing active program
 	_, err = tx.Exec(ctx,
@@ -359,7 +359,7 @@ func (s *ProgramService) UpsertCriteria(ctx context.Context, programID string, c
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, c := range criteria {
 		_, err = tx.Exec(ctx,
@@ -388,7 +388,7 @@ func (s *ProgramService) AdjustActivities(ctx context.Context, adjustments []mod
 	if err != nil {
 		return nil, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	var updated []models.ScheduledActivity
 	for _, adj := range adjustments {

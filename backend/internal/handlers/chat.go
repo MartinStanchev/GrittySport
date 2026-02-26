@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +18,13 @@ import (
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/tools"
 )
+
+// sessionState tracks context that persists across WS turns within a single connection.
+// This compensates for tool call results not being saved in chat_messages.
+type sessionState struct {
+	activeDraftID string // current draft program being worked on
+	activeSkill   string // currently loaded skill (e.g. "program_creation")
+}
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
@@ -34,10 +42,10 @@ type ChatHandler struct {
 	memoryEnabled  bool
 }
 
-func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, memoryEnabled bool) *ChatHandler {
+func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memoryEnabled bool) *ChatHandler {
 	proposalStore := tools.NewProposalStore()
 	toolRegistry := tools.NewRegistry()
-	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore)
+	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader)
 
 	return &ChatHandler{
 		chatService:    chatService,
@@ -55,7 +63,6 @@ func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient
 type wsIncoming struct {
 	Type    string `json:"type"`
 	Content string `json:"content"`
-	Context string `json:"context"`
 	Action  string `json:"action,omitempty"`
 }
 
@@ -126,11 +133,13 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 	var memory string
 	if h.memoryEnabled {
-		memory, err = h.chatService.GetMemory(r.Context(), userID, "free_chat")
+		memory, err = h.chatService.GetMemory(r.Context(), userID)
 		if err != nil {
 			log.Error().Err(err).Str("user_id", userID).Msg("Failed to load chat memory")
 		}
 	}
+
+	session := &sessionState{}
 
 	for {
 		_, rawMsg, err := conn.ReadMessage()
@@ -149,18 +158,13 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		chatContext := incoming.Context
-		if chatContext == "" {
-			chatContext = "free_chat"
-		}
-
 		if incoming.Type == "proposal_response" {
-			h.handleProposalResponse(r, ws, userID, userName, memory, user, incoming, chatContext, &recentMsgs)
+			h.handleProposalResponse(r, ws, userID, userName, memory, user, incoming, &recentMsgs, session)
 			continue
 		}
 
-		if incoming.Type == "clear_context" {
-			h.handleClearContext(r, ws, userID, chatContext, &recentMsgs, &memory)
+		if incoming.Type == "clear_chat" {
+			h.handleClearContext(r, ws, userID, &recentMsgs, &memory)
 			continue
 		}
 
@@ -171,27 +175,26 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 		log.Debug().
 			Str("user_id", userID).
-			Str("context", chatContext).
 			Str("content", incoming.Content).
 			Msg("Received user message")
 
-		userMsg, err := h.chatService.SaveMessage(r.Context(), userID, "user", incoming.Content, chatContext, nil, nil)
+		userMsg, err := h.chatService.SaveMessage(r.Context(), userID, "user", incoming.Content, nil, nil)
 		if err != nil {
 			log.Error().Err(err).Str("user_id", userID).Msg("Failed to save user message")
 			continue
 		}
 
 		aiMessages := buildAIMessages(recentMsgs, incoming.Content)
-		systemPrompt := h.buildSystemPrompt(chatContext, userName, memory, user)
-		h.handleWithTools(r, ws, userID, chatContext, systemPrompt, aiMessages, userMsg, &recentMsgs)
+		systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
+		h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, &recentMsgs, session)
 	}
 }
 
-func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, chatContext, systemPrompt string, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage) {
+func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, systemPrompt string, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState) {
 	toolDefs := h.toolRegistry.GeminiTools()
 
 	notifyToolCall := func(toolName, status string) {
-		ws.writeJSON(wsOutgoing{
+		_ = ws.writeJSON(wsOutgoing{
 			Type:   "tool_call",
 			Tool:   toolName,
 			Status: status,
@@ -204,24 +207,43 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, cha
 			return nil, err
 		}
 
+		// Track session state and send WS notifications for tool results
 		switch name {
-		case "propose_program":
+		case "read_skill":
+			if skillName, ok := args["skill_name"].(string); ok {
+				session.activeSkill = skillName
+			}
+		case "create_draft_program":
+			if resultMap, ok := result.(map[string]any); ok {
+				if id, ok := resultMap["program_id"].(string); ok {
+					session.activeDraftID = id
+				}
+			}
+		case "get_draft_program":
+			if resultMap, ok := result.(map[string]any); ok {
+				if id, ok := resultMap["id"].(string); ok {
+					session.activeDraftID = id
+				}
+			}
+		case "propose_program", "modify_pending_proposal":
 			if proposal, ok := h.proposalStore.Get(userID); ok {
-				ws.writeJSON(wsOutgoing{Type: "program_proposal", Data: proposal.Program})
+				_ = ws.writeJSON(wsOutgoing{Type: "program_proposal", Data: proposal.Program})
 			}
 		case "propose_adjustment":
 			if proposal, ok := h.proposalStore.Get(userID); ok {
-				ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: proposal.Program})
+				_ = ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: proposal.Program})
 			}
 		case "confirm_program_save":
+			session.activeDraftID = ""
+			session.activeSkill = ""
 			if resultMap, ok := result.(map[string]any); ok {
 				if programID, ok := resultMap["program_id"].(string); ok {
 					data, _ := json.Marshal(map[string]string{"program_id": programID})
-					ws.writeJSON(wsOutgoing{Type: "program_created", Data: data})
+					_ = ws.writeJSON(wsOutgoing{Type: "program_created", Data: data})
 				}
 			}
 		case "confirm_adjustment":
-			ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
+			_ = ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
 		}
 
 		return result, nil
@@ -235,7 +257,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, cha
 		})
 	}
 
-	fullResponse, _, err := h.aiClient.ChatWithTools(
+	fullResponse, toolCalls, err := h.aiClient.ChatWithTools(
 		r.Context(),
 		systemPrompt,
 		aiMessages,
@@ -246,19 +268,29 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, cha
 	)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("ChatWithTools failed")
-		ws.writeJSON(wsOutgoing{Type: "error", Content: "Failed to get response from Grit"})
+		_ = ws.writeJSON(wsOutgoing{Type: "error", Content: "Failed to get response from Grit"})
+	}
+
+	// Save a system message summarizing tool calls so future turns have context
+	if len(toolCalls) > 0 {
+		summary := buildToolCallSummary(toolCalls, session)
+		if summaryMsg, err := h.chatService.SaveMessage(r.Context(), userID, "system", summary, nil, nil); err != nil {
+			log.Error().Err(err).Str("user_id", userID).Msg("Failed to save tool call summary")
+		} else {
+			*recentMsgs = append(*recentMsgs, *summaryMsg)
+		}
 	}
 
 	cleanText, quickReplies := parseQuickReplies(fullResponse)
 
-	ws.writeJSON(wsOutgoing{
+	_ = ws.writeJSON(wsOutgoing{
 		Type:         "grit_chunk",
 		Done:         true,
 		QuickReplies: quickReplies,
 	})
 
 	if cleanText != "" {
-		savedMsg, err := h.chatService.SaveMessage(r.Context(), userID, "assistant", cleanText, chatContext, nil, nil)
+		savedMsg, err := h.chatService.SaveMessage(r.Context(), userID, "assistant", cleanText, nil, nil)
 		if err != nil {
 			log.Error().Err(err).Str("user_id", userID).Msg("Failed to save assistant message")
 		} else {
@@ -273,7 +305,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, cha
 	}
 }
 
-func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName, memory string, user *models.UserResponse, incoming wsIncoming, chatContext string, recentMsgs *[]models.ChatMessage) {
+func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName, memory string, user *models.UserResponse, incoming wsIncoming, recentMsgs *[]models.ChatMessage, session *sessionState) {
 	var userContent string
 	if incoming.Action == "accept" {
 		userContent = "I accept this program, please save it."
@@ -284,19 +316,19 @@ func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, user
 		}
 	}
 
-	userMsg, err := h.chatService.SaveMessage(r.Context(), userID, "user", userContent, chatContext, nil, nil)
+	userMsg, err := h.chatService.SaveMessage(r.Context(), userID, "user", userContent, nil, nil)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to save proposal response message")
 		return
 	}
 
 	aiMessages := buildAIMessages(*recentMsgs, userContent)
-	systemPrompt := h.buildSystemPrompt(chatContext, userName, memory, user)
+	systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
 
-	h.handleWithTools(r, ws, userID, chatContext, systemPrompt, aiMessages, userMsg, recentMsgs)
+	h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, recentMsgs, session)
 }
 
-func (h *ChatHandler) handleClearContext(r *http.Request, ws *wsWriter, userID, chatContext string, recentMsgs *[]models.ChatMessage, memory *string) {
+func (h *ChatHandler) handleClearContext(r *http.Request, ws *wsWriter, userID string, recentMsgs *[]models.ChatMessage, memory *string) {
 	if h.memoryEnabled && len(*recentMsgs) > 0 {
 		aiMessages := make([]ai.ChatMessage, 0, len(*recentMsgs))
 		for _, msg := range *recentMsgs {
@@ -309,42 +341,51 @@ func (h *ChatHandler) handleClearContext(r *http.Request, ws *wsWriter, userID, 
 		}
 
 		if summary != "" {
-			if err := h.chatService.SaveMemory(r.Context(), userID, chatContext, summary); err != nil {
+			if err := h.chatService.SaveMemory(r.Context(), userID, summary); err != nil {
 				log.Error().Err(err).Str("user_id", userID).Msg("Failed to save chat memory")
 			} else {
 				*memory = summary
-				log.Debug().Str("user_id", userID).Str("context", chatContext).Msg("Chat memory saved")
+				log.Debug().Str("user_id", userID).Msg("Chat memory saved")
 			}
 		}
 	}
 
+	if err := h.chatService.ClearMessages(r.Context(), userID); err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("Failed to clear chat messages")
+	}
+
 	*recentMsgs = nil
-	ws.writeJSON(wsOutgoing{Type: "context_cleared"})
+	_ = ws.writeJSON(wsOutgoing{Type: "chat_cleared"})
 }
 
-func (h *ChatHandler) buildSystemPrompt(chatContext, userName, memory string, user *models.UserResponse) string {
+func (h *ChatHandler) buildSystemPrompt(userName, memory string, user *models.UserResponse, session *sessionState) string {
 	tz := "UTC"
 	if user.Timezone != nil && *user.Timezone != "" {
 		tz = *user.Timezone
 	}
 
-	p := ai.PromptParams{
+	prompt := h.promptLoader.BuildSystemPrompt(ai.PromptParams{
 		UserName:        userName,
 		Timezone:        tz,
 		Units:           user.UnitsPreference,
 		CurrentDateTime: formatCurrentDateTime(tz),
 		Memory:          memory,
+	})
+
+	// Inject active session context so Grit remembers state across turns
+	if session.activeDraftID != "" || session.activeSkill != "" {
+		var sb strings.Builder
+		sb.WriteString("\n\n## Active session context\n")
+		if session.activeDraftID != "" {
+			fmt.Fprintf(&sb, "You are currently working on draft program ID: %s. Do NOT call create_draft_program — use this ID for save_draft_criterion and propose_program (as draft_program_id) calls.\n", session.activeDraftID)
+		}
+		if session.activeSkill != "" {
+			fmt.Fprintf(&sb, "You have already loaded the '%s' skill instructions. You do not need to call read_skill again for this task.\n", session.activeSkill)
+		}
+		prompt += sb.String()
 	}
 
-	switch chatContext {
-	case "program_creation":
-		return h.promptLoader.BuildProgramCreationPrompt(p)
-	case "criteria_edit":
-		p.ChangedCriteria = "See the current criteria using the get_active_program tool."
-		return h.promptLoader.BuildCriteriaEditPrompt(p)
-	default:
-		return h.promptLoader.BuildFreeChatPrompt(p)
-	}
+	return prompt
 }
 
 func formatCurrentDateTime(tz string) string {
@@ -368,6 +409,23 @@ func buildAIMessages(recentMsgs []models.ChatMessage, newContent string) []ai.Ch
 		Content: newContent,
 	})
 	return aiMessages
+}
+
+func buildToolCallSummary(toolCalls []ai.ToolCallInfo, session *sessionState) string {
+	var parts []string
+	for _, tc := range toolCalls {
+		if tc.Error != "" {
+			parts = append(parts, fmt.Sprintf("%s(FAILED: %s)", tc.Name, tc.Error))
+		} else {
+			parts = append(parts, tc.Name)
+		}
+	}
+	summary := fmt.Sprintf("[System: Grit called tools: %s", strings.Join(parts, ", "))
+	if session.activeDraftID != "" {
+		summary += fmt.Sprintf(". Active draft program: %s", session.activeDraftID)
+	}
+	summary += "]"
+	return summary
 }
 
 const quickReplyDelimiter = "|||QUICK_REPLIES|||"
@@ -395,7 +453,6 @@ func parseQuickReplies(text string) (cleanText string, replies []string) {
 func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	chatContext := r.URL.Query().Get("context")
 	beforeID := r.URL.Query().Get("before")
 
 	limit := 50
@@ -405,7 +462,7 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	messages, hasMore, err := h.chatService.GetHistory(r.Context(), userID, chatContext, limit, beforeID)
+	messages, hasMore, err := h.chatService.GetHistory(r.Context(), userID, limit, beforeID)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to get chat history")
 		writeError(w, http.StatusInternalServerError, "failed to get chat history")
@@ -414,7 +471,6 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 
 	log.Debug().
 		Str("user_id", userID).
-		Str("context", chatContext).
 		Int("count", len(messages)).
 		Bool("has_more", hasMore).
 		Msg("Chat history fetched")

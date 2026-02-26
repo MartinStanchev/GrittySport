@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -25,6 +24,7 @@ import { getChatHistory } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
 import { FABActionSheet } from '../components/FABActionSheet';
+import { ClearChatModal } from '../components/ClearChatModal';
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -59,11 +59,11 @@ export default function HomeScreen() {
   } = useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatContext, setChatContext] = useState<string>('free_chat');
   const [inputText, setInputText] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
   const [fabSheetVisible, setFabSheetVisible] = useState(false);
+  const [clearChatVisible, setClearChatVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -73,7 +73,6 @@ export default function HomeScreen() {
     refreshUpcoming();
     setTimeout(() => {
       setChatOpen(false);
-      setChatContext('free_chat');
     }, 1500);
   }, [refreshProgram, refreshUpcoming]);
 
@@ -89,8 +88,7 @@ export default function HomeScreen() {
     onAdjustmentApplied: handleAdjustmentApplied,
   });
 
-  const openChat = useCallback((context = 'free_chat') => {
-    setChatContext(context);
+  const openChat = useCallback(() => {
     setChatOpen(true);
   }, []);
 
@@ -100,16 +98,15 @@ export default function HomeScreen() {
   }, []);
 
   const openProgramCreation = useCallback(() => {
-    setChatContext('program_creation');
     setChatOpen(true);
     setTimeout(() => {
-      sendMessage('I want to create a training program', 'program_creation');
+      sendMessage('I want to create a training program');
     }, 500);
   }, [sendMessage]);
 
   useEffect(() => {
     if (chatOpen && !historyLoaded) {
-      getChatHistory(chatContext, 50)
+      getChatHistory(50)
         .then((resp) => {
           if (resp.messages.length > 0) {
             const mapped: ChatMessage[] = resp.messages.map((m) => ({
@@ -124,7 +121,7 @@ export default function HomeScreen() {
         })
         .catch(() => setHistoryLoaded(true));
     }
-  }, [chatOpen, historyLoaded, loadHistory, chatContext]);
+  }, [chatOpen, historyLoaded, loadHistory]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -137,8 +134,8 @@ export default function HomeScreen() {
     if (!text) return;
     setInputText('');
     if (!chatOpen) openChat();
-    sendMessage(text, chatContext);
-  }, [inputText, chatOpen, openChat, sendMessage, chatContext]);
+    sendMessage(text);
+  }, [inputText, chatOpen, openChat, sendMessage]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -155,9 +152,9 @@ export default function HomeScreen() {
   const handleProposalResponse = useCallback(
     (action: 'accept' | 'deny', proposalId: string) => {
       setRespondedProposals((prev) => new Set(prev).add(proposalId));
-      respondToProposal(action, chatContext);
+      respondToProposal(action);
     },
-    [respondToProposal, chatContext],
+    [respondToProposal],
   );
 
   const renderMessage = useCallback(
@@ -195,26 +192,10 @@ export default function HomeScreen() {
     [handleProposalResponse, respondedProposals],
   );
 
-  const handleClearChat = useCallback(() => {
-    const doClear = () => {
-      clearChat();
-      setHistoryLoaded(false);
-    };
-
-    if (Platform.OS === 'web') {
-      if (window.confirm('Clear conversation? Grit will remember key context.')) {
-        doClear();
-      }
-    } else {
-      Alert.alert(
-        'Clear conversation',
-        'This will clear all messages. Grit will remember key context from your conversation.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Clear', style: 'destructive', onPress: doClear },
-        ],
-      );
-    }
+  const confirmClearChat = useCallback(() => {
+    setClearChatVisible(false);
+    clearChat();
+    setHistoryLoaded(false);
   }, [clearChat]);
 
   // Auto-open chat when another screen requests it (e.g. after saving program edits)
@@ -222,7 +203,6 @@ export default function HomeScreen() {
     useCallback(() => {
       if (openChatRequest) {
         clearOpenChatRequest();
-        setChatContext(openChatRequest);
         setChatOpen(true);
       }
     }, [openChatRequest, clearOpenChatRequest]),
@@ -361,6 +341,12 @@ export default function HomeScreen() {
         onLogActivity={() => navigation.navigate('LogActivity')}
       />
 
+      <ClearChatModal
+        visible={clearChatVisible}
+        onCancel={() => setClearChatVisible(false)}
+        onConfirm={confirmClearChat}
+      />
+
       {/* Chat Modal */}
       <Modal
         visible={chatOpen}
@@ -407,7 +393,7 @@ export default function HomeScreen() {
               </View>
             </View>
             <Pressable
-              onPress={handleClearChat}
+              onPress={() => setClearChatVisible(true)}
               style={styles.clearButton}
               hitSlop={12}
             >
@@ -448,7 +434,7 @@ export default function HomeScreen() {
                 <Pressable
                   key={reply}
                   style={styles.quickReplyButton}
-                  onPress={() => sendMessage(reply, chatContext)}
+                  onPress={() => sendMessage(reply)}
                 >
                   <Text style={styles.quickReplyText}>{reply}</Text>
                 </Pressable>

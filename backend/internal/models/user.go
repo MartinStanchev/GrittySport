@@ -9,6 +9,7 @@ type User struct {
 	Name             string    `json:"name"`
 	Timezone         *string   `json:"timezone"`
 	UnitsPreference  string    `json:"units_preference"`
+	MaxHeartRate     int       `json:"max_heart_rate"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -20,6 +21,7 @@ func (u *User) ToResponse() UserResponse {
 		Name:            u.Name,
 		Timezone:        u.Timezone,
 		UnitsPreference: u.UnitsPreference,
+		MaxHeartRate:    u.MaxHeartRate,
 	}
 }
 
@@ -29,4 +31,5 @@ type UserResponse struct {
 	Name            string  `json:"name"`
 	Timezone        *string `json:"timezone,omitempty"`
 	UnitsPreference string  `json:"units_preference"`
+	MaxHeartRate    int     `json:"max_heart_rate"`
 }

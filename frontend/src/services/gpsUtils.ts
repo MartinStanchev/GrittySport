@@ -1,4 +1,4 @@
-import type { GPSPoint, HRReading, Lap, GPSRouteData, GPSSummaryData, HRZone, HRZoneDistribution } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution } from '../types/gps';
 
 // --- Distance ---
 
@@ -106,6 +106,14 @@ export function triggerLap(
 
 // --- HR Zones ---
 
+export const HR_ZONE_COLORS: Record<HRZone, string> = {
+  1: '#6CABDD',
+  2: '#4CAF50',
+  3: '#FFC107',
+  4: '#FF9800',
+  5: '#F44336',
+};
+
 // 5-zone model based on % of estimated max HR
 export function getHRZone(bpm: number, maxHR: number): HRZone {
   const pct = bpm / maxHR;
@@ -114,6 +122,10 @@ export function getHRZone(bpm: number, maxHR: number): HRZone {
   if (pct < 0.8) return 3;
   if (pct < 0.9) return 4;
   return 5;
+}
+
+export function getHRZoneColor(bpm: number, maxHR: number): string {
+  return HR_ZONE_COLORS[getHRZone(bpm, maxHR)];
 }
 
 export function computeHRZoneDistribution(
@@ -160,12 +172,79 @@ export function isCyclingSport(activityType: string): boolean {
   return CYCLING_TYPES.has(activityType.toLowerCase());
 }
 
+// --- Downsampling ---
+
+/** Downsample an array to at most maxPoints entries via uniform index sampling */
+export function downsample<T>(items: T[], maxPoints: number): T[] {
+  if (items.length <= maxPoints) return items;
+  const step = items.length / maxPoints;
+  const result: T[] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.min(Math.floor(i * step), items.length - 1);
+    result.push(items[idx]);
+  }
+  return result;
+}
+
+// --- Time series for charts ---
+
+export interface PaceTimePoint {
+  elapsedMin: number;
+  paceSecPerKm: number;
+}
+
+export interface SpeedTimePoint {
+  elapsedMin: number;
+  speedKph: number;
+}
+
+/** Compute pace time series from GPS points using a rolling window */
+export function computePaceTimeSeries(points: GPSPoint[], windowSize = 10): PaceTimePoint[] {
+  if (points.length < 2) return [];
+  const startTime = points[0].timestamp;
+  const result: PaceTimePoint[] = [];
+  // Sample every 10th point to keep chart manageable
+  const step = Math.max(1, Math.floor(points.length / 200));
+  for (let i = windowSize; i < points.length; i += step) {
+    const window = points.slice(Math.max(0, i - windowSize), i + 1);
+    const distM = window.reduce((s, p) => s + p.distance_from_prev, 0);
+    const durMs = window[window.length - 1].timestamp - window[0].timestamp;
+    if (distM > 1 && durMs > 0) {
+      result.push({
+        elapsedMin: (points[i].timestamp - startTime) / 60000,
+        paceSecPerKm: (durMs / 1000 / distM) * 1000,
+      });
+    }
+  }
+  return result;
+}
+
+/** Compute speed time series from GPS points using a rolling window */
+export function computeSpeedTimeSeries(points: GPSPoint[], windowSize = 10): SpeedTimePoint[] {
+  if (points.length < 2) return [];
+  const startTime = points[0].timestamp;
+  const result: SpeedTimePoint[] = [];
+  const step = Math.max(1, Math.floor(points.length / 200));
+  for (let i = windowSize; i < points.length; i += step) {
+    const window = points.slice(Math.max(0, i - windowSize), i + 1);
+    const distM = window.reduce((s, p) => s + p.distance_from_prev, 0);
+    const durMs = window[window.length - 1].timestamp - window[0].timestamp;
+    if (distM > 1 && durMs > 0) {
+      result.push({
+        elapsedMin: (points[i].timestamp - startTime) / 60000,
+        speedKph: (distM / 1000) / (durMs / 1000 / 3600),
+      });
+    }
+  }
+  return result;
+}
+
 // --- Final payload builder ---
 
 interface FinalGPSPayload {
   routeData: GPSRouteData;
   summaryData: GPSSummaryData;
-  hrData: { readings: HRReading[]; device_name?: string; device_id?: string } | null;
+  hrData: HRData | null;
 }
 
 export function buildFinalGPSPayload(params: {
@@ -173,6 +252,7 @@ export function buildFinalGPSPayload(params: {
   points: GPSPoint[];
   laps: Lap[];
   hrReadings: HRReading[];
+  cadenceReadings?: CadenceReading[];
   totalDistanceM: number;
   autoPausedDurationSec: number;
   startedAt: Date;
@@ -180,8 +260,8 @@ export function buildFinalGPSPayload(params: {
   hrDeviceName?: string;
 }): FinalGPSPayload {
   const {
-    activityType, points, laps, hrReadings, totalDistanceM,
-    autoPausedDurationSec, startedAt, finishedAt, hrDeviceName,
+    activityType, points, laps, hrReadings, cadenceReadings,
+    totalDistanceM, autoPausedDurationSec, startedAt, finishedAt, hrDeviceName,
   } = params;
 
   const totalSec = (finishedAt.getTime() - startedAt.getTime()) / 1000 - autoPausedDurationSec;
@@ -194,6 +274,15 @@ export function buildFinalGPSPayload(params: {
       ? Math.round(hrReadings.reduce((s, r) => s + r.bpm, 0) / hrReadings.length)
       : undefined;
   const maxHR = hrReadings.length > 0 ? Math.max(...hrReadings.map((r) => r.bpm)) : undefined;
+
+  const avgCad =
+    cadenceReadings && cadenceReadings.length > 0
+      ? Math.round(cadenceReadings.reduce((s, r) => s + r.spm, 0) / cadenceReadings.length)
+      : undefined;
+  const maxCad =
+    cadenceReadings && cadenceReadings.length > 0
+      ? Math.max(...cadenceReadings.map((r) => r.spm))
+      : undefined;
 
   // Best lap = fastest pace (run) or fastest speed (cycling)
   const bestLapPace =
@@ -223,6 +312,8 @@ export function buildFinalGPSPayload(params: {
     elevation_gain_m: elevGain,
     avg_hr: avgHR,
     max_hr: maxHR,
+    avg_cadence: avgCad,
+    max_cadence: maxCad,
     points,
     laps,
     auto_paused_duration_sec: autoPausedDurationSec,
@@ -235,14 +326,21 @@ export function buildFinalGPSPayload(params: {
     elevation_gain_m: elevGain,
     avg_hr: avgHR,
     max_hr: maxHR,
+    avg_cadence: avgCad,
+    max_cadence: maxCad,
   };
+
+  const hasSensorData = hrReadings.length > 0 || (cadenceReadings && cadenceReadings.length > 0);
 
   return {
     routeData,
     summaryData,
-    hrData:
-      hrReadings.length > 0
-        ? { readings: hrReadings, device_name: hrDeviceName }
-        : null,
+    hrData: hasSensorData
+      ? {
+          readings: hrReadings,
+          cadence_readings: cadenceReadings,
+          device_name: hrDeviceName,
+        }
+      : null,
   };
 }

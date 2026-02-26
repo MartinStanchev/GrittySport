@@ -29,8 +29,10 @@ Always validate your code by:
 
 This project is still a work in progress. When you are asked to refactor a feature and that means breaking how it works currently, you have to refactor the feature completely. There should be absolutely no backwards compatibility, because this will only introduce unnecessary code and logic that will make the project confusing and hard to maintain. You are an expert developer and you know better than to create confusing and unnecessary code. 
 
-## Running Go 
+## Running Go and Go linter
 
 Go is installed in Windows in `Files/Go/bin/go.exe`. 
 
-In WSL in Ubuntu it is in `
+In WSL in Ubuntu it is in `/usr/local/go`. The executable is in `/usr/local/go/bin/go`. This should be added in the PATH and accessible with simply `go`. 
+
+The Golang linter - golangci-lint is also installed. Run it with `golangci-lint run`.

@@ -35,6 +35,8 @@ export interface GPSRouteData {
   elevation_gain_m: number;
   avg_hr?: number;
   max_hr?: number;
+  avg_cadence?: number;
+  max_cadence?: number;
   points: GPSPoint[];
   laps: Lap[];
   auto_paused_duration_sec: number;
@@ -43,6 +45,7 @@ export interface GPSRouteData {
 // Stored in heart_rate_data JSONB column
 export interface HRData {
   readings: HRReading[];
+  cadence_readings?: CadenceReading[];
   device_name?: string;
   device_id?: string;
 }
@@ -55,6 +58,13 @@ export interface GPSSummaryData {
   elevation_gain_m: number;
   avg_hr?: number;
   max_hr?: number;
+  avg_cadence?: number;
+  max_cadence?: number;
+}
+
+export interface CadenceReading {
+  spm: number;       // steps per minute
+  timestamp: number; // Unix ms
 }
 
 export type HRZone = 1 | 2 | 3 | 4 | 5;

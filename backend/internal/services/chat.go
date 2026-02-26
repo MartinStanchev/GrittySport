@@ -18,37 +18,31 @@ func NewChatService(pool *pgxpool.Pool) *ChatService {
 	return &ChatService{pool: pool}
 }
 
-func (s *ChatService) SaveMessage(ctx context.Context, userID, role, content, chatContext string, programID *string, metadata json.RawMessage) (*models.ChatMessage, error) {
+func (s *ChatService) SaveMessage(ctx context.Context, userID, role, content string, programID *string, metadata json.RawMessage) (*models.ChatMessage, error) {
 	var msg models.ChatMessage
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO chat_messages (user_id, role, content, context, program_id, metadata)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, user_id, role, content, context, program_id, metadata, created_at`,
-		userID, role, content, chatContext, programID, metadata,
-	).Scan(&msg.ID, &msg.UserID, &msg.Role, &msg.Content, &msg.Context, &msg.ProgramID, &msg.Metadata, &msg.CreatedAt)
+		`INSERT INTO chat_messages (user_id, role, content, program_id, metadata)
+		 VALUES ($1, $2, $3, $4, $5)
+		 RETURNING id, user_id, role, content, program_id, metadata, created_at`,
+		userID, role, content, programID, metadata,
+	).Scan(&msg.ID, &msg.UserID, &msg.Role, &msg.Content, &msg.ProgramID, &msg.Metadata, &msg.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &msg, nil
 }
 
-func (s *ChatService) GetHistory(ctx context.Context, userID string, chatContext string, limit int, beforeID string) ([]models.ChatMessage, bool, error) {
+func (s *ChatService) GetHistory(ctx context.Context, userID string, limit int, beforeID string) ([]models.ChatMessage, bool, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
 
 	fetchLimit := limit + 1
 
-	query := `SELECT id, user_id, role, content, context, program_id, metadata, created_at
+	query := `SELECT id, user_id, role, content, program_id, metadata, created_at
 		FROM chat_messages WHERE user_id = $1`
 	args := []interface{}{userID}
 	argIdx := 2
-
-	if chatContext != "" {
-		query += ` AND context = $` + strconv.Itoa(argIdx)
-		args = append(args, chatContext)
-		argIdx++
-	}
 
 	if beforeID != "" {
 		query += ` AND created_at < (SELECT created_at FROM chat_messages WHERE id = $` + strconv.Itoa(argIdx) + `)`
@@ -79,7 +73,7 @@ func (s *ChatService) GetRecentMessages(ctx context.Context, userID string, limi
 	}
 
 	messages, err := s.queryMessages(ctx,
-		`SELECT id, user_id, role, content, context, program_id, metadata, created_at
+		`SELECT id, user_id, role, content, program_id, metadata, created_at
 		 FROM chat_messages WHERE user_id = $1
 		 ORDER BY created_at DESC LIMIT $2`,
 		userID, limit,
@@ -102,7 +96,7 @@ func (s *ChatService) queryMessages(ctx context.Context, query string, args ...i
 	var messages []models.ChatMessage
 	for rows.Next() {
 		var msg models.ChatMessage
-		if err := rows.Scan(&msg.ID, &msg.UserID, &msg.Role, &msg.Content, &msg.Context, &msg.ProgramID, &msg.Metadata, &msg.CreatedAt); err != nil {
+		if err := rows.Scan(&msg.ID, &msg.UserID, &msg.Role, &msg.Content, &msg.ProgramID, &msg.Metadata, &msg.CreatedAt); err != nil {
 			return nil, err
 		}
 		messages = append(messages, msg)
@@ -116,28 +110,33 @@ func reverseMessages(messages []models.ChatMessage) {
 	}
 }
 
-func (s *ChatService) SaveMemory(ctx context.Context, userID, chatContext, summary string) error {
+func (s *ChatService) SaveMemory(ctx context.Context, userID, summary string) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO chat_memory (user_id, context, summary)
-		 VALUES ($1, $2, $3)
+		 VALUES ($1, 'chat', $2)
 		 ON CONFLICT (user_id, context)
-		 DO UPDATE SET summary = $3, updated_at = NOW()`,
-		userID, chatContext, summary,
+		 DO UPDATE SET summary = $2, updated_at = NOW()`,
+		userID, summary,
 	)
 	return err
 }
 
-func (s *ChatService) GetMemory(ctx context.Context, userID, chatContext string) (string, error) {
+func (s *ChatService) GetMemory(ctx context.Context, userID string) (string, error) {
 	var summary string
 	err := s.pool.QueryRow(ctx,
-		`SELECT summary FROM chat_memory WHERE user_id = $1 AND context = $2`,
-		userID, chatContext,
+		`SELECT summary FROM chat_memory WHERE user_id = $1 AND context = 'chat'`,
+		userID,
 	).Scan(&summary)
 	if err != nil {
 		// No memory found is not an error
 		return "", nil
 	}
 	return summary, nil
+}
+
+func (s *ChatService) ClearMessages(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM chat_messages WHERE user_id = $1`, userID)
+	return err
 }
 
 func (s *ChatService) ClearMemory(ctx context.Context, userID string) error {

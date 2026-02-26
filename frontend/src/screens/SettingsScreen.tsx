@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,9 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import { clearChatMemory } from '../services/api';
+import { bleService } from '../services/bleService';
+import HRSensorModal from '../components/HRSensorModal';
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser } = useAuth();
@@ -22,21 +25,29 @@ export default function SettingsScreen() {
     (user?.units_preference as 'metric' | 'imperial') ?? 'metric',
   );
   const [timezone, setTimezone] = useState(user?.timezone ?? '');
+  const [maxHR, setMaxHR] = useState(`${user?.max_heart_rate ?? 185}`);
   const [isSaving, setIsSaving] = useState(false);
+  const [hrModalVisible, setHRModalVisible] = useState(false);
+  const [connectedDevice, setConnectedDevice] = useState<string | null>(
+    bleService.isConnected() ? (bleService.getDeviceName() ?? null) : null,
+  );
 
   const hasChanges =
     name !== (user?.name ?? '') ||
     units !== (user?.units_preference ?? 'metric') ||
-    timezone !== (user?.timezone ?? '');
+    timezone !== (user?.timezone ?? '') ||
+    maxHR !== `${user?.max_heart_rate ?? 185}`;
 
   async function handleSave() {
     if (!hasChanges) return;
     setIsSaving(true);
     try {
+      const parsedMaxHR = parseInt(maxHR, 10);
       await updateUser({
         name: name.trim(),
         units_preference: units,
         timezone: timezone.trim(),
+        max_heart_rate: isNaN(parsedMaxHR) ? undefined : parsedMaxHR,
       });
       Alert.alert('Saved', 'Your settings have been updated.');
     } catch {
@@ -103,6 +114,55 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <Text style={styles.sectionHeader}>Heart Rate</Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>Max Heart Rate</Text>
+          <Text style={styles.helpText}>
+            Used to calculate your heart rate zones during workouts.
+          </Text>
+          <TextInput
+            style={styles.input}
+            value={maxHR}
+            onChangeText={setMaxHR}
+            placeholder="185"
+            placeholderTextColor={Colors.textSecondary}
+            keyboardType="number-pad"
+            maxLength={3}
+          />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>HR Monitor</Text>
+          <TouchableOpacity
+            style={styles.hrDeviceRow}
+            onPress={() => {
+              if (bleService.isConnected()) {
+                Alert.alert('Disconnect?', `Disconnect from ${connectedDevice}?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Disconnect',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await bleService.disconnect();
+                      setConnectedDevice(null);
+                    },
+                  },
+                ]);
+              } else {
+                setHRModalVisible(true);
+              }
+            }}
+          >
+            <Ionicons
+              name={connectedDevice ? 'heart' : 'heart-outline'}
+              size={20}
+              color={connectedDevice ? Colors.primary : Colors.textSecondary}
+            />
+            <Text style={styles.hrDeviceText}>
+              {connectedDevice ? `Connected: ${connectedDevice}` : 'Connect HR Monitor'}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
           style={[styles.saveButton, (!hasChanges || isSaving) && styles.saveButtonDisabled]}
           onPress={handleSave}
@@ -141,7 +201,7 @@ export default function SettingsScreen() {
               )
             }
           >
-            <Text style={styles.clearMemoryText}>Clear Grit's Memory</Text>
+            <Text style={styles.clearMemoryText}>Clear Grit&apos;s Memory</Text>
           </TouchableOpacity>
         </View>
 
@@ -149,6 +209,12 @@ export default function SettingsScreen() {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <HRSensorModal
+        visible={hrModalVisible}
+        onClose={() => setHRModalVisible(false)}
+        onConnected={setConnectedDevice}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -268,5 +334,20 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  hrDeviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.tabBarBorder,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  hrDeviceText: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.textPrimary,
   },
 });

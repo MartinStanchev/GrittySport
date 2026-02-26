@@ -6,7 +6,7 @@
         {"id": "sport", "description": "Identify the user's primary sport or activity", "required": true},
         {"id": "primary_goal", "description": "Understand the user's main goal (e.g. race prep, general fitness, strength gain)", "required": true},
         {"id": "event_date", "description": "Find out if there's a target event, race, or competition date", "required": false},
-        {"id": "goal_target", "description": "Any specific performance targets (time, distance, weight, etc.)", "required": false}
+        {"id": "goal_target", "description": "Any specific performance targets (time, distance, weight, etc.)", "required": true}
       ]
     },
     {
@@ -21,7 +21,7 @@
       "name": "Schedule",
       "criteria": [
         {"id": "days_per_week", "description": "How many days per week the user can commit to training", "required": true},
-        {"id": "preferred_days", "description": "Specific days they prefer to train or need to rest", "required": false},
+        {"id": "preferred_days", "description": "Specific days they prefer to train or need to rest", "required": true},
         {"id": "morning_evening", "description": "Whether they prefer morning or evening training", "required": false}
       ]
     },

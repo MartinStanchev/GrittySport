@@ -84,6 +84,11 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load prompts")
 	}
 
+	skillLoader, err := ai.LoadSkills(promptsPath)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to load skills")
+	}
+
 	authService := services.NewAuthService(pool, jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
 
@@ -97,7 +102,7 @@ func main() {
 
 	programService := services.NewProgramService(pool)
 	programHandler := handlers.NewProgramHandler(programService, chatService)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, chatMemoryEnabled)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, chatMemoryEnabled)
 
 	workoutService := services.NewWorkoutService(pool)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
@@ -111,7 +116,7 @@ func main() {
 
 	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
 	r.Route("/api/auth", func(r chi.Router) {

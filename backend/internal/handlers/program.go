@@ -120,7 +120,7 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 			"The user manually updated their program settings. Changes: %s. Take this into account in future coaching.",
 			diff,
 		)
-		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, "free_chat", nil, nil)
+		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil)
 	}
 
 	responses := make([]models.ProgramCriterionResponse, len(criteria))
@@ -246,7 +246,7 @@ func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) 
 			"The user manually edited the activity '%s' on %s. Changes: %s. Take this into account in future conversations.",
 			updated.ActivityType, updated.Date, diff,
 		)
-		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, "free_chat", nil, nil)
+		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil)
 	}
 
 	writeJSON(w, http.StatusOK, updated)
