@@ -6,6 +6,9 @@ import RecordManualScreen from '../screens/RecordManualScreen';
 import RecordGPSScreen from '../screens/RecordGPSScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
+import CreateProgramBasicsScreen from '../screens/CreateProgramBasicsScreen';
+import CreateProgramScheduleScreen from '../screens/CreateProgramScheduleScreen';
+import CreateProgramReviewScreen from '../screens/CreateProgramReviewScreen';
 import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
@@ -52,6 +55,21 @@ export default function ProgramsStackNavigator() {
         name="WorkoutDetail"
         component={WorkoutDetailScreen}
         options={{ title: 'Workout' }}
+      />
+      <Stack.Screen
+        name="CreateProgramBasics"
+        component={CreateProgramBasicsScreen}
+        options={{ title: 'New Program' }}
+      />
+      <Stack.Screen
+        name="CreateProgramSchedule"
+        component={CreateProgramScheduleScreen}
+        options={{ title: 'Schedule' }}
+      />
+      <Stack.Screen
+        name="CreateProgramReview"
+        component={CreateProgramReviewScreen}
+        options={{ title: 'Review' }}
       />
     </Stack.Navigator>
   );

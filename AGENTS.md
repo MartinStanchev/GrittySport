@@ -35,4 +35,4 @@ Go is installed in Windows in `Files/Go/bin/go.exe`.
 
 In WSL in Ubuntu it is in `/usr/local/go`. The executable is in `/usr/local/go/bin/go`. This should be added in the PATH and accessible with simply `go`. 
 
-The Golang linter - golangci-lint is also installed. Run it with `golangci-lint run`.
+The Golang linter - golangci-lint is also installed. Run it with `golangci-lint run` in WSL Ubuntu. It is located in `/home/marts/go/bin/golangci-lint`.

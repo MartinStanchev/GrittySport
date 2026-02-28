@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
 import {
@@ -18,7 +19,7 @@ import {
   isManualActivity,
   dayAbbrev,
 } from '../constants/activityIcons';
-import { getProgram, deleteProgram, clearChatMemory } from '../services/api';
+import { getProgram, deleteProgram } from '../services/api';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
 import { useProgram } from '../contexts/ProgramContext';
@@ -27,27 +28,16 @@ type FlatWeek = {
   id: string;
   weekNumber: number;
   phaseName: string;
-  computedStart: Date;
+  weekMonday: Date;
   activities: ScheduledActivityResponse[];
 };
 
-function computeWeekStart(
-  weekNumber: number,
-  weekStartDate: string | null | undefined,
-  programStartDate: string,
-): Date {
-  if (weekStartDate) return new Date(weekStartDate + 'T00:00:00');
-  const d = new Date(programStartDate + 'T00:00:00');
-  d.setDate(d.getDate() + (weekNumber - 1) * 7);
-  return d;
-}
-
-function formatWeekRange(weekStart: Date): string {
-  const end = new Date(weekStart);
+function formatWeekRange(monday: Date): string {
+  const end = new Date(monday);
   end.setDate(end.getDate() + 6);
   const fmt = (d: Date) =>
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${fmt(weekStart)} – ${fmt(end)}`;
+  return `${fmt(monday)} – ${fmt(end)}`;
 }
 
 function formatDate(dateStr?: string) {
@@ -59,13 +49,14 @@ function formatDate(dateStr?: string) {
 export default function ProgramDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { programId } = route.params;
-  const { refreshProgram } = useProgram();
+  const { notifyProgramDataChanged, programDataVersion } = useProgram();
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
   const [criteriaModalVisible, setCriteriaModalVisible] = useState(false);
 
   const weekSelectorRef = useRef<FlatList>(null);
+  const initialVersionRef = useRef(programDataVersion);
 
   const fetchProgram = useCallback(async () => {
     try {
@@ -91,8 +82,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
           onPress: async () => {
             try {
               await deleteProgram(programId);
-              await refreshProgram();
-              // Offer to clear Grit's memory after deletion
+              await notifyProgramDataChanged();
               Alert.alert(
                 "Clear Grit's Memory?",
                 "Grit may still remember details from this program. Clear his coaching memory so he starts fresh?",
@@ -106,11 +96,19 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
         },
       ],
     );
-  }, [programId, navigation, refreshProgram]);
+  }, [programId, navigation, notifyProgramDataChanged]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProgram();
+    }, [fetchProgram]),
+  );
 
   useEffect(() => {
-    fetchProgram();
-  }, [fetchProgram]);
+    if (programDataVersion !== initialVersionRef.current) {
+      fetchProgram();
+    }
+  }, [programDataVersion, fetchProgram]);
 
   // Set delete button in header once program name is loaded
   useEffect(() => {
@@ -132,7 +130,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
           id: week.id,
           weekNumber: week.week_number,
           phaseName: phase.name,
-          computedStart: computeWeekStart(week.week_number, week.start_date, program.start_date),
+          weekMonday: new Date(week.start_date + 'T00:00:00'),
           activities: week.activities,
         });
       }
@@ -147,7 +145,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     today.setHours(0, 0, 0, 0);
 
     let found = flatWeeks.find((w) => {
-      const start = new Date(w.computedStart);
+      const start = new Date(w.weekMonday);
       start.setHours(0, 0, 0, 0);
       const end = new Date(start);
       end.setDate(end.getDate() + 7);
@@ -156,7 +154,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
 
     if (!found) {
       found = flatWeeks.find((w) => {
-        const start = new Date(w.computedStart);
+        const start = new Date(w.weekMonday);
         start.setHours(0, 0, 0, 0);
         return start > today;
       });
@@ -184,8 +182,8 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
   );
 
   const handleCriteriaSaved = useCallback(() => {
-    fetchProgram();
-  }, [fetchProgram]);
+    notifyProgramDataChanged();
+  }, [notifyProgramDataChanged]);
 
   if (loading) {
     return (
@@ -263,12 +261,12 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
               onScrollToIndexFailed={() => {}}
               renderItem={({ item: week }) => {
                 const isSelected = week.id === selectedWeekId;
-                const weekStart = new Date(week.computedStart);
+                const weekStart = new Date(week.weekMonday);
                 weekStart.setHours(0, 0, 0, 0);
                 const weekEnd = new Date(weekStart);
-                weekEnd.setDate(weekEnd.getDate() + 6);
+                weekEnd.setDate(weekEnd.getDate() + 7);
                 const isCurrentWeek = today >= weekStart && today < weekEnd;
-                const isPast = weekEnd < today;
+                const isPast = weekEnd <= today;
 
                 return (
                   <Pressable
@@ -296,7 +294,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
                         isPast && !isSelected && styles.weekPillTextPast,
                       ]}
                     >
-                      {week.computedStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {week.weekMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </Text>
                   </Pressable>
                 );
@@ -348,16 +346,17 @@ type WeekViewProps = {
 };
 
 function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivity }: WeekViewProps) {
-  const byDay = useMemo<Map<number, ScheduledActivityResponse>>(() => {
-    const map = new Map<number, ScheduledActivityResponse>();
+  const byDay = useMemo<Map<number, ScheduledActivityResponse[]>>(() => {
+    const map = new Map<number, ScheduledActivityResponse[]>();
     for (const a of week.activities) {
-      if (!map.has(a.day_of_week)) map.set(a.day_of_week, a);
+      const existing = map.get(a.day_of_week) ?? [];
+      map.set(a.day_of_week, [...existing, a]);
     }
     return map;
   }, [week.activities]);
 
-  const weekStart = new Date(week.computedStart);
-  weekStart.setHours(0, 0, 0, 0);
+  const weekMonday = new Date(week.weekMonday);
+  weekMonday.setHours(0, 0, 0, 0);
 
   return (
     <View style={styles.weekView}>
@@ -365,13 +364,15 @@ function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivit
         <Text style={styles.weekViewTitle}>
           Week {week.weekNumber} · {week.phaseName}
         </Text>
-        <Text style={styles.weekViewRange}>{formatWeekRange(weekStart)}</Text>
+        <Text style={styles.weekViewRange}>{formatWeekRange(weekMonday)}</Text>
       </View>
 
       {[1, 2, 3, 4, 5, 6, 0].map((dayIndex) => {
-        const activity = byDay.get(dayIndex) ?? null;
-        const dayDate = new Date(weekStart);
-        dayDate.setDate(dayDate.getDate() + dayIndex);
+        const activities = byDay.get(dayIndex) ?? [];
+
+        const offset = dayIndex === 0 ? 6 : dayIndex - 1;
+        const dayDate = new Date(weekMonday);
+        dayDate.setDate(dayDate.getDate() + offset);
 
         const isToday =
           dayDate.getFullYear() === today.getFullYear() &&
@@ -384,11 +385,11 @@ function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivit
             key={dayIndex}
             dayName={dayAbbrev(dayIndex)}
             dayDate={dayDate}
-            activity={activity}
+            activities={activities}
             isToday={isToday}
             isPast={isPast}
-            onPress={activity ? () => onActivityPress(activity.id) : undefined}
-            onRecord={activity && isManualActivity(activity.activity_type) ? () => onRecordActivity(activity.id, activity.activity_type) : undefined}
+            onPress={onActivityPress}
+            onRecord={onRecordActivity}
             onAdd={() => onAddActivity(week.id, dayIndex)}
           />
         );
@@ -402,27 +403,20 @@ function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivit
 type DayRowProps = {
   dayName: string;
   dayDate: Date;
-  activity: ScheduledActivityResponse | null;
+  activities: ScheduledActivityResponse[];
   isToday: boolean;
   isPast: boolean;
-  onPress?: () => void;
-  onRecord?: () => void;
+  onPress: (activityId: string) => void;
+  onRecord: (activityId: string, activityType: string) => void;
   onAdd: () => void;
 };
 
-function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onRecord, onAdd }: DayRowProps) {
+function DayRow({ dayName, dayDate, activities, isToday, isPast, onPress, onRecord, onAdd }: DayRowProps) {
   const dateNum = dayDate.getDate();
+  const hasActivities = activities.length > 0;
 
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.dayRow,
-        isToday && styles.dayRowToday,
-        pressed && activity && styles.dayRowPressed,
-      ]}
-      onPress={onPress}
-      disabled={!activity}
-    >
+    <View style={[styles.dayRow, isToday && styles.dayRowToday]}>
       <View style={styles.dayLabel}>
         <Text style={[styles.dayName, isToday && styles.dayNameToday, isPast && styles.dayNamePast]}>
           {dayName}
@@ -432,56 +426,69 @@ function DayRow({ dayName, dayDate, activity, isToday, isPast, onPress, onRecord
         </Text>
       </View>
 
-      {activity ? (
-        <>
-          <View
-            style={[
-              styles.activityIconCircle,
-              isToday && styles.activityIconCircleToday,
-              isPast && styles.activityIconCirclePast,
-            ]}
-          >
-            <Ionicons
-              name={getActivityIcon(activity.activity_type)}
-              size={16}
-              color={isToday ? '#FFF' : isPast ? Colors.textSecondary : Colors.primary}
-            />
-          </View>
-          <View style={styles.activityInfo}>
-            <Text
-              style={[
-                styles.activityType,
-                isPast && !isToday && styles.activityTypePast,
-              ]}
-              numberOfLines={1}
+      <View style={styles.dayActivitiesColumn}>
+        {hasActivities ? (
+          activities.map((activity) => (
+            <Pressable
+              key={activity.id}
+              style={({ pressed }) => [styles.activityRow, pressed && styles.dayRowPressed]}
+              onPress={() => onPress(activity.id)}
             >
-              {activity.activity_type}
-            </Text>
-            <Text style={[styles.activitySummary, isPast && !isToday && styles.activitySummaryPast]} numberOfLines={1}>
-              {formatPrescriptionSummary(activity.prescription)}
-            </Text>
-          </View>
-          {onRecord && (
-            <Pressable onPress={onRecord} hitSlop={10} style={styles.recordIconBtn}>
-              <Ionicons name="play-circle-outline" size={20} color={Colors.primary} />
+              <View
+                style={[
+                  styles.activityIconCircle,
+                  isToday && styles.activityIconCircleToday,
+                  isPast && styles.activityIconCirclePast,
+                ]}
+              >
+                <Ionicons
+                  name={getActivityIcon(activity.activity_type)}
+                  size={16}
+                  color={isToday ? '#FFF' : isPast ? Colors.textSecondary : Colors.primary}
+                />
+              </View>
+              <View style={styles.activityInfo}>
+                <Text
+                  style={[styles.activityType, isPast && !isToday && styles.activityTypePast]}
+                  numberOfLines={1}
+                >
+                  {activity.activity_type}
+                </Text>
+                <Text
+                  style={[styles.activitySummary, isPast && !isToday && styles.activitySummaryPast]}
+                  numberOfLines={1}
+                >
+                  {formatPrescriptionSummary(activity.prescription)}
+                </Text>
+              </View>
+              {isManualActivity(activity.activity_type) && (
+                <Pressable
+                  onPress={() => onRecord(activity.id, activity.activity_type)}
+                  hitSlop={10}
+                  style={styles.recordIconBtn}
+                >
+                  <Ionicons name="play-circle-outline" size={20} color={Colors.primary} />
+                </Pressable>
+              )}
+              <Ionicons
+                name="chevron-forward"
+                size={14}
+                color={isPast && !isToday ? '#CCC' : Colors.textSecondary}
+              />
             </Pressable>
-          )}
-          <Ionicons
-            name="chevron-forward"
-            size={14}
-            color={isPast && !isToday ? '#CCC' : Colors.textSecondary}
-          />
-        </>
-      ) : (
-        <>
-          <View style={styles.restDot} />
-          <Text style={styles.restText}>Rest</Text>
-          <Pressable style={styles.addButton} onPress={onAdd} hitSlop={8}>
-            <Ionicons name="add-circle-outline" size={20} color={Colors.textSecondary} />
-          </Pressable>
-        </>
-      )}
-    </Pressable>
+          ))
+        ) : (
+          <View style={styles.restRow}>
+            <View style={styles.restDot} />
+            <Text style={styles.restText}>Rest</Text>
+          </View>
+        )}
+
+        <Pressable style={styles.addButton} onPress={onAdd} hitSlop={8}>
+          <Ionicons name="add-circle-outline" size={20} color={Colors.textSecondary} />
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -650,8 +657,8 @@ const styles = StyleSheet.create({
   // Day Row
   dayRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
+    alignItems: 'flex-start',
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 10,
     marginBottom: 2,
@@ -666,6 +673,7 @@ const styles = StyleSheet.create({
   dayLabel: {
     width: 36,
     alignItems: 'center',
+    paddingTop: 4,
   },
   dayName: {
     fontSize: 12,
@@ -689,6 +697,23 @@ const styles = StyleSheet.create({
   },
   dayDatePast: {
     color: '#CCC',
+  },
+  dayActivitiesColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 10,
+  },
+  restRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    gap: 10,
   },
   activityIconCircle: {
     width: 32,
@@ -735,6 +760,8 @@ const styles = StyleSheet.create({
   },
   addButton: {
     padding: 2,
+    alignSelf: 'flex-end',
+    marginBottom: 2,
   },
   recordIconBtn: {
     padding: 4,

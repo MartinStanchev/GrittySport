@@ -8,8 +8,9 @@ interface ProgramContextType {
   upcomingActivities: UpcomingActivity[];
   isLoading: boolean;
   openChatRequest: boolean;
-  refreshProgram: () => Promise<void>;
+  programDataVersion: number;
   refreshUpcoming: () => Promise<void>;
+  notifyProgramDataChanged: () => Promise<void>;
   requestOpenChat: () => void;
   clearOpenChatRequest: () => void;
 }
@@ -22,6 +23,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [openChatRequest, setOpenChatRequest] = useState(false);
+  const [programDataVersion, setProgramDataVersion] = useState(0);
 
   const refreshProgram = useCallback(async () => {
     try {
@@ -43,6 +45,11 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       setUpcomingActivities([]);
     }
   }, []);
+
+  const notifyProgramDataChanged = useCallback(async () => {
+    setProgramDataVersion((v) => v + 1);
+    await Promise.all([refreshProgram(), refreshUpcoming()]);
+  }, [refreshProgram, refreshUpcoming]);
 
   const requestOpenChat = useCallback(() => {
     setOpenChatRequest(true);
@@ -73,8 +80,9 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         upcomingActivities,
         isLoading,
         openChatRequest,
-        refreshProgram,
+        programDataVersion,
         refreshUpcoming,
+        notifyProgramDataChanged,
         requestOpenChat,
         clearOpenChatRequest,
       }}

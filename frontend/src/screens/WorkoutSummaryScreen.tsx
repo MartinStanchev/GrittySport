@@ -20,6 +20,7 @@ import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { useProgram } from '../contexts/ProgramContext';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import type { WorkoutResponse } from '../services/api';
 import { savePendingWorkout } from '../services/offlineStorage';
@@ -38,6 +39,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { activeGPSWorkout, clearGPSWorkout } = useWorkout();
   const { user } = useAuth();
+  const { notifyProgramDataChanged } = useProgram();
   const maxHR = user?.max_heart_rate ?? 185;
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -125,6 +127,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
     setSaving(false);
     clearGPSWorkout();
+    notifyProgramDataChanged();
     navigation.navigate('History');
 
     // Offer to link to today's scheduled activity if not already linked

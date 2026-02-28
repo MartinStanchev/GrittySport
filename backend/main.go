@@ -135,6 +135,7 @@ func main() {
 		r.Get("/chat/history", chatHandler.History)
 		r.Delete("/chat/memory", chatHandler.ClearMemory)
 
+		r.Post("/programs", programHandler.Create)
 		r.Get("/programs", programHandler.List)
 		r.Get("/programs/{id}", programHandler.Get)
 		r.Put("/programs/{id}", programHandler.Update)

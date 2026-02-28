@@ -233,6 +233,17 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 			if proposal, ok := h.proposalStore.Get(userID); ok {
 				_ = ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: proposal.Program})
 			}
+		case "propose_program_modification":
+			if proposal, ok := h.proposalStore.Get(userID); ok {
+				var meta map[string]string
+				_ = json.Unmarshal(proposal.Criteria, &meta)
+				payload, _ := json.Marshal(map[string]any{
+					"type":          "program_modification",
+					"description":   meta["description"],
+					"modifications": proposal.Program,
+				})
+				_ = ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: payload})
+			}
 		case "confirm_program_save":
 			session.activeDraftID = ""
 			session.activeSkill = ""
@@ -242,7 +253,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					_ = ws.writeJSON(wsOutgoing{Type: "program_created", Data: data})
 				}
 			}
-		case "confirm_adjustment":
+		case "confirm_adjustment", "confirm_program_modification":
 			_ = ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
 		}
 

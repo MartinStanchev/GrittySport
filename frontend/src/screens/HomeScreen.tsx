@@ -22,6 +22,7 @@ import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
+import { ProgramModificationCard } from '../components/ProgramModificationCard';
 import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
 import { FABActionSheet } from '../components/FABActionSheet';
 import { ClearChatModal } from '../components/ClearChatModal';
@@ -54,8 +55,8 @@ export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const keyboardHeight = useKeyboardHeight();
   const {
-    activeProgram, upcomingActivities, refreshProgram, refreshUpcoming,
-    openChatRequest, clearOpenChatRequest,
+    activeProgram, upcomingActivities, notifyProgramDataChanged,
+    openChatRequest, clearOpenChatRequest, refreshUpcoming,
   } = useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
@@ -67,35 +68,38 @@ export default function HomeScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
+  const didInitialScrollRef = useRef(false);
 
   const handleProgramCreated = useCallback(() => {
-    refreshProgram();
-    refreshUpcoming();
+    notifyProgramDataChanged();
     setTimeout(() => {
       setChatOpen(false);
     }, 1500);
-  }, [refreshProgram, refreshUpcoming]);
+  }, [notifyProgramDataChanged]);
 
   const handleAdjustmentApplied = useCallback(() => {
-    refreshUpcoming();
-  }, [refreshUpcoming]);
+    notifyProgramDataChanged();
+  }, [notifyProgramDataChanged]);
 
   const {
     messages, isGritTyping, sendMessage, respondToProposal,
     loadHistory, isConnected, quickReplies, clearChat, activeToolAction,
+    unreadCount, markRead, markClosed,
   } = useChatWebSocket({
     onProgramCreated: handleProgramCreated,
     onAdjustmentApplied: handleAdjustmentApplied,
   });
 
   const openChat = useCallback(() => {
+    markRead();
     setChatOpen(true);
-  }, []);
+  }, [markRead]);
 
   const closeChat = useCallback(() => {
     Keyboard.dismiss();
+    markClosed();
     setChatOpen(false);
-  }, []);
+  }, [markClosed]);
 
   const openProgramCreation = useCallback(() => {
     setChatOpen(true);
@@ -123,11 +127,34 @@ export default function HomeScreen() {
     }
   }, [chatOpen, historyLoaded, loadHistory]);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((animated = true) => {
     setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
+      flatListRef.current?.scrollToEnd({ animated });
     }, 100);
   }, []);
+
+  // When chat open state changes, reset so we scroll to bottom on next open (long history)
+  useEffect(() => {
+    didInitialScrollRef.current = false;
+  }, [chatOpen]);
+
+  const handleChatContentSizeChange = useCallback(
+    (_w: number, _h: number) => {
+      if (messages.length > 0 && !didInitialScrollRef.current) {
+        flatListRef.current?.scrollToEnd({ animated: false });
+      }
+    },
+    [messages.length],
+  );
+
+  // Stop forcing scroll to bottom after a short window (list may report content size multiple times)
+  useEffect(() => {
+    if (!chatOpen) return;
+    const t = setTimeout(() => {
+      didInitialScrollRef.current = true;
+    }, 600);
+    return () => clearTimeout(t);
+  }, [chatOpen]);
 
   const handleSend = useCallback(() => {
     const text = inputText.trim();
@@ -170,6 +197,17 @@ export default function HomeScreen() {
         );
       }
 
+      if (item.messageType === 'program_modification') {
+        return (
+          <ProgramModificationCard
+            data={item.proposalData}
+            onAccept={() => handleProposalResponse('accept', item.id)}
+            onDeny={() => handleProposalResponse('deny', item.id)}
+            disabled={respondedProposals.has(item.id)}
+          />
+        );
+      }
+
       const isUser = item.role === 'user';
       return (
         <View
@@ -197,6 +235,13 @@ export default function HomeScreen() {
     clearChat();
     setHistoryLoaded(false);
   }, [clearChat]);
+
+  // Refresh upcoming activities each time the home tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshUpcoming();
+    }, [refreshUpcoming]),
+  );
 
   // Auto-open chat when another screen requests it (e.g. after saving program edits)
   useFocusEffect(
@@ -322,15 +367,22 @@ export default function HomeScreen() {
 
         {/* Chat Bar */}
         <View style={styles.chatBar}>
-        <Pressable style={styles.chatBarInner} onPress={() => openChat()}>
-          <View style={styles.chatBarAvatar}>
-            <Text style={styles.chatBarAvatarText}>G</Text>
-          </View>
-          <Text style={styles.chatBarPlaceholder}>Message Grit...</Text>
-          <View style={[styles.sendButton, styles.sendButtonDisabled]}>
-            <Ionicons name="arrow-up" size={18} color={Colors.textSecondary} />
-          </View>
-        </Pressable>
+          <Pressable style={styles.chatBarInner} onPress={() => openChat()}>
+            <View style={styles.chatBarAvatar}>
+              <Text style={styles.chatBarAvatarText}>G</Text>
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.chatBarPlaceholder}>
+              {unreadCount > 0 ? 'Grit replied...' : 'Message Grit...'}
+            </Text>
+            <View style={[styles.sendButton, styles.sendButtonDisabled]}>
+              <Ionicons name="arrow-up" size={18} color={Colors.textSecondary} />
+            </View>
+          </Pressable>
         </View>
       </View>
 
@@ -339,12 +391,6 @@ export default function HomeScreen() {
         onClose={() => setFabSheetVisible(false)}
         onStartWorkout={() => navigation.navigate('RecordManual')}
         onLogActivity={() => navigation.navigate('LogActivity')}
-      />
-
-      <ClearChatModal
-        visible={clearChatVisible}
-        onCancel={() => setClearChatVisible(false)}
-        onConfirm={confirmClearChat}
       />
 
       {/* Chat Modal */}
@@ -411,7 +457,8 @@ export default function HomeScreen() {
             contentContainerStyle={styles.messageListContent}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
-            onLayout={scrollToBottom}
+            onLayout={() => scrollToBottom(true)}
+            onContentSizeChange={handleChatContentSizeChange}
           />
 
           {/* Typing / Tool Indicator */}
@@ -484,6 +531,12 @@ export default function HomeScreen() {
             </Pressable>
           </View>
         </KeyboardAvoidingView>
+
+        <ClearChatModal
+          visible={clearChatVisible}
+          onCancel={() => setClearChatVisible(false)}
+          onConfirm={confirmClearChat}
+        />
       </Modal>
     </View>
   );
@@ -678,6 +731,23 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  unreadBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   chatBarPlaceholder: {
     flex: 1,

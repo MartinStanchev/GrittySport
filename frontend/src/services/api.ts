@@ -320,6 +320,7 @@ export interface CriterionResponse {
 export interface ScheduledActivityResponse {
   id: string;
   day_of_week: number;
+  date: string;
   activity_type: string;
   prescription: Record<string, any>;
   notes?: string;
@@ -329,7 +330,7 @@ export interface ScheduledActivityResponse {
 export interface WeekResponse {
   id: string;
   week_number: number;
-  start_date?: string;
+  start_date: string;
   activities: ScheduledActivityResponse[];
 }
 
@@ -364,6 +365,37 @@ export interface CriterionInput {
   value: string;
   value_type: string;
   display_order: number;
+}
+
+export interface CreateProgramPhaseInput {
+  name: string;
+  order_index: number;
+  duration_weeks: number;
+  template_week: {
+    activities: {
+      day_of_week: number;
+      activity_type: string;
+      prescription: Record<string, any>;
+      notes?: string;
+      order_index?: number;
+    }[];
+  };
+}
+
+export interface CreateProgramInput {
+  name: string;
+  sport: string;
+  goal_description: string;
+  start_date: string;
+  end_date: string;
+  phases: CreateProgramPhaseInput[];
+}
+
+export async function createProgram(input: CreateProgramInput): Promise<ProgramDetail> {
+  return apiFetch<ProgramDetail>('/api/v1/programs', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export async function getPrograms(): Promise<ProgramSummary[]> {
@@ -427,6 +459,7 @@ export interface ActivityDetail {
   linked_workout_id?: string;
   linked_workout_recorded_at?: string;
   linked_workout_source?: string;
+  linked_gps_route?: Record<string, any>;
 }
 
 export interface UpdateActivityInput {

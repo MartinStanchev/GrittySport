@@ -15,6 +15,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { useProgram } from '../contexts/ProgramContext';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -287,6 +288,7 @@ function MobilityEditor({
 type Props = NativeStackScreenProps<any, 'LogActivity'>;
 
 export default function LogActivityScreen({ navigation }: Props) {
+  const { notifyProgramDataChanged } = useProgram();
   const [selectedType, setSelectedType] = useState<LogType | null>(null);
   const [dateOffset, setDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
   const [hours, setHours] = useState('');
@@ -333,6 +335,7 @@ export default function LogActivityScreen({ navigation }: Props) {
         finished_at: finishedAt.toISOString(),
         notes: notes.trim() || undefined,
       });
+      notifyProgramDataChanged();
       navigation.goBack();
 
       // Offer to link to today's scheduled activity

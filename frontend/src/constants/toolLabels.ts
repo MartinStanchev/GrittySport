@@ -13,4 +13,6 @@ export const TOOL_LABELS: Record<string, string> = {
   create_draft_program: 'Creating a draft...',
   save_draft_criterion: 'Saving your answer...',
   modify_pending_proposal: 'Updating your program...',
+  propose_program_modification: 'Preparing program changes...',
+  confirm_program_modification: 'Applying program changes...',
 };

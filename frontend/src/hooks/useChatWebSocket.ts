@@ -8,7 +8,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
-  messageType?: 'text' | 'program_proposal' | 'adjustment_proposal';
+  messageType?: 'text' | 'program_proposal' | 'adjustment_proposal' | 'program_modification';
   proposalData?: any;
 }
 
@@ -33,6 +33,10 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const [isGritTyping, setIsGritTyping] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [activeToolAction, setActiveToolAction] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Tracks whether the chat overlay is currently open
+  const chatOpenRef = useRef(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -120,6 +124,9 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
             return prev;
           });
           streamingContentRef.current = '';
+          if (!chatOpenRef.current) {
+            setUnreadCount((n) => n + 1);
+          }
           if (data.quick_replies && data.quick_replies.length > 0) {
             setQuickReplies(data.quick_replies);
           }
@@ -168,13 +175,14 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
       } else if (data.type === 'adjustment_proposal') {
         setIsGritTyping(false);
         setActiveToolAction(null);
+        const isModification = data.data?.type === 'program_modification';
         setMessages((prev) => [
           ...prev,
           {
             id: `adj-proposal-${Date.now()}`,
             role: 'system',
             content: '',
-            messageType: 'adjustment_proposal',
+            messageType: isModification ? 'program_modification' : 'adjustment_proposal',
             proposalData: data.data,
           },
         ]);
@@ -309,6 +317,15 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     }
   }, []);
 
+  const markRead = useCallback(() => {
+    setUnreadCount(0);
+    chatOpenRef.current = true;
+  }, []);
+
+  const markClosed = useCallback(() => {
+    chatOpenRef.current = false;
+  }, []);
+
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
@@ -345,9 +362,12 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     isGritTyping,
     quickReplies,
     activeToolAction,
+    unreadCount,
     sendMessage,
     respondToProposal,
     loadHistory,
     clearChat,
+    markRead,
+    markClosed,
   };
 }

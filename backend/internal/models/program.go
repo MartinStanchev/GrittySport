@@ -60,7 +60,7 @@ type ProgramDetailResponse struct {
 func (p *Program) ToDetailResponse(phases []Phase, criteria []ProgramCriterion) ProgramDetailResponse {
 	phaseResponses := make([]PhaseResponse, len(phases))
 	for i, ph := range phases {
-		phaseResponses[i] = ph.ToResponse()
+		phaseResponses[i] = ph.ToResponse(p.StartDate)
 	}
 	criteriaResponses := make([]ProgramCriterionResponse, len(criteria))
 	for i, c := range criteria {
@@ -125,10 +125,10 @@ type PhaseResponse struct {
 	Weeks      []WeekResponse `json:"weeks"`
 }
 
-func (p *Phase) ToResponse() PhaseResponse {
+func (p *Phase) ToResponse(programStart time.Time) PhaseResponse {
 	weekResponses := make([]WeekResponse, len(p.Weeks))
 	for i, w := range p.Weeks {
-		weekResponses[i] = w.ToResponse()
+		weekResponses[i] = w.ToResponse(programStart)
 	}
 	resp := PhaseResponse{
 		ID:         p.ID,
@@ -159,25 +159,29 @@ type Week struct {
 type WeekResponse struct {
 	ID         string                      `json:"id"`
 	WeekNumber int                         `json:"week_number"`
-	StartDate  *string                     `json:"start_date,omitempty"`
+	StartDate  string                      `json:"start_date"`
 	Activities []ScheduledActivityResponse `json:"activities"`
 }
 
-func (w *Week) ToResponse() WeekResponse {
+func (w *Week) ToResponse(programStart time.Time) WeekResponse {
+	var raw time.Time
+	if w.StartDate != nil {
+		raw = *w.StartDate
+	} else {
+		raw = programStart.AddDate(0, 0, (w.WeekNumber-1)*7)
+	}
+	weekMonday := MondayOf(raw)
+
 	actResponses := make([]ScheduledActivityResponse, len(w.Activities))
 	for i, a := range w.Activities {
-		actResponses[i] = a.ToResponse()
+		actResponses[i] = a.ToResponseWithDate(weekMonday)
 	}
-	resp := WeekResponse{
+	return WeekResponse{
 		ID:         w.ID,
 		WeekNumber: w.WeekNumber,
+		StartDate:  weekMonday.Format("2006-01-02"),
 		Activities: actResponses,
 	}
-	if w.StartDate != nil {
-		s := w.StartDate.Format("2006-01-02")
-		resp.StartDate = &s
-	}
-	return resp
 }
 
 type ScheduledActivity struct {
@@ -195,16 +199,33 @@ type ScheduledActivity struct {
 type ScheduledActivityResponse struct {
 	ID           string          `json:"id"`
 	DayOfWeek    int             `json:"day_of_week"`
+	Date         string          `json:"date"`
 	ActivityType string          `json:"activity_type"`
 	Prescription json.RawMessage `json:"prescription"`
 	Notes        *string         `json:"notes,omitempty"`
 	OrderIndex   int             `json:"order_index"`
 }
 
-func (a *ScheduledActivity) ToResponse() ScheduledActivityResponse {
+// DowOffset converts a JS-convention day_of_week (0=Sun, 1=Mon…6=Sat) to a
+// Monday-based offset so that weekStart + offset gives the correct calendar date.
+func DowOffset(dow int) int {
+	if dow == 0 {
+		return 6
+	}
+	return dow - 1
+}
+
+// MondayOf returns the Monday (start of ISO week) for the week containing t.
+func MondayOf(t time.Time) time.Time {
+	return t.AddDate(0, 0, -DowOffset(int(t.Weekday())))
+}
+
+func (a *ScheduledActivity) ToResponseWithDate(weekStart time.Time) ScheduledActivityResponse {
+	date := weekStart.AddDate(0, 0, DowOffset(a.DayOfWeek)).Format("2006-01-02")
 	return ScheduledActivityResponse{
 		ID:           a.ID,
 		DayOfWeek:    a.DayOfWeek,
+		Date:         date,
 		ActivityType: a.ActivityType,
 		Prescription: a.Prescription,
 		Notes:        a.Notes,
@@ -221,6 +242,7 @@ type SaveProgramInput struct {
 	StartDate       string           `json:"start_date"`
 	EndDate         string           `json:"end_date"`
 	Phases          []SavePhaseInput `json:"phases"`
+	CreatedBy       string           `json:"created_by,omitempty"`
 }
 
 type SavePhaseInput struct {
@@ -263,6 +285,19 @@ type AdjustActivityInput struct {
 	Prescription json.RawMessage `json:"prescription"`
 }
 
+// ProgramModificationAction represents a structural change to a saved program
+// applied across all weeks (or filtered weeks/phases).
+type ProgramModificationAction struct {
+	// Action is one of: swap_day, change_activity, add_activity, remove_activity
+	Action       string          `json:"action"`
+	DayOfWeek    int             `json:"day_of_week"`
+	NewDay       *int            `json:"new_day,omitempty"`       // swap_day: target day to swap with
+	ActivityType string          `json:"activity_type,omitempty"` // add/change: activity type
+	Prescription json.RawMessage `json:"prescription,omitempty"`  // add/change: prescription
+	Notes        *string         `json:"notes,omitempty"`         // add/change: notes
+	PhaseIndex   *int            `json:"phase_index,omitempty"`   // nil = all phases
+}
+
 type UpcomingActivityResponse struct {
 	ID           string          `json:"id"`
 	ActivityType string          `json:"activity_type"`
@@ -288,9 +323,10 @@ type ActivityDetailResponse struct {
 	Date         string          `json:"date"`
 	UserID       string          `json:"-"`
 	// Linked recorded workout (if any)
-	LinkedWorkoutID         *string    `json:"linked_workout_id,omitempty"`
-	LinkedWorkoutRecordedAt *time.Time `json:"linked_workout_recorded_at,omitempty"`
-	LinkedWorkoutSource     *string    `json:"linked_workout_source,omitempty"`
+	LinkedWorkoutID         *string         `json:"linked_workout_id,omitempty"`
+	LinkedWorkoutRecordedAt *time.Time      `json:"linked_workout_recorded_at,omitempty"`
+	LinkedWorkoutSource     *string         `json:"linked_workout_source,omitempty"`
+	LinkedGPSRoute          json.RawMessage `json:"linked_gps_route,omitempty"`
 }
 
 type UpdateActivityInput struct {

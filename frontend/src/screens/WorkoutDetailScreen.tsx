@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MapView, { Polyline, UrlTile } from '../components/NativeMap';
+import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
@@ -176,37 +176,9 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
 
-  const points: { latitude: number; longitude: number }[] = (route.points ?? []).map((p: any) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
-
-  const mapRegion =
-    points.length > 1
-      ? {
-          latitude: (points[0].latitude + points[points.length - 1].latitude) / 2,
-          longitude: (points[0].longitude + points[points.length - 1].longitude) / 2,
-          latitudeDelta: Math.abs(points[0].latitude - points[points.length - 1].latitude) * 2 + 0.01,
-          longitudeDelta: Math.abs(points[0].longitude - points[points.length - 1].longitude) * 2 + 0.01,
-        }
-      : { latitude: 51.5074, longitude: -0.1278, latitudeDelta: 0.05, longitudeDelta: 0.05 };
-
   return (
     <>
-      {points.length > 1 && (
-        <MapView
-          style={styles.gpsMap}
-          region={mapRegion}
-          scrollEnabled={false}
-          zoomEnabled={false}
-          mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-        >
-          {Platform.OS === 'android' && (
-            <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
-          )}
-          <Polyline coordinates={points} strokeColor={Colors.primary} strokeWidth={4} />
-        </MapView>
-      )}
+      <RouteMapPreview gpsRoute={route} style={styles.gpsMap} />
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>GPS Stats</Text>
         <StatRow label="Distance" value={summary.distance_km ? `${Number(summary.distance_km).toFixed(2)} km` : '—'} />

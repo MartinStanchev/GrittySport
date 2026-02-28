@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   type ExerciseLog,
   type MobilityExerciseLog,
 } from '../contexts/WorkoutContext';
+import { useProgram } from '../contexts/ProgramContext';
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -522,6 +523,7 @@ export default function RecordManualScreen() {
   const { scheduledActivityId, activityType: paramActivityType } = route.params ?? {};
 
   const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode } = useWorkout();
+  const { notifyProgramDataChanged } = useProgram();
 
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
   const [restTimerVisible, setRestTimerVisible] = useState(false);
@@ -698,6 +700,7 @@ export default function RecordManualScreen() {
         notes: activeWorkout.workoutNotes || undefined,
       });
       clearWorkout();
+      notifyProgramDataChanged();
       navigation.navigate('HomeMain');
     } catch {
       Alert.alert('Error', 'Failed to save workout. Please try again.');

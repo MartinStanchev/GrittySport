@@ -23,6 +23,39 @@ func NewProgramHandler(programService *services.ProgramService, chatService *ser
 	return &ProgramHandler{programService: programService, chatService: chatService}
 }
 
+func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	var input models.TemplateProgramInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if input.Name == "" {
+		writeError(w, http.StatusBadRequest, "name is required")
+		return
+	}
+	if input.StartDate == "" {
+		writeError(w, http.StatusBadRequest, "start_date is required")
+		return
+	}
+	if len(input.Phases) == 0 {
+		writeError(w, http.StatusBadRequest, "at least one phase is required")
+		return
+	}
+
+	programInput := models.ExpandTemplatesToSaveInput(input)
+	programInput.CreatedBy = "user"
+
+	result, err := h.programService.SaveProgramWithCriteria(r.Context(), userID, programInput, nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to create program")
+		return
+	}
+	writeJSON(w, http.StatusCreated, result)
+}
+
 func (h *ProgramHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	programs, err := h.programService.ListByUser(r.Context(), userID)
@@ -147,7 +180,7 @@ func buildCriteriaDiff(old []models.ProgramCriterion, updated []models.SaveCrite
 func (h *ProgramHandler) GetUpcoming(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	activities, err := h.programService.GetUpcomingActivities(r.Context(), userID, 5)
+	activities, err := h.programService.GetUpcomingActivities(r.Context(), userID, 6)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get upcoming activities")
 		return

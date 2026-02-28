@@ -18,6 +18,7 @@ import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
+import { RouteMapPreview } from '../components/RouteMapPreview';
 import { useProgram } from '../contexts/ProgramContext';
 
 const ACTIVITY_TYPES = [
@@ -29,7 +30,7 @@ const ACTIVITY_TYPES = [
 export default function ActivityDetailScreen({ route, navigation }: any) {
   const { activityId, weekId, dayOfWeek: createDayOfWeek, programId: createProgramId } = route.params ?? {};
   const isCreateMode = !activityId;
-  const { refreshUpcoming } = useProgram();
+  const { notifyProgramDataChanged } = useProgram();
 
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [loading, setLoading] = useState(!isCreateMode);
@@ -110,7 +111,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
       const updated = await updateActivity(activity.program_id, activity.id, input);
       setActivity(updated);
       setEditing(false);
-      refreshUpcoming();
+      await notifyProgramDataChanged();
     } catch (e: any) {
       const msg = e.message || 'Failed to save changes';
       if (Platform.OS === 'web') window.alert(msg);
@@ -130,7 +131,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
         notes: editNotes.trim() || undefined,
       };
       await createActivity(createProgramId, weekId, input);
-      refreshUpcoming();
+      await notifyProgramDataChanged();
       navigation.goBack();
     } catch (e: any) {
       const msg = e.message || 'Failed to create activity';
@@ -279,12 +280,17 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
           )}
         </View>
 
+        {/* GPS Route Preview (linked workout) */}
+        {!editing && activity?.linked_gps_route && (
+          <RouteMapPreview gpsRoute={activity.linked_gps_route} style={styles.routeMapCard} />
+        )}
+
         {/* Action Buttons */}
         <View style={styles.actions}>
           {editing ? (
             <>
               <Pressable
-                style={[styles.actionButton, styles.saveButton]}
+                style={[styles.actionButton, styles.primaryButton]}
                 onPress={isCreateMode ? saveCreate : saveEdit}
                 disabled={saving}
               >
@@ -521,6 +527,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 20,
   },
+  routeMapCard: {
+    marginBottom: 12,
+  },
   actions: {
     gap: 10,
     marginTop: 8,
@@ -541,9 +550,6 @@ const styles = StyleSheet.create({
   },
   editButton: {
     backgroundColor: '#FEE2E5',
-  },
-  saveButton: {
-    backgroundColor: Colors.primary,
   },
   cancelButton: {
     backgroundColor: '#F0F0F0',

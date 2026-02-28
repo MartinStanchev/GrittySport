@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -14,15 +14,7 @@ import { Colors } from '../constants/colors';
 import { getPrograms, updateProgram, deleteProgram, clearChatMemory } from '../services/api';
 import type { ProgramSummary } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
-
-function formatDateRange(start: string, end?: string): string {
-  const s = new Date(start + 'T00:00:00');
-  const startStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  if (!end) return `${startStr} — ongoing`;
-  const e = new Date(end + 'T00:00:00');
-  const endStr = e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  return `${startStr} — ${endStr}`;
-}
+import { formatDateRange } from '../utils/dates';
 
 interface ProgramsScreenProps {
   navigation: any;
@@ -30,10 +22,11 @@ interface ProgramsScreenProps {
 
 export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
   const insets = useSafeAreaInsets();
-  const { refreshProgram } = useProgram();
+  const { notifyProgramDataChanged, programDataVersion } = useProgram();
   const [programs, setPrograms] = useState<ProgramSummary[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const initialVersionRef = useRef(programDataVersion);
 
   const fetchPrograms = useCallback(async () => {
     try {
@@ -47,10 +40,6 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPrograms();
-  }, [fetchPrograms]);
-
   // Refresh when navigating back
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -58,6 +47,13 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     });
     return unsubscribe;
   }, [navigation, fetchPrograms]);
+
+  // Refresh when program data changes externally (e.g. Grit modifies the program)
+  useEffect(() => {
+    if (programDataVersion !== initialVersionRef.current) {
+      fetchPrograms();
+    }
+  }, [programDataVersion, fetchPrograms]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -68,13 +64,12 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     async (programId: string) => {
       try {
         await updateProgram(programId, { status: 'active' });
-        await fetchPrograms();
-        await refreshProgram();
+        await notifyProgramDataChanged();
       } catch {
         Alert.alert('Error', 'Failed to update program status');
       }
     },
-    [fetchPrograms, refreshProgram],
+    [notifyProgramDataChanged],
   );
 
   const handleArchive = useCallback(
@@ -87,8 +82,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
           onPress: async () => {
             try {
               await updateProgram(programId, { status: 'archived' });
-              await fetchPrograms();
-              await refreshProgram();
+              await notifyProgramDataChanged();
             } catch {
               Alert.alert('Error', 'Failed to archive program');
             }
@@ -96,7 +90,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         },
       ]);
     },
-    [fetchPrograms, refreshProgram],
+    [notifyProgramDataChanged],
   );
 
   const offerMemoryClear = useCallback(() => {
@@ -129,8 +123,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
             onPress: async () => {
               try {
                 await deleteProgram(programId);
-                await fetchPrograms();
-                await refreshProgram();
+                await notifyProgramDataChanged();
                 offerMemoryClear();
               } catch {
                 Alert.alert('Error', 'Failed to delete program');
@@ -140,7 +133,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         ],
       );
     },
-    [fetchPrograms, refreshProgram, offerMemoryClear],
+    [notifyProgramDataChanged, offerMemoryClear],
   );
 
   const renderItem = useCallback(
@@ -190,6 +183,13 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Programs</Text>
+        <Pressable
+          style={styles.createButton}
+          onPress={() => navigation.navigate('CreateProgramBasics')}
+        >
+          <Ionicons name="add" size={20} color="#FFF" />
+          <Text style={styles.createButtonText}>Create</Text>
+        </Pressable>
       </View>
 
       <FlatList
@@ -205,8 +205,15 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
             <Ionicons name="barbell-outline" size={48} color={Colors.textSecondary} />
             <Text style={styles.emptyTitle}>No programs yet</Text>
             <Text style={styles.emptySubtext}>
-              Create your first training program with Grit
+              Create your first training program
             </Text>
+            <Pressable
+              style={styles.emptyCreateButton}
+              onPress={() => navigation.navigate('CreateProgramBasics')}
+            >
+              <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+              <Text style={styles.emptyCreateButtonText}>Create Program</Text>
+            </Pressable>
           </View>
         }
       />
@@ -224,6 +231,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
@@ -232,6 +242,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
     color: Colors.textPrimary,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
   },
   listContent: {
     paddingHorizontal: 20,
@@ -311,5 +335,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  emptyCreateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  emptyCreateButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
   },
 });

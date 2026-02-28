@@ -133,100 +133,6 @@ func applyTemplateModifications(programJSON json.RawMessage, modificationsRaw an
 	return json.Marshal(program)
 }
 
-// templatePhaseInput represents the template-based phase from the proposal.
-type templatePhaseInput struct {
-	Name          string         `json:"name"`
-	OrderIndex    int            `json:"order_index"`
-	StartDate     string         `json:"start_date"`
-	EndDate       string         `json:"end_date"`
-	DurationWeeks int            `json:"duration_weeks"`
-	TemplateWeek  templateWeek   `json:"template_week"`
-}
-
-type templateWeek struct {
-	Activities []templateActivity `json:"activities"`
-}
-
-type templateActivity struct {
-	DayOfWeek    int             `json:"day_of_week"`
-	ActivityType string          `json:"activity_type"`
-	Prescription json.RawMessage `json:"prescription"`
-	Notes        string          `json:"notes"`
-	OrderIndex   int             `json:"order_index"`
-}
-
-type templateProgramInput struct {
-	Name            string               `json:"name"`
-	Sport           string               `json:"sport"`
-	GoalDescription string               `json:"goal_description"`
-	StartDate       string               `json:"start_date"`
-	EndDate         string               `json:"end_date"`
-	Phases          []templatePhaseInput `json:"phases"`
-}
-
-// expandTemplatesToSaveInput converts template-based phases into fully expanded
-// SaveProgramInput with individual weeks.
-func expandTemplatesToSaveInput(tmpl templateProgramInput) models.SaveProgramInput {
-	programStartDate := parseDate(tmpl.StartDate)
-
-	var expandedPhases []models.SavePhaseInput
-	globalWeekNum := 1
-
-	for _, phase := range tmpl.Phases {
-		phaseStart := parseDate(phase.StartDate)
-		if phaseStart.IsZero() {
-			phaseStart = programStartDate
-			// Offset by weeks already assigned to prior phases
-			for _, ep := range expandedPhases {
-				phaseStart = phaseStart.AddDate(0, 0, len(ep.Weeks)*7)
-			}
-		}
-
-		var weeks []models.SaveWeekInput
-		for w := 0; w < phase.DurationWeeks; w++ {
-			weekStart := phaseStart.AddDate(0, 0, w*7)
-			var activities []models.SaveActivityInput
-			for _, act := range phase.TemplateWeek.Activities {
-				activities = append(activities, models.SaveActivityInput{
-					DayOfWeek:    act.DayOfWeek,
-					ActivityType: act.ActivityType,
-					Prescription: act.Prescription,
-					Notes:        act.Notes,
-					OrderIndex:   act.OrderIndex,
-				})
-			}
-			weeks = append(weeks, models.SaveWeekInput{
-				WeekNumber: globalWeekNum,
-				StartDate:  weekStart.Format("2006-01-02"),
-				Activities: activities,
-			})
-			globalWeekNum++
-		}
-
-		expandedPhases = append(expandedPhases, models.SavePhaseInput{
-			Name:       phase.Name,
-			OrderIndex: phase.OrderIndex,
-			StartDate:  phase.StartDate,
-			EndDate:    phase.EndDate,
-			Weeks:      weeks,
-		})
-	}
-
-	return models.SaveProgramInput{
-		Name:            tmpl.Name,
-		Sport:           tmpl.Sport,
-		GoalDescription: tmpl.GoalDescription,
-		StartDate:       tmpl.StartDate,
-		EndDate:         tmpl.EndDate,
-		Phases:          expandedPhases,
-	}
-}
-
-func parseDate(s string) time.Time {
-	t, _ := time.Parse("2006-01-02", s)
-	return t
-}
-
 func intFromAny(v any, defaultVal int) int {
 	switch n := v.(type) {
 	case float64:
@@ -250,7 +156,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				"skill_name": {
 					Type:        genai.TypeString,
 					Description: "The skill to load",
-					Enum:        []string{"program_creation", "criteria_edit"},
+					Enum:        []string{"program_creation", "criteria_edit", "program_modification"},
 				},
 			},
 		},
@@ -571,11 +477,11 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			}
 			defer proposals.Delete(userID)
 
-			var tmpl templateProgramInput
+			var tmpl models.TemplateProgramInput
 			if err := json.Unmarshal(proposal.Program, &tmpl); err != nil {
 				return nil, fmt.Errorf("unmarshal template program: %w", err)
 			}
-			programInput := expandTemplatesToSaveInput(tmpl)
+			programInput := models.ExpandTemplatesToSaveInput(tmpl)
 
 			var criteriaInput []models.SaveCriterionInput
 			if err := json.Unmarshal(proposal.Criteria, &criteriaInput); err != nil {
@@ -664,6 +570,126 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 	})
 
 	reg.Register(&Tool{
+		Name:        "propose_program_modification",
+		Description: "Propose structural modifications to the user's saved program. These changes affect all weeks (or specific phases). Use this for: moving activities between days (swap_day), changing activity types (change_activity), adding new recurring activities (add_activity), or removing activities from a day (remove_activity). The user will review and approve before changes are applied.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"program_id", "description", "modifications"},
+			Properties: map[string]*genai.Schema{
+				"program_id":  {Type: genai.TypeString, Description: "The ID of the active program"},
+				"description": {Type: genai.TypeString, Description: "Human-readable summary of the changes, e.g. 'Moving rest days to Wednesday and Monday'"},
+				"modifications": {
+					Type: genai.TypeArray,
+					Items: &genai.Schema{
+						Type:     genai.TypeObject,
+						Required: []string{"action", "day_of_week"},
+						Properties: map[string]*genai.Schema{
+							"action": {
+								Type:        genai.TypeString,
+								Description: "One of: swap_day, change_activity, add_activity, remove_activity",
+								Enum:        []string{"swap_day", "change_activity", "add_activity", "remove_activity"},
+							},
+							"day_of_week": {
+								Type:        genai.TypeInteger,
+								Description: "Day to modify (1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday, 0=Sunday)",
+							},
+							"new_day": {
+								Type:        genai.TypeInteger,
+								Description: "For swap_day: the other day to swap with",
+							},
+							"activity_type": {
+								Type:        genai.TypeString,
+								Description: "For add_activity or change_activity: the activity type",
+							},
+							"prescription": {
+								Type:        genai.TypeObject,
+								Description: "For add_activity or change_activity: the prescription details",
+							},
+							"notes": {
+								Type:        genai.TypeString,
+								Description: "Optional notes for the activity",
+							},
+							"phase_index": {
+								Type:        genai.TypeInteger,
+								Description: "0-based phase index to limit changes to a specific phase. Omit to apply to all phases.",
+							},
+						},
+					},
+				},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			programID, _ := params["program_id"].(string)
+			description, _ := params["description"].(string)
+			if programID == "" {
+				return nil, fmt.Errorf("program_id is required")
+			}
+
+			modsJSON, err := json.Marshal(params["modifications"])
+			if err != nil {
+				return nil, fmt.Errorf("marshal modifications: %w", err)
+			}
+
+			metaJSON, _ := json.Marshal(map[string]string{
+				"program_id":  programID,
+				"description": description,
+			})
+
+			proposals.Set(userID, &PendingProposal{
+				Type:     "program_modification",
+				Program:  modsJSON,
+				Criteria: metaJSON,
+			})
+
+			return map[string]any{
+				"status":      "proposal_sent",
+				"description": description,
+				"message":     "Modification proposal sent to user for review. Wait for their response.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "confirm_program_modification",
+		Description: "Apply the previously proposed program modifications after the user has accepted them.",
+		Parameters: &genai.Schema{
+			Type:       genai.TypeObject,
+			Properties: map[string]*genai.Schema{},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			proposal, ok := proposals.Get(userID)
+			if !ok {
+				return nil, fmt.Errorf("no pending modification proposal found — call propose_program_modification first, then wait for user to accept")
+			}
+			if proposal.Type != "program_modification" {
+				return nil, fmt.Errorf("pending proposal is not a program modification")
+			}
+			defer proposals.Delete(userID)
+
+			var meta map[string]string
+			if err := json.Unmarshal(proposal.Criteria, &meta); err != nil {
+				return nil, fmt.Errorf("unmarshal proposal meta: %w", err)
+			}
+			programID := meta["program_id"]
+
+			var mods []models.ProgramModificationAction
+			if err := json.Unmarshal(proposal.Program, &mods); err != nil {
+				return nil, fmt.Errorf("unmarshal modifications: %w", err)
+			}
+
+			count, err := programSvc.ModifyProgram(ctx, programID, userID, mods)
+			if err != nil {
+				return nil, fmt.Errorf("apply modifications: %w", err)
+			}
+			return map[string]any{
+				"status":  "applied",
+				"count":   count,
+				"message": "Program modifications applied successfully across all weeks.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
 		Name:        "update_program_criteria",
 		Description: "Update program criteria/settings directly",
 		Parameters: &genai.Schema{
@@ -701,6 +727,89 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, err
 			}
 			return programSvc.UpsertCriteria(ctx, programID, criteria)
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "start_program_today",
+		Description: "Modify the pending program proposal to start from today instead of next Monday. Call this after propose_program and BEFORE confirm_program_save, only when the user explicitly wants to start today. It prepends a partial 'Current Week' phase containing only the activities from today through Sunday, and shifts the program start date to this week's Monday.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"activities_this_week"},
+			Properties: map[string]*genai.Schema{
+				"activities_this_week": {
+					Type:        genai.TypeArray,
+					Description: "Activities from today's day_of_week through Sunday (end of current week). Only include days that are today or later.",
+					Items: &genai.Schema{
+						Type:     genai.TypeObject,
+						Required: []string{"day_of_week", "activity_type", "prescription"},
+						Properties: map[string]*genai.Schema{
+							"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
+							"activity_type": {Type: genai.TypeString},
+							"prescription":  {Type: genai.TypeObject},
+							"notes":         {Type: genai.TypeString},
+							"order_index":   {Type: genai.TypeInteger},
+						},
+					},
+				},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			proposal, ok := proposals.Get(userID)
+			if !ok {
+				return nil, fmt.Errorf("no pending proposal found — call propose_program first")
+			}
+
+			activitiesRaw, err := json.Marshal(params["activities_this_week"])
+			if err != nil {
+				return nil, fmt.Errorf("marshal activities: %w", err)
+			}
+			var partialActivities []models.TemplateActivity
+			if err := json.Unmarshal(activitiesRaw, &partialActivities); err != nil {
+				return nil, fmt.Errorf("unmarshal activities: %w", err)
+			}
+
+			var program models.TemplateProgramInput
+			if err := json.Unmarshal(proposal.Program, &program); err != nil {
+				return nil, fmt.Errorf("unmarshal program: %w", err)
+			}
+
+			now := time.Now()
+			thisMonday := models.MondayOf(now)
+			thisMondayStr := thisMonday.Format("2006-01-02")
+			nextMondayStr := thisMonday.AddDate(0, 0, 7).Format("2006-01-02")
+
+			partialPhase := models.TemplatePhaseInput{
+				Name:          "Current Week",
+				OrderIndex:    0,
+				StartDate:     thisMondayStr,
+				EndDate:       thisMonday.AddDate(0, 0, 6).Format("2006-01-02"),
+				DurationWeeks: 1,
+				TemplateWeek:  models.TemplateWeek{Activities: partialActivities},
+			}
+
+			for i := range program.Phases {
+				program.Phases[i].OrderIndex++
+				if program.Phases[i].StartDate == program.StartDate {
+					program.Phases[i].StartDate = nextMondayStr
+				}
+			}
+
+			program.Phases = append([]models.TemplatePhaseInput{partialPhase}, program.Phases...)
+			program.StartDate = thisMondayStr
+
+			modifiedJSON, err := json.Marshal(program)
+			if err != nil {
+				return nil, fmt.Errorf("marshal modified program: %w", err)
+			}
+			proposal.Program = modifiedJSON
+			proposals.Set(userID, proposal)
+
+			return map[string]any{
+				"status":     "updated",
+				"start_date": thisMonday.Format("2006-01-02"),
+				"message":    "Program updated to start this week. A partial first week has been added with today's remaining activities. Call confirm_program_save to finalize.",
+			}, nil
 		},
 	})
 
