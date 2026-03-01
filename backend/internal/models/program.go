@@ -289,13 +289,14 @@ type AdjustActivityInput struct {
 // applied across all weeks (or filtered weeks/phases).
 type ProgramModificationAction struct {
 	// Action is one of: swap_day, change_activity, add_activity, remove_activity
-	Action       string          `json:"action"`
-	DayOfWeek    int             `json:"day_of_week"`
-	NewDay       *int            `json:"new_day,omitempty"`       // swap_day: target day to swap with
-	ActivityType string          `json:"activity_type,omitempty"` // add/change: activity type
-	Prescription json.RawMessage `json:"prescription,omitempty"`  // add/change: prescription
-	Notes        *string         `json:"notes,omitempty"`         // add/change: notes
-	PhaseIndex   *int            `json:"phase_index,omitempty"`   // nil = all phases
+	Action             string          `json:"action"`
+	DayOfWeek          int             `json:"day_of_week"`
+	NewDay             *int            `json:"new_day,omitempty"`              // swap_day: target day to swap with
+	ActivityType       string          `json:"activity_type,omitempty"`        // add/change: activity type
+	Prescription       json.RawMessage `json:"prescription,omitempty"`         // add/change: prescription
+	Notes              *string         `json:"notes,omitempty"`                // add/change: notes
+	PhaseIndex         *int            `json:"phase_index,omitempty"`          // nil = all phases
+	ActivityTypeFilter string          `json:"activity_type_filter,omitempty"` // filter to target specific activity type on shared days
 }
 
 type UpcomingActivityResponse struct {

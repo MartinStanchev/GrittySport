@@ -1,5 +1,5 @@
 export const TOOL_LABELS: Record<string, string> = {
-  read_skill: 'Loading instructions...',
+  read_skill: 'Loading training knowledge...',
   get_user_profile: 'Checking your info...',
   get_active_program: 'Looking at your program...',
   get_program_criteria: 'Reviewing your program settings...',

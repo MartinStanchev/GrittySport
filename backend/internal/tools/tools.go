@@ -69,20 +69,27 @@ func applyTemplateModifications(programJSON json.RawMessage, modificationsRaw an
 				newType, _ := mod["activity_type"].(string)
 				newPrescription := mod["prescription"]
 				notes, _ := mod["notes"].(string)
+				typeFilter, _ := mod["activity_type_filter"].(string)
 				for i, a := range activities {
 					act, _ := a.(map[string]any)
-					if intFromAny(act["day_of_week"], -1) == dayOfWeek {
-						if newType != "" {
-							act["activity_type"] = newType
-						}
-						if newPrescription != nil {
-							act["prescription"] = newPrescription
-						}
-						if notes != "" {
-							act["notes"] = notes
-						}
-						activities[i] = act
+					if intFromAny(act["day_of_week"], -1) != dayOfWeek {
+						continue
 					}
+					if typeFilter != "" {
+						if actType, _ := act["activity_type"].(string); actType != typeFilter {
+							continue
+						}
+					}
+					if newType != "" {
+						act["activity_type"] = newType
+					}
+					if newPrescription != nil {
+						act["prescription"] = newPrescription
+					}
+					if notes != "" {
+						act["notes"] = notes
+					}
+					activities[i] = act
 				}
 
 			case "update_prescription":
@@ -99,12 +106,21 @@ func applyTemplateModifications(programJSON json.RawMessage, modificationsRaw an
 				}
 
 			case "remove_activity":
+				typeFilter, _ := mod["activity_type_filter"].(string)
 				filtered := make([]any, 0, len(activities))
 				for _, a := range activities {
 					act, _ := a.(map[string]any)
-					if intFromAny(act["day_of_week"], -1) != dayOfWeek {
-						filtered = append(filtered, act)
+					d := intFromAny(act["day_of_week"], -1)
+					if d == dayOfWeek {
+						if typeFilter != "" {
+							if actType, _ := act["activity_type"].(string); actType != typeFilter {
+								filtered = append(filtered, act)
+								continue
+							}
+						}
+						continue
 					}
+					filtered = append(filtered, act)
 				}
 				activities = filtered
 
@@ -148,15 +164,15 @@ func intFromAny(v any, defaultVal int) int {
 func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader) {
 	reg.Register(&Tool{
 		Name:        "read_skill",
-		Description: "Load specialized instructions for a task. Available skills: 'program_creation' (guided program creation with draft saving and criteria checklist), 'criteria_edit' (reviewing criteria changes and proposing adjustments). Call this BEFORE starting the relevant task.",
+		Description: "Load sport-specific training knowledge for exercise selection, periodization, and pacing. Use when creating or modifying programs to get domain expertise.",
 		Parameters: &genai.Schema{
 			Type:     genai.TypeObject,
 			Required: []string{"skill_name"},
 			Properties: map[string]*genai.Schema{
 				"skill_name": {
 					Type:        genai.TypeString,
-					Description: "The skill to load",
-					Enum:        []string{"program_creation", "criteria_edit", "program_modification"},
+					Description: "The sport or training domain to load knowledge for",
+					Enum:        []string{"running", "cycling", "swimming", "strength_training", "periodization", "mobility_recovery"},
 				},
 			},
 		},
@@ -436,7 +452,8 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 							"new_day":       {Type: genai.TypeInteger, Description: "New day for swap_day action"},
 							"activity_type": {Type: genai.TypeString, Description: "New activity type for change_activity/add_activity"},
 							"prescription":  {Type: genai.TypeObject, Description: "New prescription for update_prescription/add_activity"},
-							"notes":         {Type: genai.TypeString, Description: "Notes for the activity"},
+							"notes":                {Type: genai.TypeString, Description: "Notes for the activity"},
+							"activity_type_filter": {Type: genai.TypeString, Description: "Only modify activities matching this type when multiple exist on the same day"},
 						},
 					},
 				},
@@ -612,6 +629,10 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 							"phase_index": {
 								Type:        genai.TypeInteger,
 								Description: "0-based phase index to limit changes to a specific phase. Omit to apply to all phases.",
+							},
+							"activity_type_filter": {
+								Type:        genai.TypeString,
+								Description: "Only modify activities matching this type (e.g. 'Strength Training'). Required when multiple activities exist on the same day.",
 							},
 						},
 					},

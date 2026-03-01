@@ -266,3 +266,15 @@
 - **Tests**: 5 new tests in `backend/internal/models/program_test.go` covering `DowOffset`, `MondayOf`, `WeekToResponse` normalization (non-Monday start, fallback from program start, Sunday activities).
 - **Code simplifier**: `MondayOf` reuses `DowOffset` (one-liner). Removed format/parse round-trip in `GetUpcomingActivities`. `tools.go` uses `MondayOf` helper. Fixed Sunday exclusion bug in week pill current-week highlight.
 - **"Coming up" fix**: Changed filter threshold from start-of-week (Monday) to today — only shows activities from today onward. Fixed sort: SQL `ORDER BY day_of_week` put Sunday (0) before Monday (1); replaced with in-memory sort by computed calendar date. Increased default limit from 5 to 6.
+
+## Grit Prompt System Refactor — Done
+- **Problem**: Grit's workflow instructions (program creation, modification, criteria editing) were loaded at runtime via `read_skill` tool calls. Tool-returned content sits at lower instruction priority than the system prompt in Gemini's attention hierarchy, causing frequent rule violations (multiple questions per message, describing programs before calling tools, forgetting draft IDs).
+- **Solution**: Absorbed all 3 workflow skill files (`program_creation.md`, `program_modification.md`, `criteria_edit.md`) into the unified `system.md` system prompt. `read_skill` now exclusively loads sport-specific training knowledge.
+- **New sport knowledge skills**: `periodization.md`, `running.md`, `cycling.md`, `swimming.md`, `strength_training.md`, `mobility_recovery.md` — domain expertise for exercise selection, pacing, and program design.
+- **Backend**: `PromptLoader` now loads `questions.json` and injects `{{.Criteria}}` directly into the system prompt (previously done by `SkillLoader`). `SkillLoader.GetSkill` simplified — no more template rendering. Removed `activeSkill` from `sessionState` in `chat.go`. Updated `read_skill` tool enum and description in `tools.go`.
+- **Frontend**: `toolLabels.ts` — `read_skill` label changed to "Loading training knowledge...".
+
+## Fix: Program Modification Flow — Prompt + Activity Type Targeting — Done
+- **Prompt fix** (`system.md`): Added explicit "call `propose_program_modification` immediately — do NOT describe changes in text first" rule to the Program Modification section (matching the rule already in Program Creation). Documented `activity_type_filter` in modification actions and added "Activity type filtering" section.
+- **`activity_type_filter` support**: Added `ActivityTypeFilter` field to `ProgramModificationAction` model. Added `activity_type_filter` property to both `propose_program_modification` and `modify_pending_proposal` tool schemas. `ModifyProgram` service filters `change_activity` and `remove_activity` SQL queries by `activity_type` when the filter is set. `applyTemplateModifications` also respects the filter for pending proposal modifications.
+- **Code simplifier**: Extracted `buildWeekFilter()` and `appendTypeFilter()` helpers in `program.go` to deduplicate week-filter SQL construction across `swap_day`, `change_activity`, and `remove_activity` cases.

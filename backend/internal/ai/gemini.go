@@ -31,6 +31,7 @@ type PromptParams struct {
 	Units           string
 	CurrentDateTime string
 	Memory          string
+	Criteria        string
 }
 
 type criterion struct {
@@ -50,10 +51,11 @@ type criteriaFile struct {
 
 // PromptLoader loads the unified system prompt template and renders it with parameters.
 type PromptLoader struct {
-	systemTmpl *template.Template
+	systemTmpl        *template.Template
+	formattedCriteria string
 }
 
-// LoadPrompts reads the unified system prompt from the given directory.
+// LoadPrompts reads the unified system prompt and questions.json from the given directory.
 func LoadPrompts(dir string) (*PromptLoader, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "system.md"))
 	if err != nil {
@@ -64,12 +66,24 @@ func LoadPrompts(dir string) (*PromptLoader, error) {
 		return nil, fmt.Errorf("parse system.md: %w", err)
 	}
 
-	log.Info().Str("prompts_dir", dir).Msg("System prompt loaded")
-	return &PromptLoader{systemTmpl: tmpl}, nil
+	// Load questions.json for criteria formatting
+	criteriaBytes, err := os.ReadFile(filepath.Join(dir, "questions.json"))
+	if err != nil {
+		return nil, fmt.Errorf("read questions.json: %w", err)
+	}
+	var cf criteriaFile
+	if err := json.Unmarshal(criteriaBytes, &cf); err != nil {
+		return nil, fmt.Errorf("parse questions.json: %w", err)
+	}
+
+	log.Info().Str("prompts_dir", dir).Int("criteria_categories", len(cf.Categories)).Msg("System prompt and criteria loaded")
+	return &PromptLoader{systemTmpl: tmpl, formattedCriteria: formatCriteria(cf)}, nil
 }
 
 // BuildSystemPrompt renders the unified system prompt with the given parameters.
+// Criteria is automatically injected from questions.json.
 func (pl *PromptLoader) BuildSystemPrompt(p PromptParams) string {
+	p.Criteria = pl.formattedCriteria
 	var buf bytes.Buffer
 	if err := pl.systemTmpl.Execute(&buf, p); err != nil {
 		log.Error().Err(err).Msg("Failed to render system prompt")
@@ -80,26 +94,13 @@ func (pl *PromptLoader) BuildSystemPrompt(p PromptParams) string {
 
 // SkillLoader loads on-demand skill files that Grit can read via the read_skill tool.
 type SkillLoader struct {
-	skills            map[string]string
-	formattedCriteria string
+	skills map[string]string
 }
 
-// LoadSkills reads skill files and questions.json from the given directory.
+// LoadSkills reads skill files from the skills/ subdirectory.
 func LoadSkills(dir string) (*SkillLoader, error) {
 	sl := &SkillLoader{skills: make(map[string]string)}
 
-	// Load questions.json for criteria formatting
-	criteriaBytes, err := os.ReadFile(filepath.Join(dir, "questions.json"))
-	if err != nil {
-		return nil, fmt.Errorf("read questions.json: %w", err)
-	}
-	var cf criteriaFile
-	if err := json.Unmarshal(criteriaBytes, &cf); err != nil {
-		return nil, fmt.Errorf("parse questions.json: %w", err)
-	}
-	sl.formattedCriteria = formatCriteria(cf)
-
-	// Load skill files from skills/ subdirectory
 	skillsDir := filepath.Join(dir, "skills")
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
@@ -118,22 +119,15 @@ func LoadSkills(dir string) (*SkillLoader, error) {
 		sl.skills[name] = string(data)
 	}
 
-	log.Info().
-		Int("skills", len(sl.skills)).
-		Int("criteria_categories", len(cf.Categories)).
-		Msg("Skills and criteria loaded")
-
+	log.Info().Int("skills", len(sl.skills)).Msg("Skills loaded")
 	return sl, nil
 }
 
-// GetSkill returns the content of a skill, with template variables resolved.
+// GetSkill returns the content of a skill file.
 func (sl *SkillLoader) GetSkill(name string) (string, error) {
 	text, ok := sl.skills[name]
 	if !ok {
 		return "", fmt.Errorf("unknown skill: %s", name)
-	}
-	if name == "program_creation" {
-		text = strings.Replace(text, "{{.Criteria}}", sl.formattedCriteria, 1)
 	}
 	return text, nil
 }
@@ -274,13 +268,19 @@ func (g *GeminiClient) ChatWithTools(
 		return "", nil, fmt.Errorf("last message must be from user")
 	}
 
-	maxOutputTokens := int32(65536)
+	var (
+		maxOutputTokens int32 = 65536
+		thinkingBudget  int32 = 8192
+	)
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
 		},
 		Tools:           tools,
-		MaxOutputTokens: &maxOutputTokens,
+		MaxOutputTokens: maxOutputTokens,
+		ThinkingConfig: &genai.ThinkingConfig{
+			ThinkingBudget: &thinkingBudget,
+		},
 	}
 
 	var toolNames []string
@@ -340,12 +340,9 @@ func (g *GeminiClient) ChatWithTools(
 			Str("finish_reason", finishReason).
 			Int("parts_count", countParts(candidate.Content))
 		if resp.UsageMetadata != nil {
-			if resp.UsageMetadata.PromptTokenCount != nil {
-				respLog = respLog.Int32("prompt_tokens", *resp.UsageMetadata.PromptTokenCount)
-			}
-			if resp.UsageMetadata.CandidatesTokenCount != nil {
-				respLog = respLog.Int32("output_tokens", *resp.UsageMetadata.CandidatesTokenCount)
-			}
+			respLog = respLog.Int32("prompt_tokens", resp.UsageMetadata.PromptTokenCount)
+			respLog = respLog.Int32("output_tokens", resp.UsageMetadata.CandidatesTokenCount)
+			respLog = respLog.Int32("thinking_tokens", resp.UsageMetadata.ThoughtsTokenCount)
 			respLog = respLog.Int32("total_tokens", resp.UsageMetadata.TotalTokenCount)
 		}
 		respLog.Msg("ChatWithTools: received response")
@@ -377,7 +374,7 @@ func (g *GeminiClient) ChatWithTools(
 			// Fallback: retry without tools so the model can respond in plain text.
 			fallbackConfig := &genai.GenerateContentConfig{
 				SystemInstruction: config.SystemInstruction,
-				MaxOutputTokens:   &maxOutputTokens,
+				MaxOutputTokens:   config.MaxOutputTokens,
 			}
 			fallbackContents := messagesToContents(messages)
 			hint := "[System: Your previous attempt to respond failed (empty or malformed output). " +

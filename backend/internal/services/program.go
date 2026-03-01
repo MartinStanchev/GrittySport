@@ -238,10 +238,14 @@ func (s *ProgramService) SaveProgramWithCriteria(ctx context.Context, userID str
 
 	// Insert criteria
 	for _, c := range criteriaInput {
+		valueType := c.ValueType
+		if valueType == "" {
+			valueType = "text"
+		}
 		_, err = tx.Exec(ctx,
 			`INSERT INTO program_criteria (program_id, key, label, value, value_type, display_order)
 			 VALUES ($1, $2, $3, $4, $5, $6)`,
-			programID, c.Key, c.Label, c.Value, c.ValueType, c.DisplayOrder)
+			programID, c.Key, c.Label, c.Value, valueType, c.DisplayOrder)
 		if err != nil {
 			return nil, fmt.Errorf("insert criterion %s: %w", c.Key, err)
 		}
@@ -368,6 +372,10 @@ func (s *ProgramService) UpsertCriteria(ctx context.Context, programID string, c
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, c := range criteria {
+		valueType := c.ValueType
+		if valueType == "" {
+			valueType = "text"
+		}
 		_, err = tx.Exec(ctx,
 			`INSERT INTO program_criteria (program_id, key, label, value, value_type, display_order)
 			 VALUES ($1, $2, $3, $4, $5, $6)
@@ -377,7 +385,7 @@ func (s *ProgramService) UpsertCriteria(ctx context.Context, programID string, c
 				value_type = EXCLUDED.value_type,
 				display_order = EXCLUDED.display_order,
 				updated_at = NOW()`,
-			programID, c.Key, c.Label, c.Value, c.ValueType, c.DisplayOrder)
+			programID, c.Key, c.Label, c.Value, valueType, c.DisplayOrder)
 		if err != nil {
 			return nil, err
 		}
@@ -417,6 +425,36 @@ func (s *ProgramService) AdjustActivities(ctx context.Context, adjustments []mod
 	return updated, nil
 }
 
+// buildWeekFilter constructs a SQL subquery that selects week IDs belonging to
+// the given program, optionally filtered to a single phase by order_index.
+// It returns the SQL clause, accumulated args, and the next available $N index.
+func buildWeekFilter(programID string, phaseIndex *int, weekIDAlias string) (clause string, args []any, nextArg int) {
+	clause = fmt.Sprintf(`%s IN (
+		SELECT w2.id FROM weeks w2
+		JOIN phases ph ON ph.id = w2.phase_id
+		WHERE ph.program_id = $1`, weekIDAlias)
+	args = []any{programID}
+	nextArg = 2
+
+	if phaseIndex != nil {
+		clause += fmt.Sprintf(` AND ph.order_index = $%d`, nextArg)
+		args = append(args, *phaseIndex)
+		nextArg++
+	}
+	clause += `)`
+	return
+}
+
+// appendTypeFilter adds an optional `AND activity_type = $N` clause when the
+// filter is non-empty, appending the value to args and returning updated values.
+func appendTypeFilter(filter string, args []any, argIdx int) (clause string, updatedArgs []any) {
+	if filter == "" {
+		return "", args
+	}
+	clause = fmt.Sprintf(` AND activity_type = $%d`, argIdx)
+	return clause, append(args, filter)
+}
+
 // ModifyProgram applies structural modifications to a saved program across all weeks
 // (or filtered by phase index). Returns the number of affected rows.
 func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID string, mods []models.ProgramModificationAction) (int, error) {
@@ -446,20 +484,7 @@ func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID st
 			}
 			newDay := *mod.NewDay
 
-			// Phase filter subquery
-			weekFilter := `w.id IN (
-				SELECT w2.id FROM weeks w2
-				JOIN phases ph ON ph.id = w2.phase_id
-				WHERE ph.program_id = $1`
-			weekFilterArgs := []any{programID}
-			argIdx := 2
-
-			if mod.PhaseIndex != nil {
-				weekFilter += fmt.Sprintf(` AND ph.order_index = $%d`, argIdx)
-				weekFilterArgs = append(weekFilterArgs, *mod.PhaseIndex)
-				argIdx++
-			}
-			weekFilter += `)`
+			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
 
 			// Temporarily set swapped days to a sentinel (-1) to avoid unique constraint conflicts
 			_, err = tx.Exec(ctx,
@@ -492,19 +517,7 @@ func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID st
 			}
 
 		case "change_activity":
-			weekFilter := `w.id IN (
-				SELECT w2.id FROM weeks w2
-				JOIN phases ph ON ph.id = w2.phase_id
-				WHERE ph.program_id = $1`
-			weekFilterArgs := []any{programID}
-			argIdx := 2
-
-			if mod.PhaseIndex != nil {
-				weekFilter += fmt.Sprintf(` AND ph.order_index = $%d`, argIdx)
-				weekFilterArgs = append(weekFilterArgs, *mod.PhaseIndex)
-				argIdx++
-			}
-			weekFilter += `)`
+			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
 
 			sets := []string{}
 			if mod.ActivityType != "" {
@@ -526,11 +539,17 @@ func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID st
 				continue
 			}
 
+			dayArgIdx := argIdx
+			weekFilterArgs = append(weekFilterArgs, mod.DayOfWeek)
+			argIdx++
+
+			typeFilterClause, weekFilterArgs := appendTypeFilter(mod.ActivityTypeFilter, weekFilterArgs, argIdx)
+
 			tag, err := tx.Exec(ctx,
 				fmt.Sprintf(`UPDATE scheduled_activities SET %s, updated_at = NOW()
-				 WHERE day_of_week = $%d AND %s`,
-					strings.Join(sets, ", "), argIdx, weekFilter),
-				append(weekFilterArgs, mod.DayOfWeek)...,
+				 WHERE day_of_week = $%d%s AND %s`,
+					strings.Join(sets, ", "), dayArgIdx, typeFilterClause, weekFilter),
+				weekFilterArgs...,
 			)
 			if err != nil {
 				return 0, fmt.Errorf("change_activity: %w", err)
@@ -590,23 +609,17 @@ func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID st
 			}
 
 		case "remove_activity":
-			weekFilter := `week_id IN (
-				SELECT w.id FROM weeks w
-				JOIN phases ph ON ph.id = w.phase_id
-				WHERE ph.program_id = $1`
-			weekFilterArgs := []any{programID}
-			argIdx := 2
+			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
 
-			if mod.PhaseIndex != nil {
-				weekFilter += fmt.Sprintf(` AND ph.order_index = $%d`, argIdx)
-				weekFilterArgs = append(weekFilterArgs, *mod.PhaseIndex)
-				argIdx++
-			}
-			weekFilter += `)`
+			dayArgIdx := argIdx
+			weekFilterArgs = append(weekFilterArgs, mod.DayOfWeek)
+			argIdx++
+
+			typeFilterClause, weekFilterArgs := appendTypeFilter(mod.ActivityTypeFilter, weekFilterArgs, argIdx)
 
 			tag, err := tx.Exec(ctx,
-				fmt.Sprintf(`DELETE FROM scheduled_activities WHERE day_of_week = $%d AND %s`, argIdx, weekFilter),
-				append(weekFilterArgs, mod.DayOfWeek)...,
+				fmt.Sprintf(`DELETE FROM scheduled_activities WHERE day_of_week = $%d%s AND %s`, dayArgIdx, typeFilterClause, weekFilter),
+				weekFilterArgs...,
 			)
 			if err != nil {
 				return 0, fmt.Errorf("remove_activity: %w", err)

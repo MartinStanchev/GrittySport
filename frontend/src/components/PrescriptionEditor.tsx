@@ -54,7 +54,7 @@ function RunEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
 }
 
 function IntervalEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
-  const intervals: any[] = prescription.intervals || [];
+  const intervals: any[] = Array.isArray(prescription.intervals) ? prescription.intervals : [];
 
   const updateInterval = (index: number, key: string, value: string) => {
     const updated = [...intervals];
@@ -98,7 +98,7 @@ function IntervalEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
 }
 
 function StrengthEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
-  const exercises: any[] = prescription.exercises || [];
+  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
 
   const updateExercise = (index: number, key: string, value: string) => {
     const updated = [...exercises];
@@ -178,7 +178,7 @@ function CyclingEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
 }
 
 function MobilityEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
-  const exercises: any[] = prescription.exercises || [];
+  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
 
   const updateExercise = (index: number, key: string, value: string) => {
     const updated = [...exercises];

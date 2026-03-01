@@ -30,13 +30,19 @@ function RunDisplay({ prescription }: { prescription: Record<string, any> }) {
 }
 
 function IntervalDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const intervals: any[] = prescription.intervals || [];
+  const intervals: any[] = Array.isArray(prescription.intervals) ? prescription.intervals : [];
   return (
     <View>
       {prescription.warmup && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Warmup</Text>
           <Text style={styles.sectionText}>{prescription.warmup}</Text>
+        </View>
+      )}
+      {!Array.isArray(prescription.intervals) && prescription.intervals && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Intervals</Text>
+          <Text style={styles.sectionText}>{String(prescription.intervals)}</Text>
         </View>
       )}
       {intervals.length > 0 && (
@@ -69,9 +75,12 @@ function IntervalDisplay({ prescription }: { prescription: Record<string, any> }
 }
 
 function StrengthDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const exercises: any[] = prescription.exercises || [];
+  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
   return (
     <View>
+      {!Array.isArray(prescription.exercises) && prescription.exercises && (
+        <LabeledRow label="Exercises" value={String(prescription.exercises)} />
+      )}
       {exercises.map((ex: any, i: number) => (
         <View key={i} style={styles.exerciseCard}>
           <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
@@ -91,13 +100,16 @@ function StrengthDisplay({ prescription }: { prescription: Record<string, any> }
 }
 
 function SwimDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const drills: any[] = prescription.drills || [];
+  const drills: any[] = Array.isArray(prescription.drills) ? prescription.drills : [];
   return (
     <View>
       <LabeledRow label="Distance" value={prescription.distance} />
       <LabeledRow label="Stroke" value={prescription.stroke} />
       <LabeledRow label="Pace" value={prescription.pace} />
       <LabeledRow label="Duration" value={prescription.duration} />
+      {!Array.isArray(prescription.drills) && prescription.drills && (
+        <LabeledRow label="Drills" value={String(prescription.drills)} />
+      )}
       {drills.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Drills</Text>
@@ -125,10 +137,13 @@ function CyclingDisplay({ prescription }: { prescription: Record<string, any> })
 }
 
 function MobilityDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const exercises: any[] = prescription.exercises || [];
+  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
   return (
     <View>
       <LabeledRow label="Duration" value={prescription.duration} />
+      {!Array.isArray(prescription.exercises) && prescription.exercises && (
+        <LabeledRow label="Exercises" value={String(prescription.exercises)} />
+      )}
       {exercises.map((ex: any, i: number) => (
         <View key={i} style={styles.exerciseCard}>
           <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>

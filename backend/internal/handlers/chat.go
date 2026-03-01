@@ -23,7 +23,6 @@ import (
 // This compensates for tool call results not being saved in chat_messages.
 type sessionState struct {
 	activeDraftID string // current draft program being worked on
-	activeSkill   string // currently loaded skill (e.g. "program_creation")
 }
 
 var upgrader = websocket.Upgrader{
@@ -209,10 +208,6 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 
 		// Track session state and send WS notifications for tool results
 		switch name {
-		case "read_skill":
-			if skillName, ok := args["skill_name"].(string); ok {
-				session.activeSkill = skillName
-			}
 		case "create_draft_program":
 			if resultMap, ok := result.(map[string]any); ok {
 				if id, ok := resultMap["program_id"].(string); ok {
@@ -246,7 +241,6 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 			}
 		case "confirm_program_save":
 			session.activeDraftID = ""
-			session.activeSkill = ""
 			if resultMap, ok := result.(map[string]any); ok {
 				if programID, ok := resultMap["program_id"].(string); ok {
 					data, _ := json.Marshal(map[string]string{"program_id": programID})
@@ -384,16 +378,8 @@ func (h *ChatHandler) buildSystemPrompt(userName, memory string, user *models.Us
 	})
 
 	// Inject active session context so Grit remembers state across turns
-	if session.activeDraftID != "" || session.activeSkill != "" {
-		var sb strings.Builder
-		sb.WriteString("\n\n## Active session context\n")
-		if session.activeDraftID != "" {
-			fmt.Fprintf(&sb, "You are currently working on draft program ID: %s. Do NOT call create_draft_program — use this ID for save_draft_criterion and propose_program (as draft_program_id) calls.\n", session.activeDraftID)
-		}
-		if session.activeSkill != "" {
-			fmt.Fprintf(&sb, "You have already loaded the '%s' skill instructions. You do not need to call read_skill again for this task.\n", session.activeSkill)
-		}
-		prompt += sb.String()
+	if session.activeDraftID != "" {
+		prompt += fmt.Sprintf("\n\n## Active session context\nYou are currently working on draft program ID: %s. Do NOT call create_draft_program — use this ID for save_draft_criterion and propose_program (as draft_program_id) calls.\n", session.activeDraftID)
 	}
 
 	return prompt
