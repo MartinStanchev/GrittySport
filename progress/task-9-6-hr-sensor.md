@@ -1,0 +1,15 @@
+## Task 9.6: Heart Rate Sensor & Post-Activity Summary — Done
+- **Backend**: Migration `009_add_max_heart_rate.sql` adds `max_heart_rate` column to users table. Updated `User` model, `ToResponse()`, all auth queries, and `UpdateUserInput`/UPDATE in user service.
+- **Dependencies**: `react-native-gifted-charts`, `react-native-svg`, `expo-sensors` installed.
+- **HRSensorModal** (`components/HRSensorModal.tsx`): Reusable BLE scanning/connection modal extracted from RecordGPSScreen. Used in both Settings and RecordGPSScreen.
+- **Settings HR section**: Max heart rate numeric input (dirty-checked, saves via updateUser), HR monitor connect/disconnect row opening HRSensorModal.
+- **Cadence detection** (`services/cadenceService.ts`): Accelerometer-based step cadence for run/walk using `expo-sensors`. Peak detection on acceleration magnitude at ~50Hz, 3-second sliding window for SPM. Web stub provided.
+- **WorkoutContext**: Added `cadenceReadings`, `currentCadence`, `avgCadence` to `ActiveGPSWorkout`.
+- **Swipeable metrics panel**: RecordGPSScreen metrics panel now horizontally swipeable (2 pages) — numeric metrics + LiveHRChart. Page indicator dots. Cadence row shown for run/walk activities. All hardcoded `185` maxHR replaced with `user.max_heart_rate`.
+- **LiveHRChart** (`components/LiveHRChart.tsx`): Real-time HR line chart using react-native-gifted-charts with zone-colored data points and BPM overlay.
+- **WorkoutCharts** (`components/WorkoutCharts.tsx`): 4 chart components (HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart) added to WorkoutSummaryScreen and WorkoutDetailScreen. Sport-specific rendering (pace for runs, speed for cycling).
+- **gpsUtils extensions**: `downsample<T>` (generic), `computePaceTimeSeries`, `computeSpeedTimeSeries`, `getHRZone`, `getHRZoneColor`, `HR_ZONE_COLORS`. `buildFinalGPSPayload` accepts optional cadenceReadings with avg/max cadence stats.
+- **Types**: `CadenceReading` added to `gps.ts`, cadence fields added to `GPSRouteData`, `GPSSummaryData`, `HRData`.
+- **Code simplifier**: Consolidated `downsampleReadings`/`downsampleCadence` into generic `downsample<T>`, extracted shared `getHRZoneColor`/`HR_ZONE_COLORS` to gpsUtils (removed duplicates from LiveHRChart and WorkoutCharts).
+- **Tests**: 17 new tests (49 total) covering `downsample`, `getHRZone`, `getHRZoneColor`, `computePaceTimeSeries`, `computeSpeedTimeSeries`. All passing.
+- **Linting**: Go build + golangci-lint clean. Frontend lint: 0 errors, pre-existing warnings only.

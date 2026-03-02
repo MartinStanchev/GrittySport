@@ -1,0 +1,8 @@
+## GPS Activity UX Fixes — Done
+- **Banner crash fixed**: `RecordGPSScreen` now derives `activityType` and `scheduledActivityId` from route params with safe fallback to existing `activeGPSWorkout` context — no crash when navigating back via the red `ActiveWorkoutBanner`.
+- **Grey header removed**: Replaced the redundant semi-transparent `rgba(0,0,0,0.5)` header bar with a small circular close button (top-left of map area).
+- **Map default location**: On mount, fetches current location (no prompt if permission not yet granted) and pans the map there. Fallback changed from London to world-level view.
+- **Concurrent workout guard**: `WorkoutContext` uses refs to detect active sessions — `startGPSWorkout` returns early if a manual workout is running; `startWorkout` returns early if a GPS session is running. Both entry screens show an alert and navigate back if the other mode is active.
+- **Unified activity type selector**: `RecordManualScreen` now shows all activity types in two sections — Outdoor GPS (Run, Walk, Cycling with GPS badge) and Indoor & Gym (Indoor Run, Indoor Cycling, Strength, Mobility, Drill). Selecting a GPS type navigates directly to `RecordGPS`. "Start GPS Activity" FAB option removed.
+- **New activity types**: `walk`, `indoor_run`, `indoor_cycling` added to `activityIcons.ts` with correct GPS/manual classification. `LogActivityScreen` also updated.
+- **Custom FAB action sheet** (`components/FABActionSheet.tsx`): Replaces plain `Alert.alert`. Animated bottom sheet springs up from the "+" button with two rows: "Start Workout" and "Log Past Activity". Tapping the backdrop dismisses it.

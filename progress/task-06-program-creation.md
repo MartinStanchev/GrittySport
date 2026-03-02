@@ -1,0 +1,12 @@
+## Task 6: Conversational Program Creation Improvements — Done
+- Fixed streaming: `ChatWithTools` final text response now uses `GenerateContentStream` for real token-by-token streaming to the UI (previously sent entire response as one chunk)
+- Extracted system prompts to `backend/prompts/` template files (free_chat.txt, program_creation.txt, criteria_edit.txt) using Go `text/template`; extracted questions to `backend/prompts/questions.json` with ~18 categorized questions; `PromptLoader` loads at startup
+- Program creation prompt now enforces "one question at a time" conversation rule
+- Mandatory cross-training questions: strength & conditioning, stretching/mobility, complementary activities always asked
+- Current date/time injected into all system prompts in user's timezone
+- Markdown rendering in chat: installed `react-native-markdown-display`, assistant messages render bold, lists, headings, code blocks
+- Yes/No quick reply buttons: backend detects yes/no questions via `isYesNoQuestion()`, sends `yes_no: true` in done frame; frontend shows pill buttons above input
+- Clear chat + long-term memory: migration `006_create_chat_memory.sql`, `SummarizeConversation` uses `gemini-2.0-flash-lite` to generate 2-3 sentence summary, saved as `chat_memory` (UPSERT per user+context), loaded into system prompt as `{{.Memory}}`
+- AppState listener clears chat on app background; clear chat button (trash icon) with confirmation dialog in chat header
+- Keyboard dismiss: `keyboardDismissMode="on-drag"` on FlatList, chevron-down dismiss button next to input when keyboard visible
+- Updated Dockerfile to COPY prompts directory into runtime image

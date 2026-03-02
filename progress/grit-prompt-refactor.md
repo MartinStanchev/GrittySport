@@ -1,0 +1,6 @@
+## Grit Prompt System Refactor — Done
+- **Problem**: Grit's workflow instructions (program creation, modification, criteria editing) were loaded at runtime via `read_skill` tool calls. Tool-returned content sits at lower instruction priority than the system prompt in Gemini's attention hierarchy, causing frequent rule violations (multiple questions per message, describing programs before calling tools, forgetting draft IDs).
+- **Solution**: Absorbed all 3 workflow skill files (`program_creation.md`, `program_modification.md`, `criteria_edit.md`) into the unified `system.md` system prompt. `read_skill` now exclusively loads sport-specific training knowledge.
+- **New sport knowledge skills**: `periodization.md`, `running.md`, `cycling.md`, `swimming.md`, `strength_training.md`, `mobility_recovery.md` — domain expertise for exercise selection, pacing, and program design.
+- **Backend**: `PromptLoader` now loads `questions.json` and injects `{{.Criteria}}` directly into the system prompt (previously done by `SkillLoader`). `SkillLoader.GetSkill` simplified — no more template rendering. Removed `activeSkill` from `sessionState` in `chat.go`. Updated `read_skill` tool enum and description in `tools.go`.
+- **Frontend**: `toolLabels.ts` — `read_skill` label changed to "Loading training knowledge...".

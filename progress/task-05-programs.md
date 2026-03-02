@@ -1,0 +1,20 @@
+## Task 5: Programs, Tool Calling, and Conversational Program Creation — Done
+- Migration `005_create_programs.sql`: `programs`, `program_criteria` (key-value pattern), `phases`, `weeks`, `scheduled_activities` tables with indexes and constraints
+- Backend: `Program`, `ProgramCriterion`, `Phase`, `Week`, `ScheduledActivity` models with nested response types and input types in `models/program.go`
+- Backend: `ProgramService` with full CRUD — `GetActiveProgram`, `GetByID`, `ListByUser`, `SaveProgramWithCriteria` (transactional with auto-archive), `UpdateProgram`, `GetCriteria`, `UpsertCriteria`, `AdjustActivities`, `GetUpcomingActivities`, `GetScheduledActivity`
+- Backend: REST endpoints — `GET/PUT /api/v1/programs/:id`, `GET /api/v1/programs`, `GET/PUT /api/v1/programs/:id/criteria`, `GET /api/v1/activities/upcoming`
+- Backend: Tool calling via Gemini native function calling (no MCP server) — `tools/registry.go` with `Registry` converting to `genai.FunctionDeclaration`, `tools/tools.go` with 9 tools (get_user_profile, get_active_program, get_program_criteria, propose_program, confirm_program_save, propose_adjustment, confirm_adjustment, update_program_criteria, get_scheduled_activity)
+- Backend: `ProposalStore` in-memory map for preview+confirm pattern — `propose_*` stores but doesn't save, `confirm_*` persists. 30-minute expiry.
+- Backend: `ChatWithTools` in `ai/gemini.go` — non-streaming `GenerateContent` for tool-calling rounds (max 5), function call/response loop, streams final text response. Context-specific prompts for `program_creation`, `criteria_edit`, `free_chat`.
+- Backend: Extended WebSocket protocol — new message types: `tool_call`, `program_proposal`, `adjustment_proposal`, `program_created`, `adjustment_applied`, `proposal_response`. Thread-safe `wsWriter` for concurrent writes.
+- Frontend: Extended `useChatWebSocket` hook — handles `tool_call`, `program_proposal`, `adjustment_proposal`, `program_created` WS messages. Added `respondToProposal()` method. Callbacks for `onProgramCreated` and `onAdjustmentApplied`.
+- Frontend: `ToolCallIndicator` component — inline spinner with human-readable tool status labels
+- Frontend: `ProgramProposalCard` component — structured preview card with phase/week summary, Accept/Deny buttons, expandable phase details
+- Frontend: `ProgramContext` — manages `activeProgram` and `upcomingActivities` state, fetched on auth
+- Frontend: HomeScreen — shows active program (name, sport, progress bar) or "Create Your Program" CTA. Upcoming activities rendered as `UpcomingActivityCard`s. Chat modal supports `program_creation` context with auto-trigger. Renders tool calls and proposals inline.
+- Frontend: `ProgramsScreen` — real program list with ACTIVE/ARCHIVED badges, long-press for archive/reactivate. `ProgramsStackNavigator` for list→detail navigation.
+- Frontend: `ProgramDetailScreen` — full program view with criteria cards, collapsible phases→weeks→activities. "Edit Settings" button opens `CriteriaEditorModal`.
+- Frontend: `CriteriaEditorModal` — editable fields based on value_type, dirty-checking, calls `PUT /api/v1/programs/:id/criteria`
+- Frontend: Program API functions added to `api.ts` — `getPrograms`, `getProgram`, `updateProgram`, `getProgramCriteria`, `updateProgramCriteria`, `getUpcomingActivities` with full TypeScript interfaces
+- **Deviation:** No MCP server — tools implemented directly in Go using Gemini's native function calling. Simpler architecture, no Node.js subprocess.
+- **Deviation:** Two-tool preview+confirm pattern (propose_program/confirm_program_save) instead of direct save — all changes go through user review

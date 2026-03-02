@@ -15,7 +15,16 @@ The code should always be kept in good readable condition and best practices sho
 
 ### Progress tracker
 
-To track how much progress we've made, there is a @./PROGRESS.md file. After each implementation, update it with a very short summary of what you have implemented. This should be enough to tell other AI agents or developers what has happenend. Make sure to include any deviations from the tasks here, so that it is visible. The file should not become very big as this will fill the context of coding agents very quickly. 
+Progress is tracked in a two-level structure to keep the auto-loaded context small:
+
+- **`@./PROGRESS.md`** — slim index table, one row per feature, always loaded into context. Keep it short.
+- **`progress/<slug>.md`** — full details for each feature (bullet points, deviations, key files changed).
+
+After each implementation:
+1. Create a new file `progress/<slug>.md` with full details.
+2. Append a new row to the table in `PROGRESS.md` with a link to the file and a one-line summary.
+
+To understand what was done for a specific past feature, read its file in `progress/`.
 
 ## Rules
 

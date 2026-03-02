@@ -1,0 +1,21 @@
+## Task 9: GPS Activity Tracking — Done
+- **Dependencies**: `expo-location`, `react-native-maps`, `expo-sqlite`, `@react-native-community/netinfo`, `react-native-ble-plx` (dev build required for BLE + maps). Location/BLE permissions + background location mode added to `app.json`.
+- **GPS Types** (`types/gps.ts`): `GPSPoint`, `HRReading`, `Lap`, `GPSRouteData`, `HRData`, `GPSSummaryData`, `HRZoneDistribution` interfaces.
+- **GPS Utilities** (`services/gpsUtils.ts`): Haversine distance, rolling pace (10-point window), current speed, altitude smoothing (sliding median), cumulative elevation gain (1m threshold), lap computation, HR zone distribution (5-zone model), `buildFinalGPSPayload()`, sport classification helpers.
+- **Backend**: `GPSRoute` + `HeartRateData json.RawMessage` added to `Workout` and `SaveWorkoutInput` models. `workoutColumns`, `scanWorkout`, and `Create()` INSERT updated. No migration needed (columns already existed in `007_create_workouts.sql`).
+- **Offline Storage** (`services/offlineStorage.ts`): SQLite `pending_workouts` table; `savePendingWorkout`, `getPendingWorkouts`, `markSynced`, `clearSynced`.
+- **Sync Service** (`services/syncService.ts`): Uploads unsynced pending workouts to API; triggered from `App.tsx` via AppState (foreground) and NetInfo (reconnect) listeners.
+- **BLE Service** (`services/bleService.ts`): Singleton scanning for Heart Rate Profile (UUID `0x180D`), connects to `0x2A37` characteristic, parses uint8/uint16 HR measurement format per BLE GATT spec. Gracefully degrades (try/catch) in Expo Go.
+- **WorkoutContext extended**: Added `ActiveGPSWorkout` state branch, `startGPSWorkout`/`updateGPSWorkout`/`clearGPSWorkout`, and derived `workoutMode: 'manual'|'gps'|null` — no changes to existing manual workout types.
+- **RecordGPSScreen**: Full-screen map (Apple Maps on iOS, OpenStreetMap UrlTile on Android), live route polyline, metrics panel (distance hero metric, pace/speed, time, HR with zone colour, avg pace/speed, elevation gain, lap counter), idle→recording→paused→stopped state machine, auto-pause (3 consecutive points < 0.5 m/s), auto-lap (every 1 km) + manual lap button, BLE HR modal, discard confirmation.
+- **WorkoutSummaryScreen**: Static route map, stats grid (distance, time, avg pace/speed, best lap, elevation, HR), HR zone bar chart, lap splits table with colour-coded lap times, notes input, offline-first save (tries API → falls back to SQLite + "Saved offline" banner).
+- **ActiveWorkoutBanner updated**: GPS mode shows distance + location-pin icon and navigates to `RecordGPS`; manual mode unchanged.
+- **UpcomingActivityCard**: GPS pill now enabled and calls `onRecordGPS` prop.
+- **ActivityDetailScreen**: GPS activities navigate to `RecordGPS` (removed "Coming Soon" alert).
+- **HomeScreen FAB**: Added "Start GPS Activity" option; `UpcomingActivityCard` gets `onRecordGPS` prop.
+- **WorkoutDetailScreen**: GPS workouts show static route map + lap splits table above existing stats.
+- **HistoryScreen**: GPS workouts show `distance_km` as key stat.
+- **Navigation**: `RecordGPS` + `WorkoutSummary` added to all three stack navigators (Home, Programs, History).
+- **Deviation**: OpenStreetMap tiles via `react-native-maps UrlTile` instead of Google Maps (no API key required). Map provider: Apple Maps on iOS (default), OSM UrlTile on Android.
+- **Deviation**: BLE + maps require `npx expo prebuild` + native dev build — not compatible with Expo Go.
+- **Platform fix**: `react-native-maps`, `react-native-ble-plx`, and `expo-sqlite` are native-only. Created `.native.ts(x)` + `.web.ts(x)` platform-specific files for `NativeMap`, `bleService`, and `offlineStorage` so `expo start --tunnel` (web bundler) no longer fails.

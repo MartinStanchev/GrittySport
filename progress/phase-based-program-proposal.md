@@ -1,0 +1,8 @@
+## Phase-Based Program Proposal — Done
+- **Problem**: `propose_program` required Gemini to generate entire program (phases→weeks→activities) in a single tool call. For 12-20 week programs, this exceeded Gemini's output token limits → `MALFORMED_FUNCTION_CALL`.
+- **Solution**: Split into two-step flow: `propose_program` creates skeleton (metadata, phase names/dates, criteria, NO weeks) → `add_proposal_phase` called once per phase with weeks and activities. Proposal auto-sent to frontend when all phases populated.
+- **`proposals.go`**: Added `TotalPhases` field to `PendingProposal` and `AllPhasesComplete()` method that checks all phases have non-empty weeks arrays.
+- **`tools.go`**: Removed nested `weeks` schema from `propose_program` phases — phases now only have `name`, `order_index`, `start_date`, `end_date`. Handler stores skeleton with empty `weeks: []` arrays and returns phase names/indices. New `add_proposal_phase` tool: takes `phase_index` + `weeks[]` array, populates the target phase, returns completion status (`phases_completed`/`phases_total`/`remaining_phases`).
+- **`chat.go`**: `propose_program` no longer sends `program_proposal` WS message. New `add_proposal_phase` case sends `program_proposal` only when `AllPhasesComplete()` returns true.
+- **`program_creation.md`**: Rewrote program generation section with two-step instructions (skeleton → per-phase population). Kept `modify_pending_proposal` instructions for post-proposal changes.
+- **Frontend**: Added `add_proposal_phase` tool label. No other changes — `ProgramProposalCard` renders the same full program JSON.

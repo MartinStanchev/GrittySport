@@ -1,0 +1,4 @@
+## Bug Fixes: Chat Keyboard, Typing Indicator, Multiple Programs — Done
+- **Keyboard/scroll (mobile):** Replaced manual `paddingBottom` root container with `KeyboardAvoidingView` (`behavior="padding"` on iOS, `"height"` on Android). Changed `keyboardDismissMode` from `"on-drag"` to `"none"` — keyboard no longer closes when scrolling through messages. Bottom padding moved to input container only.
+- **Unified typing indicator:** Removed the two-state dots/spinner switch. Now always shows a single `ActivityIndicator` with a dynamic label ("Thinking..." when idle, tool name label during tool calls). Eliminates the flickering component swap between tool phases.
+- **Multiple programs per chat:** Added `ONE PROGRAM PER CONVERSATION` section to `program_creation.txt` — Grit is instructed to call `create_draft_program` only once, never propose a second program, and switch to coaching mode after `confirm_program_save` succeeds.

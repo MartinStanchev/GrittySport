@@ -1,0 +1,7 @@
+## Chat Bug Fixes: Proposals, Drafts, Tool UI, Clear Chat — Done
+- Fixed program proposal showing raw JSON: `ChatWithTools` now tracks `hasProposal` bool; after `propose_program`/`propose_adjustment`, skips re-streaming and sends non-streaming text directly, preventing duplicate verbose JSON output alongside the ProgramProposalCard
+- Fixed clear chat trash icon on web: platform-aware confirmation — `window.confirm()` on web (Alert.alert callbacks unreliable on Expo web), `Alert.alert` on native. Added `setHistoryLoaded(false)` to prevent stale messages reloading
+- Tool call indicators moved from inline messages to typing area: `activeToolAction` state in `useChatWebSocket` hook, tool_call messages no longer added to messages array, typing indicator shows labeled spinner (e.g., "Preparing your program...") during tool execution. Deleted `ToolCallIndicator.tsx` component (dead code)
+- Tool labels extracted to `frontend/src/constants/toolLabels.ts` for shared use
+- Incremental draft program creation: `CreateDraftProgram`/`GetDraftProgram` service methods, three new tools (`get_draft_program`, `create_draft_program`, `save_draft_criterion`), `SaveProgramWithCriteria` accepts optional `draftProgramID` to promote draft to active. `PendingProposal` stores `DraftProgramID`. System prompt instructs Grit to check for/create drafts and save criteria incrementally
+- **Deviation:** Draft tools are transparent background operations — no special WS messages needed, Grit's text naturally acknowledges saved state
