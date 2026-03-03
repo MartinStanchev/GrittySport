@@ -28,8 +28,7 @@ function formatDate(iso: string): string {
 function keyStat(workout: WorkoutResponse): string {
   const data = workout.recorded_data ?? {};
   const type = workout.activity_type.toLowerCase();
-  // GPS workouts — show distance
-  if (workout.source === 'gps' && data.distance_km) {
+  if ((workout.source === 'gps' || workout.source === 'apple_health') && data.distance_km) {
     return `${Number(data.distance_km).toFixed(2)} km`;
   }
   if (type.includes('strength') || type.includes('weight')) {
@@ -42,14 +41,20 @@ function keyStat(workout: WorkoutResponse): string {
     const done = exercises.filter((e) => e.completed).length;
     return exercises.length > 0 ? `${done}/${exercises.length} done` : 'Completed';
   }
-  // Non-GPS run/cycling with distance
   if (data.distance_km) return `${Number(data.distance_km).toFixed(2)} km`;
   return 'Completed';
+}
+
+function sourceBadge(source: string): { icon: string; color: string } | null {
+  if (source === 'apple_health') return { icon: 'heart', color: '#FF2D55' };
+  if (source === 'garmin') return { icon: 'watch-outline', color: '#007DC3' };
+  return null;
 }
 
 function WorkoutRow({ workout }: { workout: WorkoutResponse }) {
   const icon = getActivityIcon(workout.activity_type);
   const stat = keyStat(workout);
+  const badge = sourceBadge(workout.source);
 
   return (
     <View style={styles.row}>
@@ -57,7 +62,12 @@ function WorkoutRow({ workout }: { workout: WorkoutResponse }) {
         <Ionicons name={icon} size={20} color={Colors.primary} />
       </View>
       <View style={styles.rowContent}>
-        <Text style={styles.rowType}>{workout.activity_type}</Text>
+        <View style={styles.rowTypeRow}>
+          <Text style={styles.rowType}>{workout.activity_type}</Text>
+          {badge && (
+            <Ionicons name={badge.icon as any} size={14} color={badge.color} style={{ marginLeft: 6 }} />
+          )}
+        </View>
         <Text style={styles.rowDate}>{formatDate(workout.started_at)}</Text>
       </View>
       <View style={styles.rowRight}>
@@ -99,6 +109,9 @@ export default function HistoryScreen({ navigation }: Props) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>HISTORY</Text>
+        <Pressable onPress={() => navigation.navigate('Import')} style={styles.addBtn}>
+          <Ionicons name="download-outline" size={22} color={Colors.primary} />
+        </Pressable>
         <Pressable onPress={() => navigation.navigate('LogActivity')} style={styles.addBtn}>
           <Ionicons name="add" size={24} color={Colors.primary} />
         </Pressable>
@@ -210,6 +223,10 @@ const styles = StyleSheet.create({
   },
   rowContent: {
     flex: 1,
+  },
+  rowTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   rowType: {
     fontSize: 15,

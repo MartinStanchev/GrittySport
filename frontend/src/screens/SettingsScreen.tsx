@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { clearChatMemory } from '../services/api';
 import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
+import * as healthKit from '../services/healthKitService';
+import type { HealthKitStatus } from '../services/healthKitService';
+
+function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
+  if (status === 'not_supported') return 'Not available on this device';
+  if (status === 'needs_dev_build') return 'Requires a development build';
+  if (enabled) return 'Connected';
+  return 'Not connected';
+}
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser } = useAuth();
@@ -31,6 +41,25 @@ export default function SettingsScreen() {
   const [connectedDevice, setConnectedDevice] = useState<string | null>(
     bleService.isConnected() ? (bleService.getDeviceName() ?? null) : null,
   );
+  const [appleHealthStatus, setAppleHealthStatus] = useState<HealthKitStatus>('not_supported');
+  const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
+  const [appleHealthLoading, setAppleHealthLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const status = await healthKit.checkAvailability();
+      if (!mounted) return;
+      setAppleHealthStatus(status);
+      if (status === 'available') {
+        const stored = await import('expo-secure-store').then((s) =>
+          s.getItemAsync('apple_health_enabled'),
+        );
+        if (mounted && stored === 'true') setAppleHealthEnabled(true);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const hasChanges =
     name !== (user?.name ?? '') ||
@@ -161,6 +190,51 @@ export default function SettingsScreen() {
             </Text>
             <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
           </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionHeader}>Connected Devices</Text>
+        <View style={styles.card}>
+          <View style={styles.deviceRow}>
+            <Ionicons name="heart" size={20} color="#FF2D55" />
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceName}>Apple Health</Text>
+              <Text style={styles.deviceStatus}>
+                {appleHealthStatusLabel(appleHealthStatus, appleHealthEnabled)}
+              </Text>
+            </View>
+            {appleHealthStatus === 'available' && (
+              <TouchableOpacity
+                style={[styles.deviceActionButton, appleHealthEnabled && styles.deviceActionDanger]}
+                disabled={appleHealthLoading}
+                onPress={async () => {
+                  setAppleHealthLoading(true);
+                  try {
+                    const SecureStore = await import('expo-secure-store');
+                    if (appleHealthEnabled) {
+                      await SecureStore.deleteItemAsync('apple_health_enabled');
+                      setAppleHealthEnabled(false);
+                    } else {
+                      await healthKit.requestPermissions();
+                      await SecureStore.setItemAsync('apple_health_enabled', 'true');
+                      setAppleHealthEnabled(true);
+                    }
+                  } catch {
+                    Alert.alert('Error', 'Could not update Apple Health connection.');
+                  } finally {
+                    setAppleHealthLoading(false);
+                  }
+                }}
+              >
+                {appleHealthLoading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text style={[styles.deviceActionText, appleHealthEnabled && styles.deviceActionTextDanger]}>
+                    {appleHealthEnabled ? 'Disable' : 'Enable'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <TouchableOpacity
@@ -349,5 +423,44 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     color: Colors.textPrimary,
+  },
+  deviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  deviceStatus: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  deviceActionButton: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  deviceActionDanger: {
+    borderColor: Colors.tabBarBorder,
+  },
+  deviceActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  deviceActionTextDanger: {
+    color: Colors.textSecondary,
   },
 });

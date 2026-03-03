@@ -68,6 +68,11 @@ function activityTypeLabel(type: string): string {
   return ACTIVITY_TYPE_LABELS[normalized];
 }
 
+const SOURCE_BADGES: Record<string, { icon: string; color: string; label: string }> = {
+  apple_health: { icon: 'heart', color: '#FF2D55', label: 'Apple Health' },
+  garmin: { icon: 'watch-outline', color: '#007DC3', label: 'Garmin' },
+};
+
 // ── Detail Section Renderers ────────────────────────────────────────────────────
 
 function StatRow({ label, value }: { label: string; value: string }) {
@@ -237,8 +242,11 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
 function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
   const data = workout.recorded_data ?? {};
   const normalized = normalizeActivityType(workout.activity_type);
+  const hasGPSRoute = workout.gps_route && (workout.gps_route as any).points?.length > 0;
 
-  if (workout.source === 'gps') return <GPSDetail workout={workout} />;
+  if (workout.source === 'gps' || (workout.source === 'apple_health' && hasGPSRoute)) {
+    return <GPSDetail workout={workout} />;
+  }
   if (normalized === 'run') return <RunDetail data={data} />;
   if (normalized === 'cycling') return <CyclingDetail data={data} />;
   if (normalized === 'swim') return <SwimDetail data={data} />;
@@ -339,6 +347,7 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const label = activityTypeLabel(workout.activity_type);
   const duration = formatDuration(workout.started_at, workout.finished_at);
   const date = formatDate(workout.started_at);
+  const badge = SOURCE_BADGES[workout.source] ?? null;
 
   return (
     <>
@@ -348,10 +357,16 @@ export default function WorkoutDetailScreen({ route }: Props) {
         <View style={styles.iconCircle}>
           <Ionicons name={icon} size={32} color={Colors.primary} />
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.activityLabel}>{label}</Text>
           <Text style={styles.dateLabel}>{date}</Text>
         </View>
+        {badge && (
+          <View style={styles.sourceBadge}>
+            <Ionicons name={badge.icon as any} size={12} color={badge.color} />
+            <Text style={styles.sourceBadgeText}>{badge.label}</Text>
+          </View>
+        )}
       </View>
 
       {/* Summary row */}
@@ -470,6 +485,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  sourceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  sourceBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: Colors.textSecondary,
   },
   summaryRow: {
     flexDirection: 'row',

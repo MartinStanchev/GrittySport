@@ -52,6 +52,12 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Gritty Fitness uses background location to continue tracking your workout."
         }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Gritty Fitness reads your Apple Health workouts, heart rate, and route data to import them into the app."
+        }
       ]
     ]
   }

@@ -36,6 +36,7 @@ Full details for each change are in the `progress/` folder.
 | [program-detail-date-overhaul](progress/program-detail-date-overhaul.md) | MondayOf helper, normalized week dates, upcoming activities fix |
 | [grit-prompt-refactor](progress/grit-prompt-refactor.md) | Workflow rules in system prompt, sport knowledge skills |
 | [fix-program-modification-flow](progress/fix-program-modification-flow.md) | activity_type_filter, prompt fix for modification flow |
+| [task-10-apple-health-import](progress/task-10-apple-health-import.md) | Apple Health import: HealthKit integration, Import screen, type mapping, source badges |
 
 ## Instructions for Agents
 
