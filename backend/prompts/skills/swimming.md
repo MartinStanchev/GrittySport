@@ -38,7 +38,23 @@
 - Day 3: Speed/VO2max (short, fast repeats)
 - Day 4: Mixed (kick, pull, IM, open water skills)
 
-## Prescriptions
-- Endurance: `{"distance": "2000m", "warmup": "400m easy", "main": "6x200m at CSS+5s, 20s rest", "cooldown": "200m easy"}`
-- Threshold: `{"distance": "2500m", "warmup": "500m (200 swim, 200 drill, 100 kick)", "main": "10x100m at CSS, 10s rest", "cooldown": "300m easy"}`
-- Drills: `{"distance": "1500m", "sets": [{"drill": "catch-up", "distance": "4x50m"}, {"drill": "fingertip drag", "distance": "4x50m"}, {"main": "8x50m descend, 15s rest"}]}`
+## Prescription Format
+
+Always use structured `sets` array format:
+```json
+{
+  "warmup": "400m easy",
+  "sets": [
+    {"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rest": "15s"},
+    {"reps": 10, "distance": "100m", "pace": "1:45/100m", "rest": "10s"}
+  ],
+  "cooldown": "200m easy",
+  "total_distance": "2500m"
+}
+```
+
+Set `type` field values: `"drill"`, `"kick"`, `"pull"`, `"swim"` (default if omitted).
+
+More examples:
+- Threshold: `{"warmup": "500m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "CSS", "rest": "10s"}], "cooldown": "300m easy", "total_distance": "2500m"}`
+- Drills + main: `{"warmup": "400m easy", "sets": [{"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rest": "15s"}, {"reps": 4, "distance": "50m", "type": "drill", "description": "fingertip drag", "rest": "15s"}, {"reps": 8, "distance": "50m", "pace": "descend 1-4", "rest": "15s"}], "cooldown": "200m easy", "total_distance": "1500m"}`

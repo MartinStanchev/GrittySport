@@ -25,8 +25,25 @@
 - **Half Marathon**: 10-14 day taper, reduce volume 40%, 2 easy weeks with short tempo/strides
 - **Marathon**: 2-3 week taper, reduce volume 50-60%, maintain 1 shorter tempo, lots of easy running
 
-## Common Prescriptions
-- Easy run: `{"distance": "Xkm", "pace": "X:XX/km", "type": "easy"}`
-- Tempo: `{"distance": "Xkm", "warmup": "1.5km easy", "main": "Xkm at X:XX/km", "cooldown": "1.5km easy"}`
-- Intervals: `{"warmup": "1.5km easy", "intervals": "6x800m at X:XX/km", "recovery": "400m jog", "cooldown": "1.5km easy"}`
-- Long run: `{"distance": "Xkm", "pace": "X:XX-X:XX/km", "type": "long"}`
+## Prescription Formats
+
+**Simple runs** (easy, long, tempo, fartlek) — flat format:
+```json
+{"distance": "8km", "pace": "5:30/km"}
+```
+
+**Structured workouts** (intervals, hill repeats, strides) — use `sets` array:
+```json
+{
+  "warmup": "1.5km easy",
+  "sets": [
+    {"reps": 6, "distance": "800m", "pace": "3:40/km", "rest": "400m jog"}
+  ],
+  "cooldown": "1.5km easy",
+  "total_distance": "10km"
+}
+```
+
+More examples:
+- Hill repeats: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "200m", "pace": "hard uphill", "rest": "jog down"}], "cooldown": "1.5km easy"}`
+- Strides after easy run: `{"distance": "8km", "pace": "5:30/km", "sets": [{"reps": 6, "distance": "100m", "pace": "fast", "rest": "60s walk"}]}`

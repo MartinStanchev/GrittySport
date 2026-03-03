@@ -164,13 +164,16 @@ Use `phase_index` (0-based) to target a specific phase, or omit it to apply acro
 
 ### Prescription format
 
-The prescription field in each activity should be a JSON object with relevant details. Examples:
+The prescription field in each activity should be a JSON object. Use structured `sets` arrays for interval/structured workouts, flat fields for simple sessions.
 
-- **Running**: `{"distance": "5km", "pace": "5:30/km", "type": "easy"}`
+- **Running (simple)**: `{"distance": "8km", "pace": "5:30/km"}`
+- **Running (structured)**: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "800m", "pace": "3:40/km", "rest": "400m jog"}], "cooldown": "1.5km easy", "total_distance": "10km"}`
 - **Strength**: `{"exercises": [{"name": "Squat", "sets": 4, "reps": 8, "weight": "70kg"}]}`
-- **Swimming**: `{"distance": "2000m", "sets": [{"distance": "400m", "stroke": "freestyle", "pace": "1:45/100m"}]}`
-- **Stretching**: `{"duration": "15min", "focus": "hip flexors, hamstrings", "type": "static"}`
-- **Yoga**: `{"duration": "30min", "style": "vinyasa", "focus": "recovery"}`
+- **Swimming**: `{"warmup": "400m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "1:45/100m", "rest": "10s"}], "cooldown": "200m easy", "total_distance": "2500m"}`
+- **Cycling (simple)**: `{"duration": "2h", "intensity": "Zone 2"}`
+- **Cycling (structured)**: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "rest": "5min easy"}], "cooldown": "10min easy"}`
+- **Mobility**: `{"duration": "20min", "focus": "hips", "instructions": "Hold gently", "exercises": [{"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge"}]}`
+- **Yoga**: `{"duration": "30min", "style": "vinyasa", "focus": "recovery", "instructions": "Slow transitions"}`
 
 ---
 

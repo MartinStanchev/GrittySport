@@ -15,23 +15,26 @@ function FieldInput({
   onChangeText,
   keyboardType = 'default',
   placeholder,
+  multiline,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   keyboardType?: 'default' | 'numeric' | 'decimal-pad';
   placeholder?: string;
+  multiline?: boolean;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={styles.fieldInput}
+        style={[styles.fieldInput, multiline && styles.fieldInputMultiline]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
         placeholder={placeholder || label}
         placeholderTextColor="#BBB"
+        multiline={multiline}
       />
     </View>
   );
@@ -41,7 +44,87 @@ function updateField(prescription: Record<string, any>, key: string, value: stri
   onChange({ ...prescription, [key]: value });
 }
 
+function SetsEditor({
+  prescription,
+  onChange,
+  fields,
+  emptySet,
+}: {
+  prescription: Record<string, any>;
+  onChange: Props['onChange'];
+  fields: { key: string; label: string; keyboard?: 'default' | 'numeric' }[];
+  emptySet: Record<string, string>;
+}) {
+  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
+
+  const updateSet = (index: number, key: string, value: string) => {
+    const updated = [...sets];
+    updated[index] = { ...updated[index], [key]: value };
+    onChange({ ...prescription, sets: updated });
+  };
+
+  const addSet = () => {
+    onChange({ ...prescription, sets: [...sets, { ...emptySet }] });
+  };
+
+  const removeSet = (index: number) => {
+    onChange({ ...prescription, sets: sets.filter((_, i) => i !== index) });
+  };
+
+  return (
+    <View>
+      <FieldInput label="Warmup" value={prescription.warmup || ''} onChangeText={v => updateField(prescription, 'warmup', v, onChange)} />
+      <Text style={styles.sectionTitle}>Sets</Text>
+      {sets.map((set: any, i: number) => (
+        <View key={i} style={styles.setCard}>
+          <View style={styles.setHeader}>
+            <Text style={styles.setLabel}>Set {i + 1}</Text>
+            <Pressable onPress={() => removeSet(i)} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color={Colors.primary} />
+            </Pressable>
+          </View>
+          <View style={styles.rowFields}>
+            <View style={styles.smallField}>
+              <FieldInput label="Reps" value={String(set.reps || '')} onChangeText={v => updateSet(i, 'reps', v)} keyboardType="numeric" />
+            </View>
+            {fields.map(({ key, label, keyboard }) => (
+              <View key={key} style={styles.flexField}>
+                <FieldInput label={label} value={set[key] || ''} onChangeText={v => updateSet(i, key, v)} keyboardType={keyboard || 'default'} />
+              </View>
+            ))}
+          </View>
+          <FieldInput label="Rest" value={set.rest || ''} onChangeText={v => updateSet(i, 'rest', v)} />
+        </View>
+      ))}
+      <Pressable style={styles.addButton} onPress={addSet}>
+        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+        <Text style={styles.addButtonText}>Add Set</Text>
+      </Pressable>
+      <FieldInput label="Cooldown" value={prescription.cooldown || ''} onChangeText={v => updateField(prescription, 'cooldown', v, onChange)} />
+    </View>
+  );
+}
+
 function RunEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+  const hasSets = Array.isArray(prescription.sets) && prescription.sets.length > 0;
+
+  if (hasSets) {
+    return (
+      <View>
+        <SetsEditor
+          prescription={prescription}
+          onChange={onChange}
+          fields={[
+            { key: 'distance', label: 'Distance' },
+            { key: 'pace', label: 'Pace' },
+          ]}
+          emptySet={{ reps: '', distance: '', pace: '', rest: '' }}
+        />
+        <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} />
+      </View>
+    );
+  }
+
   return (
     <View>
       <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} />
@@ -49,50 +132,10 @@ function RunEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
       <FieldInput label="HR Zone" value={prescription.heart_rate_zone || ''} onChangeText={v => updateField(prescription, 'heart_rate_zone', v, onChange)} />
       <FieldInput label="Terrain" value={prescription.terrain || ''} onChangeText={v => updateField(prescription, 'terrain', v, onChange)} />
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
-    </View>
-  );
-}
-
-function IntervalEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
-  const intervals: any[] = Array.isArray(prescription.intervals) ? prescription.intervals : [];
-
-  const updateInterval = (index: number, key: string, value: string) => {
-    const updated = [...intervals];
-    updated[index] = { ...updated[index], [key]: value };
-    onChange({ ...prescription, intervals: updated });
-  };
-
-  const addInterval = () => {
-    onChange({ ...prescription, intervals: [...intervals, { distance: '', pace: '', rest: '' }] });
-  };
-
-  const removeInterval = (index: number) => {
-    const updated = intervals.filter((_, i) => i !== index);
-    onChange({ ...prescription, intervals: updated });
-  };
-
-  return (
-    <View>
-      <FieldInput label="Warmup" value={prescription.warmup || ''} onChangeText={v => updateField(prescription, 'warmup', v, onChange)} />
-      <Text style={styles.sectionTitle}>Intervals</Text>
-      {intervals.map((interval: any, i: number) => (
-        <View key={i} style={styles.intervalRow}>
-          <Text style={styles.intervalLabel}>Set {i + 1}</Text>
-          <View style={styles.intervalFields}>
-            <TextInput style={styles.intervalInput} value={interval.distance || ''} onChangeText={v => updateInterval(i, 'distance', v)} placeholder="Distance" placeholderTextColor="#BBB" />
-            <TextInput style={styles.intervalInput} value={interval.pace || ''} onChangeText={v => updateInterval(i, 'pace', v)} placeholder="Pace" placeholderTextColor="#BBB" />
-            <TextInput style={styles.intervalInput} value={interval.rest || ''} onChangeText={v => updateInterval(i, 'rest', v)} placeholder="Rest" placeholderTextColor="#BBB" />
-          </View>
-          <Pressable onPress={() => removeInterval(i)} hitSlop={8}>
-            <Ionicons name="close-circle" size={20} color={Colors.primary} />
-          </Pressable>
-        </View>
-      ))}
-      <Pressable style={styles.addButton} onPress={addInterval}>
+      <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', distance: '', pace: '', rest: '' }] })}>
         <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Interval</Text>
+        <Text style={styles.addButtonText}>Add Sets</Text>
       </Pressable>
-      <FieldInput label="Cooldown" value={prescription.cooldown || ''} onChangeText={v => updateField(prescription, 'cooldown', v, onChange)} />
     </View>
   );
 }
@@ -111,16 +154,15 @@ function StrengthEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
   };
 
   const removeExercise = (index: number) => {
-    const updated = exercises.filter((_, i) => i !== index);
-    onChange({ ...prescription, exercises: updated });
+    onChange({ ...prescription, exercises: exercises.filter((_, i) => i !== index) });
   };
 
   return (
     <View>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={styles.exerciseCard}>
-          <View style={styles.exerciseHeader}>
-            <Text style={styles.exerciseLabel}>Exercise {i + 1}</Text>
+        <View key={i} style={styles.setCard}>
+          <View style={styles.setHeader}>
+            <Text style={styles.setLabel}>Exercise {i + 1}</Text>
             <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={Colors.primary} />
             </Pressable>
@@ -157,22 +199,48 @@ function StrengthEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
 function SwimEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
   return (
     <View>
-      <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} />
-      <FieldInput label="Stroke" value={prescription.stroke || ''} onChangeText={v => updateField(prescription, 'stroke', v, onChange)} />
-      <FieldInput label="Pace" value={prescription.pace || ''} onChangeText={v => updateField(prescription, 'pace', v, onChange)} />
-      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
+      <SetsEditor
+        prescription={prescription}
+        onChange={onChange}
+        fields={[
+          { key: 'distance', label: 'Distance' },
+          { key: 'type', label: 'Type' },
+          { key: 'pace', label: 'Pace' },
+        ]}
+        emptySet={{ reps: '', distance: '', type: '', pace: '', rest: '', description: '' }}
+      />
+      <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} />
     </View>
   );
 }
 
 function CyclingEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+  const hasSets = Array.isArray(prescription.sets) && prescription.sets.length > 0;
+
+  if (hasSets) {
+    return (
+      <SetsEditor
+        prescription={prescription}
+        onChange={onChange}
+        fields={[
+          { key: 'duration', label: 'Duration' },
+          { key: 'intensity', label: 'Intensity' },
+        ]}
+        emptySet={{ reps: '', duration: '', intensity: '', rest: '' }}
+      />
+    );
+  }
+
   return (
     <View>
       <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} />
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
-      <FieldInput label="Target Power" value={prescription.power || ''} onChangeText={v => updateField(prescription, 'power', v, onChange)} />
-      <FieldInput label="Terrain" value={prescription.terrain || ''} onChangeText={v => updateField(prescription, 'terrain', v, onChange)} />
+      <FieldInput label="Intensity" value={prescription.intensity || ''} onChangeText={v => updateField(prescription, 'intensity', v, onChange)} />
       <FieldInput label="Cadence" value={prescription.cadence || ''} onChangeText={v => updateField(prescription, 'cadence', v, onChange)} />
+      <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', duration: '', intensity: '', rest: '' }] })}>
+        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+        <Text style={styles.addButtonText}>Add Sets</Text>
+      </Pressable>
     </View>
   );
 }
@@ -187,27 +255,39 @@ function MobilityEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
   };
 
   const addExercise = () => {
-    onChange({ ...prescription, exercises: [...exercises, { name: '', duration: '' }] });
+    onChange({ ...prescription, exercises: [...exercises, { name: '', duration: '', sets: '', description: '' }] });
   };
 
   const removeExercise = (index: number) => {
-    const updated = exercises.filter((_, i) => i !== index);
-    onChange({ ...prescription, exercises: updated });
+    onChange({ ...prescription, exercises: exercises.filter((_, i) => i !== index) });
   };
 
   return (
     <View>
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
+      <FieldInput label="Style" value={prescription.style || ''} onChangeText={v => updateField(prescription, 'style', v, onChange)} />
+      <FieldInput label="Focus" value={prescription.focus || ''} onChangeText={v => updateField(prescription, 'focus', v, onChange)} />
+      <FieldInput label="Instructions" value={prescription.instructions || ''} onChangeText={v => updateField(prescription, 'instructions', v, onChange)} multiline />
+      <Text style={styles.sectionTitle}>Exercises</Text>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={styles.exerciseCard}>
-          <View style={styles.exerciseHeader}>
-            <Text style={styles.exerciseLabel}>Exercise {i + 1}</Text>
+        <View key={i} style={styles.setCard}>
+          <View style={styles.setHeader}>
+            <Text style={styles.setLabel}>Exercise {i + 1}</Text>
             <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={Colors.primary} />
             </Pressable>
           </View>
           <FieldInput label="Name" value={ex.name || ''} onChangeText={v => updateExercise(i, 'name', v)} />
-          <FieldInput label="Duration" value={ex.duration || ''} onChangeText={v => updateExercise(i, 'duration', v)} />
+          <View style={styles.rowFields}>
+            <View style={styles.halfField}>
+              <FieldInput label="Duration" value={ex.duration || ''} onChangeText={v => updateExercise(i, 'duration', v)} />
+            </View>
+            <View style={styles.halfField}>
+              <FieldInput label="Sets" value={String(ex.sets || '')} onChangeText={v => updateExercise(i, 'sets', v)} keyboardType="numeric" />
+            </View>
+          </View>
+          <FieldInput label="Notes" value={ex.notes || ''} onChangeText={v => updateExercise(i, 'notes', v)} />
+          <FieldInput label="Description" value={ex.description || ''} onChangeText={v => updateExercise(i, 'description', v)} multiline />
         </View>
       ))}
       <Pressable style={styles.addButton} onPress={addExercise}>
@@ -239,7 +319,6 @@ function GenericEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
 export function PrescriptionEditor({ activityType, prescription, onChange }: Props) {
   const type = activityType.toLowerCase().replace(/\s+/g, '_');
 
-  if (type.includes('interval')) return <IntervalEditor prescription={prescription} onChange={onChange} />;
   if (type.includes('run') || type.includes('jog')) return <RunEditor prescription={prescription} onChange={onChange} />;
   if (type.includes('strength') || type.includes('weight')) return <StrengthEditor prescription={prescription} onChange={onChange} />;
   if (type.includes('swim')) return <SwimEditor prescription={prescription} onChange={onChange} />;
@@ -272,6 +351,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E0E0E0',
   },
+  fieldInputMultiline: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
@@ -281,35 +364,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 8,
   },
-  intervalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  intervalLabel: {
-    width: 40,
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  intervalFields: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  intervalInput: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: Colors.textPrimary,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  exerciseCard: {
+  setCard: {
     backgroundColor: '#FAFAFA',
     borderRadius: 12,
     padding: 12,
@@ -317,13 +372,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8E8E8',
   },
-  exerciseHeader: {
+  setHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  exerciseLabel: {
+  setLabel: {
     fontSize: 14,
     fontWeight: '700',
     color: Colors.textPrimary,
@@ -331,6 +386,12 @@ const styles = StyleSheet.create({
   rowFields: {
     flexDirection: 'row',
     gap: 10,
+  },
+  smallField: {
+    width: 70,
+  },
+  flexField: {
+    flex: 1,
   },
   halfField: {
     flex: 1,

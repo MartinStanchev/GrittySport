@@ -36,7 +36,24 @@
 - Day 6: Recovery spin or rest
 - Day 7: Group ride or endurance
 
-## Prescriptions
-- Endurance: `{"duration": "2h", "intensity": "Zone 2 (56-75% FTP)", "cadence": "85-95 RPM"}`
-- Sweet spot: `{"warmup": "15min Zone 2", "main": "2x20min at 88-93% FTP, 5min recovery", "cooldown": "10min easy"}`
-- Intervals: `{"warmup": "15min progressive", "main": "5x4min at 106-120% FTP, 3min recovery", "cooldown": "10min easy"}`
+## Prescription Formats
+
+**Endurance rides** — flat format:
+```json
+{"duration": "2h", "intensity": "Zone 2", "cadence": "85-95 RPM"}
+```
+
+**Structured workouts** (sweet spot, threshold, VO2max, sprints) — use `sets` array:
+```json
+{
+  "warmup": "15min Zone 2",
+  "sets": [
+    {"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "rest": "5min easy"}
+  ],
+  "cooldown": "10min easy"
+}
+```
+
+More examples:
+- VO2max: `{"warmup": "15min progressive", "sets": [{"reps": 5, "duration": "4min", "intensity": "106-120% FTP", "rest": "3min easy"}], "cooldown": "10min easy"}`
+- Sprints: `{"warmup": "20min Zone 2", "sets": [{"reps": 8, "duration": "30s", "intensity": "all-out", "rest": "4min easy"}], "cooldown": "10min easy"}`

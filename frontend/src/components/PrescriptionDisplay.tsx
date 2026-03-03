@@ -17,7 +17,62 @@ function LabeledRow({ label, value }: { label: string; value: string | number | 
   );
 }
 
+function SetCard({ set, index, fields }: { set: any; index: number; fields: { key: string; label: string }[] }) {
+  return (
+    <View style={styles.setCard}>
+      <Text style={styles.setNumber}>Set {index + 1}</Text>
+      <View style={styles.setDetails}>
+        {set.reps && <Text style={styles.setPill}>{set.reps}x</Text>}
+        {fields.map(({ key, label }) =>
+          set[key] ? <Text key={key} style={styles.setPill}>{label}: {set[key]}</Text> : null,
+        )}
+      </View>
+      {set.description && <Text style={styles.setDescription}>{set.description}</Text>}
+    </View>
+  );
+}
+
+function WarmupCooldown({ warmup, cooldown }: { warmup?: string; cooldown?: string }) {
+  return (
+    <>
+      {warmup && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Warmup</Text>
+          <Text style={styles.sectionText}>{warmup}</Text>
+        </View>
+      )}
+      {cooldown && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Cooldown</Text>
+          <Text style={styles.sectionText}>{cooldown}</Text>
+        </View>
+      )}
+    </>
+  );
+}
+
 function RunDisplay({ prescription }: { prescription: Record<string, any> }) {
+  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
+
+  if (sets.length > 0) {
+    return (
+      <View>
+        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sets</Text>
+          {sets.map((set: any, i: number) => (
+            <SetCard key={i} set={set} index={i} fields={[
+              { key: 'distance', label: 'Dist' },
+              { key: 'pace', label: 'Pace' },
+              { key: 'rest', label: 'Rest' },
+            ]} />
+          ))}
+        </View>
+        <LabeledRow label="Total Distance" value={prescription.total_distance} />
+      </View>
+    );
+  }
+
   return (
     <View>
       <LabeledRow label="Distance" value={prescription.distance} />
@@ -25,51 +80,6 @@ function RunDisplay({ prescription }: { prescription: Record<string, any> }) {
       <LabeledRow label="HR Zone" value={prescription.heart_rate_zone} />
       <LabeledRow label="Terrain" value={prescription.terrain} />
       <LabeledRow label="Duration" value={prescription.duration} />
-    </View>
-  );
-}
-
-function IntervalDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const intervals: any[] = Array.isArray(prescription.intervals) ? prescription.intervals : [];
-  return (
-    <View>
-      {prescription.warmup && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Warmup</Text>
-          <Text style={styles.sectionText}>{prescription.warmup}</Text>
-        </View>
-      )}
-      {!Array.isArray(prescription.intervals) && prescription.intervals && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Intervals</Text>
-          <Text style={styles.sectionText}>{String(prescription.intervals)}</Text>
-        </View>
-      )}
-      {intervals.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Intervals</Text>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableCell, styles.tableHeaderText]}>Set</Text>
-            <Text style={[styles.tableCell, styles.tableHeaderText]}>Distance</Text>
-            <Text style={[styles.tableCell, styles.tableHeaderText]}>Pace</Text>
-            <Text style={[styles.tableCell, styles.tableHeaderText]}>Rest</Text>
-          </View>
-          {intervals.map((interval: any, i: number) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.tableCell}>{i + 1}</Text>
-              <Text style={styles.tableCell}>{interval.distance || '-'}</Text>
-              <Text style={styles.tableCell}>{interval.pace || '-'}</Text>
-              <Text style={styles.tableCell}>{interval.rest || '-'}</Text>
-            </View>
-          ))}
-        </View>
-      )}
-      {prescription.cooldown && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cooldown</Text>
-          <Text style={styles.sectionText}>{prescription.cooldown}</Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -100,37 +110,64 @@ function StrengthDisplay({ prescription }: { prescription: Record<string, any> }
 }
 
 function SwimDisplay({ prescription }: { prescription: Record<string, any> }) {
-  const drills: any[] = Array.isArray(prescription.drills) ? prescription.drills : [];
+  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
+
+  if (sets.length > 0) {
+    return (
+      <View>
+        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sets</Text>
+          {sets.map((set: any, i: number) => (
+            <SetCard key={i} set={set} index={i} fields={[
+              { key: 'distance', label: 'Dist' },
+              { key: 'type', label: 'Type' },
+              { key: 'pace', label: 'Pace' },
+              { key: 'rest', label: 'Rest' },
+            ]} />
+          ))}
+        </View>
+        <LabeledRow label="Total Distance" value={prescription.total_distance} />
+      </View>
+    );
+  }
+
   return (
     <View>
       <LabeledRow label="Distance" value={prescription.distance} />
       <LabeledRow label="Stroke" value={prescription.stroke} />
       <LabeledRow label="Pace" value={prescription.pace} />
       <LabeledRow label="Duration" value={prescription.duration} />
-      {!Array.isArray(prescription.drills) && prescription.drills && (
-        <LabeledRow label="Drills" value={String(prescription.drills)} />
-      )}
-      {drills.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Drills</Text>
-          {drills.map((drill: any, i: number) => (
-            <Text key={i} style={styles.sectionText}>
-              {typeof drill === 'string' ? drill : drill.name || `Drill ${i + 1}`}
-            </Text>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
 
 function CyclingDisplay({ prescription }: { prescription: Record<string, any> }) {
+  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
+
+  if (sets.length > 0) {
+    return (
+      <View>
+        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sets</Text>
+          {sets.map((set: any, i: number) => (
+            <SetCard key={i} set={set} index={i} fields={[
+              { key: 'duration', label: 'Duration' },
+              { key: 'intensity', label: 'Intensity' },
+              { key: 'rest', label: 'Rest' },
+            ]} />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View>
       <LabeledRow label="Distance" value={prescription.distance} />
       <LabeledRow label="Duration" value={prescription.duration} />
-      <LabeledRow label="Target Power" value={prescription.power} />
-      <LabeledRow label="Terrain" value={prescription.terrain} />
+      <LabeledRow label="Intensity" value={prescription.intensity} />
       <LabeledRow label="Cadence" value={prescription.cadence} />
     </View>
   );
@@ -141,16 +178,30 @@ function MobilityDisplay({ prescription }: { prescription: Record<string, any> }
   return (
     <View>
       <LabeledRow label="Duration" value={prescription.duration} />
-      {!Array.isArray(prescription.exercises) && prescription.exercises && (
-        <LabeledRow label="Exercises" value={String(prescription.exercises)} />
-      )}
-      {exercises.map((ex: any, i: number) => (
-        <View key={i} style={styles.exerciseCard}>
-          <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
-          {ex.duration && <Text style={styles.exerciseDetail}>{ex.duration}</Text>}
-          {ex.notes && <Text style={styles.exerciseNotes}>{ex.notes}</Text>}
+      <LabeledRow label="Style" value={prescription.style} />
+      <LabeledRow label="Focus" value={prescription.focus} />
+      {prescription.instructions && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Instructions</Text>
+          <Text style={styles.sectionText}>{prescription.instructions}</Text>
         </View>
-      ))}
+      )}
+      {exercises.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Exercises</Text>
+          {exercises.map((ex: any, i: number) => (
+            <View key={i} style={styles.exerciseCard}>
+              <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
+              <View style={styles.exerciseDetails}>
+                {ex.duration && <Text style={styles.exerciseDetail}>{ex.duration}</Text>}
+                {ex.sets && <Text style={styles.exerciseDetail}>{ex.sets} sets</Text>}
+              </View>
+              {ex.description && <Text style={styles.exerciseDescription}>{ex.description}</Text>}
+              {ex.notes && <Text style={styles.exerciseNotes}>{ex.notes}</Text>}
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -202,7 +253,6 @@ export function PrescriptionDisplay({ activityType, prescription }: Props) {
   const type = activityType.toLowerCase().replace(/\s+/g, '_');
 
   if (type.includes('rest')) return <RestDisplay />;
-  if (type.includes('interval')) return <IntervalDisplay prescription={prescription} />;
   if (type.includes('run') || type.includes('jog')) return <RunDisplay prescription={prescription} />;
   if (type.includes('strength') || type.includes('weight')) return <StrengthDisplay prescription={prescription} />;
   if (type.includes('swim')) return <SwimDisplay prescription={prescription} />;
@@ -247,28 +297,37 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 20,
   },
-  tableHeader: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-    paddingBottom: 6,
+  setCard: {
+    backgroundColor: '#F8F8F8',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  setNumber: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
-  tableHeaderText: {
-    fontWeight: '700',
+  setDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  setPill: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    backgroundColor: '#EEEEEE',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  setDescription: {
     fontSize: 12,
     color: Colors.textSecondary,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 6,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F0F0',
-  },
-  tableCell: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.textPrimary,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   exerciseCard: {
     backgroundColor: '#F8F8F8',
@@ -295,6 +354,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 6,
     overflow: 'hidden',
+  },
+  exerciseDescription: {
+    fontSize: 13,
+    color: Colors.textPrimary,
+    marginTop: 4,
+    lineHeight: 18,
   },
   exerciseNotes: {
     fontSize: 12,

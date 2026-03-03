@@ -45,7 +45,25 @@ Roll each muscle group for 60-90 seconds. Pause on tender spots for 20-30s.
 - **Swimmers**: Shoulders (internal/external rotation), thoracic spine, lats, hip flexors. 15-20 min.
 - **Strength athletes**: Hip mobility (deep squat holds), shoulder mobility, thoracic extension, ankle dorsiflexion. 10-15 min.
 
-## Prescriptions
-- Mobility session: `{"duration": "20min", "exercises": [{"name": "Hip Flexor Stretch", "duration": "60s", "notes": "each side"}, {"name": "Foam Roll Quads", "duration": "90s"}, {"name": "Pigeon Pose", "duration": "60s", "notes": "each side"}]}`
-- Yoga: `{"duration": "30min", "style": "vinyasa", "focus": "hips and hamstrings"}`
-- Active recovery: `{"duration": "30min", "type": "active recovery", "notes": "Easy walk or gentle swim, keep HR below 60% max"}`
+## Prescription Formats
+
+**Mobility session** — with structured exercises:
+```json
+{
+  "duration": "20min",
+  "focus": "hips and hamstrings",
+  "instructions": "Hold each stretch gently, breathe into the position",
+  "exercises": [
+    {"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge position, push hips forward"},
+    {"name": "Foam Roll Quads", "duration": "90s"},
+    {"name": "Pigeon Pose", "duration": "60s", "sets": 2, "notes": "each side", "description": "Front shin parallel to mat, fold forward"}
+  ]
+}
+```
+
+**Yoga**:
+```json
+{"duration": "30min", "style": "vinyasa", "focus": "hips and hamstrings", "instructions": "Focus on slow transitions and deep breathing throughout"}
+```
+
+**Active recovery**: `{"duration": "30min", "type": "active recovery", "notes": "Easy walk or gentle swim, keep HR below 60% max"}`
