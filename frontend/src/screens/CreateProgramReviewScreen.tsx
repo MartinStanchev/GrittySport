@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/colors';
-import { createProgram } from '../services/api';
+import { ApiError, createProgram } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import StepIndicator from '../components/StepIndicator';
 import { formatDateRange } from '../utils/dates';
@@ -60,7 +60,18 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
       await notifyProgramDataChanged();
       navigation.navigate('ProgramDetail', { programId: result.id });
     } catch (err) {
-      Alert.alert('Error', 'Failed to create program. Please try again.');
+      if (err instanceof ApiError && err.status === 403) {
+        Alert.alert(
+          'Program Limit Reached',
+          'Free accounts are limited to 1 program. Upgrade to premium for unlimited programs.',
+          [
+            { text: 'OK', style: 'cancel' },
+            { text: 'Upgrade (Coming Soon)', onPress: () => Alert.alert('Coming Soon', 'Premium subscriptions will be available soon!') },
+          ],
+        );
+      } else {
+        Alert.alert('Error', 'Failed to create program. Please try again.');
+      }
       if (__DEV__) console.error('[CreateProgram] error:', err);
     } finally {
       setSaving(false);

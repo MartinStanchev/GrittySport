@@ -9,6 +9,7 @@ import (
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
+	"github.com/grittyfitness/api/internal/usage"
 	"google.golang.org/genai"
 )
 
@@ -161,7 +162,7 @@ func intFromAny(v any, defaultVal int) int {
 	return defaultVal
 }
 
-func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader) {
+func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader, usageSvc *usage.Service) {
 	reg.Register(&Tool{
 		Name:        "read_skill",
 		Description: "Load sport-specific training knowledge for exercise selection, periodization, and pacing. Use when creating or modifying programs to get domain expertise.",
@@ -270,6 +271,14 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			if allowed, _ := usageSvc.CanCreateProgram(ctx, userID); !allowed {
+				return map[string]any{
+					"status":  "blocked",
+					"reason":  "free_tier_limit",
+					"message": "You've reached your free program limit. Upgrade to premium to create more programs.",
+				}, nil
+			}
+
 			name, _ := params["name"].(string)
 			if name == "" {
 				return nil, fmt.Errorf("name is required")
@@ -488,6 +497,14 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			Properties: map[string]*genai.Schema{},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			if allowed, _ := usageSvc.CanCreateProgram(ctx, userID); !allowed {
+				return map[string]any{
+					"status":  "blocked",
+					"reason":  "free_tier_limit",
+					"message": "You've reached your free program limit. Upgrade to premium to create more programs.",
+				}, nil
+			}
+
 			proposal, ok := proposals.Get(userID)
 			if !ok {
 				return nil, fmt.Errorf("no pending proposal found — you must call propose_program first with the full program structure, then wait for the user to accept before calling confirm_program_save")
@@ -646,6 +663,11 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("program_id is required")
 			}
 
+			// Validate program exists and belongs to user
+			if err := programSvc.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+				return nil, fmt.Errorf("invalid program_id: %w", err)
+			}
+
 			modsJSON, err := json.Marshal(params["modifications"])
 			if err != nil {
 				return nil, fmt.Errorf("marshal modifications: %w", err)
@@ -706,6 +728,68 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				"status":  "applied",
 				"count":   count,
 				"message": "Program modifications applied successfully across all weeks.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "add_week_activity",
+		Description: "Add a single activity to a specific week in the user's saved program. Use this for one-off changes to a particular week (e.g. 'add a swim workout next week'). Does not require propose/confirm flow — applies immediately.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"program_id", "week_id", "day_of_week", "activity_type", "prescription"},
+			Properties: map[string]*genai.Schema{
+				"program_id":    {Type: genai.TypeString, Description: "The program ID (from get_active_program)"},
+				"week_id":       {Type: genai.TypeString, Description: "The specific week ID to add the activity to (from get_active_program response)"},
+				"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
+				"activity_type": {Type: genai.TypeString, Description: "e.g. Swim, Easy Run, Strength"},
+				"prescription":  {Type: genai.TypeObject, Description: "Activity prescription details"},
+				"notes":         {Type: genai.TypeString, Description: "Optional notes"},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			programID, _ := params["program_id"].(string)
+			weekID, _ := params["week_id"].(string)
+			if programID == "" || weekID == "" {
+				return nil, fmt.Errorf("program_id and week_id are required")
+			}
+
+			dayOfWeek := intFromAny(params["day_of_week"], -1)
+			if dayOfWeek < 0 || dayOfWeek > 6 {
+				return nil, fmt.Errorf("day_of_week must be 0-6")
+			}
+
+			activityType, _ := params["activity_type"].(string)
+			if activityType == "" {
+				return nil, fmt.Errorf("activity_type is required")
+			}
+
+			var prescription json.RawMessage
+			if p := params["prescription"]; p != nil {
+				b, err := json.Marshal(p)
+				if err != nil {
+					return nil, fmt.Errorf("marshal prescription: %w", err)
+				}
+				prescription = b
+			}
+
+			notes, _ := params["notes"].(string)
+
+			input := models.AddWeekActivityInput{
+				DayOfWeek:    dayOfWeek,
+				ActivityType: activityType,
+				Prescription: prescription,
+				Notes:        notes,
+			}
+
+			activity, err := programSvc.AddActivityToWeek(ctx, programID, weekID, userID, input)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"status":      "added",
+				"activity_id": activity.ID,
+				"message":     fmt.Sprintf("Added %s on day %d to the specified week.", activityType, dayOfWeek),
 			}, nil
 		},
 	})

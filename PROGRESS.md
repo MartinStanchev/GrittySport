@@ -37,6 +37,8 @@ Full details for each change are in the `progress/` folder.
 | [grit-prompt-refactor](progress/grit-prompt-refactor.md) | Workflow rules in system prompt, sport knowledge skills |
 | [fix-program-modification-flow](progress/fix-program-modification-flow.md) | activity_type_filter, prompt fix for modification flow |
 | [task-10-apple-health-import](progress/task-10-apple-health-import.md) | Apple Health import: HealthKit integration, Import screen, type mapping, source badges |
+| [premium-membership-infrastructure](progress/premium-membership-infrastructure.md) | Free/premium tier, usage limits, input sanitization, chat rate limiting, program gating |
+| [fix-program-modification-validation](progress/fix-program-modification-validation.md) | Validate program_id at propose time, add_week_activity tool for single-week changes |
 
 ## Instructions for Agents
 

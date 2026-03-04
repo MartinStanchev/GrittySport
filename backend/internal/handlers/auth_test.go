@@ -46,6 +46,7 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
+	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
 	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 	os.Exit(code)
@@ -54,6 +55,7 @@ func TestMain(m *testing.M) {
 func cleanTables(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
+	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
 	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 }

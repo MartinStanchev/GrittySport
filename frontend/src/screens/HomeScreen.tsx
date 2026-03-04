@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -85,6 +86,7 @@ export default function HomeScreen() {
     messages, isGritTyping, sendMessage, respondToProposal,
     loadHistory, isConnected, quickReplies, clearChat, activeToolAction,
     unreadCount, markRead, markClosed,
+    isRateLimited, usageRemaining, usageLimit,
   } = useChatWebSocket({
     onProgramCreated: handleProgramCreated,
     onAdjustmentApplied: handleAdjustmentApplied,
@@ -489,47 +491,71 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Chat Input */}
-          <View style={[styles.chatInputContainer, { paddingBottom: inputBottomPadding }]}>
-            {keyboardHeight > 0 && (
+          {/* Usage counter */}
+          {!isRateLimited && usageRemaining != null && usageLimit != null && usageRemaining <= 15 && usageRemaining > 0 && (
+            <View style={styles.usageCounterContainer}>
+              <Text style={styles.usageCounterText}>
+                {usageRemaining} message{usageRemaining !== 1 ? 's' : ''} left this week
+              </Text>
+            </View>
+          )}
+
+          {/* Chat Input or Rate Limit Banner */}
+          {isRateLimited ? (
+            <View style={[styles.rateLimitBanner, { paddingBottom: inputBottomPadding }]}>
+              <Ionicons name="lock-closed" size={20} color={Colors.textSecondary} />
+              <Text style={styles.rateLimitText}>
+                You've used your free messages this week. Resets Monday.
+              </Text>
               <Pressable
-                onPress={() => Keyboard.dismiss()}
-                style={styles.keyboardDismissButton}
-                hitSlop={8}
+                style={styles.upgradeButton}
+                onPress={() => Alert.alert('Coming Soon', 'Premium subscriptions will be available soon!')}
               >
-                <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                <Text style={styles.upgradeButtonText}>Upgrade</Text>
               </Pressable>
-            )}
-            <TextInput
-              ref={inputRef}
-              style={styles.chatInput}
-              placeholder="Message Grit..."
-              placeholderTextColor={Colors.textSecondary}
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-              multiline
-              maxLength={2000}
-              blurOnSubmit={false}
-              autoFocus
-              autoCapitalize="sentences"
-            />
-            <Pressable
-              style={[
-                styles.sendButton,
-                !inputText.trim() && styles.sendButtonDisabled,
-              ]}
-              onPress={handleSend}
-              disabled={!inputText.trim()}
-            >
-              <Ionicons
-                name="arrow-up"
-                size={18}
-                color={inputText.trim() ? '#FFFFFF' : Colors.textSecondary}
+            </View>
+          ) : (
+            <View style={[styles.chatInputContainer, { paddingBottom: inputBottomPadding }]}>
+              {keyboardHeight > 0 && (
+                <Pressable
+                  onPress={() => Keyboard.dismiss()}
+                  style={styles.keyboardDismissButton}
+                  hitSlop={8}
+                >
+                  <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                </Pressable>
+              )}
+              <TextInput
+                ref={inputRef}
+                style={styles.chatInput}
+                placeholder="Message Grit..."
+                placeholderTextColor={Colors.textSecondary}
+                value={inputText}
+                onChangeText={setInputText}
+                onSubmitEditing={handleSend}
+                returnKeyType="send"
+                multiline
+                maxLength={2000}
+                blurOnSubmit={false}
+                autoFocus
+                autoCapitalize="sentences"
               />
-            </Pressable>
-          </View>
+              <Pressable
+                style={[
+                  styles.sendButton,
+                  !inputText.trim() && styles.sendButtonDisabled,
+                ]}
+                onPress={handleSend}
+                disabled={!inputText.trim()}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={18}
+                  color={inputText.trim() ? '#FFFFFF' : Colors.textSecondary}
+                />
+              </Pressable>
+            </View>
+          )}
         </KeyboardAvoidingView>
 
         <ClearChatModal
@@ -953,6 +979,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 4,
+  },
+  usageCounterContainer: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    backgroundColor: Colors.surface,
+  },
+  usageCounterText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  rateLimitBanner: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.tabBarBorder,
+    backgroundColor: Colors.surface,
+    gap: 8,
+  },
+  rateLimitText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  upgradeButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+  },
+  upgradeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

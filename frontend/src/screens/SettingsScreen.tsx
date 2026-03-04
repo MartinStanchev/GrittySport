@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../contexts/AuthContext';
 import { clearChatMemory } from '../services/api';
@@ -19,6 +20,7 @@ import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
+import { useUsage } from '../hooks/useUsage';
 
 function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
   if (status === 'not_supported') return 'Not available on this device';
@@ -60,6 +62,14 @@ export default function SettingsScreen() {
     })();
     return () => { mounted = false; };
   }, []);
+
+  const { usage, refresh: refreshUsage } = useUsage();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshUsage();
+    }, [refreshUsage]),
+  );
 
   const hasChanges =
     name !== (user?.name ?? '') ||
@@ -244,6 +254,46 @@ export default function SettingsScreen() {
         >
           <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionHeader}>Subscription</Text>
+        <View style={styles.card}>
+          <View style={styles.tierRow}>
+            <Text style={styles.tierLabel}>Current Plan</Text>
+            <View style={[styles.tierBadge, usage?.tier === 'premium' && styles.tierBadgePremium]}>
+              <Text style={[styles.tierBadgeText, usage?.tier === 'premium' && styles.tierBadgeTextPremium]}>
+                {usage?.tier === 'premium' ? 'Premium' : 'Free'}
+              </Text>
+            </View>
+          </View>
+
+          {usage && usage.tier === 'free' && (
+            <>
+              <View style={styles.usageRow}>
+                <Text style={styles.usageLabel}>Chat messages</Text>
+                <Text style={styles.usageValue}>{usage.chat_messages.used} / {usage.chat_messages.limit} this week</Text>
+              </View>
+              <View style={styles.usageRow}>
+                <Text style={styles.usageLabel}>Programs</Text>
+                <Text style={styles.usageValue}>{usage.programs.current_count} / {usage.programs.limit}</Text>
+              </View>
+              <View style={styles.usageRow}>
+                <Text style={styles.usageLabel}>Post-workout reviews</Text>
+                <Text style={styles.usageValue}>{usage.post_workout_reviews.used} / {usage.post_workout_reviews.limit} this month</Text>
+              </View>
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles.upgradeSettingsButton}
+            onPress={() => Alert.alert('Coming Soon', 'Premium subscriptions will be available soon!')}
+          >
+            <Text style={styles.upgradeSettingsText}>
+              {usage?.tier === 'premium' ? 'Manage Subscription' : 'Upgrade to Premium'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Task 14: Notification toggles will go here */}
 
         <Text style={styles.sectionHeader}>Grit AI</Text>
         <View style={styles.card}>
@@ -462,5 +512,62 @@ const styles = StyleSheet.create({
   },
   deviceActionTextDanger: {
     color: Colors.textSecondary,
+  },
+  tierRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tierLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: Colors.textPrimary,
+  },
+  tierBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.background,
+  },
+  tierBadgePremium: {
+    backgroundColor: Colors.primary,
+  },
+  tierBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  tierBadgeTextPremium: {
+    color: '#FFFFFF',
+  },
+  usageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.tabBarBorder,
+  },
+  usageLabel: {
+    fontSize: 14,
+    color: Colors.textPrimary,
+  },
+  usageValue: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  upgradeSettingsButton: {
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginTop: 12,
+  },
+  upgradeSettingsText: {
+    color: Colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

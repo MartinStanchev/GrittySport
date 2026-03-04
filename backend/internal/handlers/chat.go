@@ -15,8 +15,10 @@ import (
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
+	"github.com/grittyfitness/api/internal/sanitize"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/tools"
+	"github.com/grittyfitness/api/internal/usage"
 )
 
 // sessionState tracks context that persists across WS turns within a single connection.
@@ -35,16 +37,17 @@ type ChatHandler struct {
 	userService    *services.UserService
 	authService    *services.AuthService
 	programService *services.ProgramService
+	usageService   *usage.Service
 	toolRegistry   *tools.Registry
 	proposalStore  *tools.ProposalStore
 	promptLoader   *ai.PromptLoader
 	memoryEnabled  bool
 }
 
-func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memoryEnabled bool) *ChatHandler {
+func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memoryEnabled bool, usageSvc *usage.Service) *ChatHandler {
 	proposalStore := tools.NewProposalStore()
 	toolRegistry := tools.NewRegistry()
-	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader)
+	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader, usageSvc)
 
 	return &ChatHandler{
 		chatService:    chatService,
@@ -52,6 +55,7 @@ func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient
 		userService:    userService,
 		authService:    authService,
 		programService: programService,
+		usageService:   usageSvc,
 		toolRegistry:   toolRegistry,
 		proposalStore:  proposalStore,
 		promptLoader:   promptLoader,
@@ -66,13 +70,16 @@ type wsIncoming struct {
 }
 
 type wsOutgoing struct {
-	Type         string          `json:"type"`
-	Content      string          `json:"content,omitempty"`
-	Done         bool            `json:"done,omitempty"`
-	Tool         string          `json:"tool,omitempty"`
-	Status       string          `json:"status,omitempty"`
-	Data         json.RawMessage `json:"data,omitempty"`
-	QuickReplies []string        `json:"quick_replies,omitempty"`
+	Type           string          `json:"type"`
+	Content        string          `json:"content,omitempty"`
+	Done           bool            `json:"done,omitempty"`
+	Tool           string          `json:"tool,omitempty"`
+	Status         string          `json:"status,omitempty"`
+	Data           json.RawMessage `json:"data,omitempty"`
+	QuickReplies   []string        `json:"quick_replies,omitempty"`
+	UsageRemaining *int            `json:"usage_remaining,omitempty"`
+	UsageLimit     *int            `json:"usage_limit,omitempty"`
+	ResetsAt       string          `json:"resets_at,omitempty"`
 }
 
 type wsWriter struct {
@@ -172,6 +179,22 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Check chat rate limit before doing any work
+		allowed, remaining, _ := h.usageService.CheckAndIncrement(r.Context(), userID, "chat_message")
+		if !allowed {
+			resetTime := usage.WeekResetTime().Format(time.RFC3339)
+			_ = ws.writeJSON(wsOutgoing{
+				Type:     "rate_limited",
+				Content:  "You've used your 50 free messages this week. Resets on Monday.",
+				ResetsAt: resetTime,
+			})
+			_ = ws.writeJSON(wsOutgoing{Type: "grit_chunk", Done: true})
+			continue
+		}
+
+		// Sanitize user input before saving and LLM processing
+		incoming.Content = sanitize.SanitizeChatMessage(incoming.Content)
+
 		log.Debug().
 			Str("user_id", userID).
 			Str("content", incoming.Content).
@@ -185,11 +208,11 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 		aiMessages := buildAIMessages(recentMsgs, incoming.Content)
 		systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
-		h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, &recentMsgs, session)
+		h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, &recentMsgs, session, remaining)
 	}
 }
 
-func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, systemPrompt string, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState) {
+func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, systemPrompt string, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState, chatRemaining int) {
 	toolDefs := h.toolRegistry.GeminiTools()
 
 	notifyToolCall := func(toolName, status string) {
@@ -247,6 +270,8 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					_ = ws.writeJSON(wsOutgoing{Type: "program_created", Data: data})
 				}
 			}
+		case "add_week_activity":
+			_ = ws.writeJSON(wsOutgoing{Type: "program_updated"})
 		case "confirm_adjustment", "confirm_program_modification":
 			_ = ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
 		}
@@ -288,11 +313,17 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 
 	cleanText, quickReplies := parseQuickReplies(fullResponse)
 
-	_ = ws.writeJSON(wsOutgoing{
+	doneFrame := wsOutgoing{
 		Type:         "grit_chunk",
 		Done:         true,
 		QuickReplies: quickReplies,
-	})
+	}
+	if chatRemaining >= 0 {
+		limit := usage.FreeChatMessagesPerWeek
+		doneFrame.UsageRemaining = &chatRemaining
+		doneFrame.UsageLimit = &limit
+	}
+	_ = ws.writeJSON(doneFrame)
 
 	if cleanText != "" {
 		savedMsg, err := h.chatService.SaveMessage(r.Context(), userID, "assistant", cleanText, nil, nil)
@@ -330,7 +361,7 @@ func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, user
 	aiMessages := buildAIMessages(*recentMsgs, userContent)
 	systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
 
-	h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, recentMsgs, session)
+	h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, recentMsgs, session, -1)
 }
 
 func (h *ChatHandler) handleClearContext(r *http.Request, ws *wsWriter, userID string, recentMsgs *[]models.ChatMessage, memory *string) {
@@ -370,7 +401,7 @@ func (h *ChatHandler) buildSystemPrompt(userName, memory string, user *models.Us
 	}
 
 	prompt := h.promptLoader.BuildSystemPrompt(ai.PromptParams{
-		UserName:        userName,
+		UserName:        sanitize.SanitizeForPrompt(userName, 100),
 		Timezone:        tz,
 		Units:           user.UnitsPreference,
 		CurrentDateTime: formatCurrentDateTime(tz),

@@ -191,6 +191,27 @@ When the user wants to modify their saved training program — changing which da
 4. After `propose_program_modification`, tell the user briefly what will change and wait for them to confirm.
 5. Once the user accepts, call `confirm_program_modification` to apply the changes.
 
+## Choosing the right tool
+
+- **Recurring changes across all weeks** (or all weeks in a phase) → use `propose_program_modification`
+- **One-off changes to a specific week** (e.g. "add a swim workout next week only") → use `add_week_activity`
+
+The `get_active_program` response includes weeks with their `id` and `start_date`, so you can identify "next week" by comparing dates to the current date.
+
+### `add_week_activity` (direct apply, no propose/confirm)
+
+Adds a single activity to one specific week. Parameters:
+- `program_id` — the active program's ID
+- `week_id` — the target week's ID (from `get_active_program` response)
+- `day_of_week` — 0=Sun, 1=Mon, ..., 6=Sat
+- `activity_type` — e.g. "Swim", "Easy Run"
+- `prescription` — activity details
+- `notes` — optional
+
+This applies immediately without user confirmation since it's a small, targeted change.
+
+### `propose_program_modification` (propose/confirm flow)
+
 ## Modification actions
 
 Each modification has an `action` field:

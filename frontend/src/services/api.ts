@@ -213,6 +213,8 @@ export interface UserResponse {
   timezone?: string;
   units_preference: string;
   max_heart_rate: number;
+  subscription_tier: string;
+  subscription_expires_at?: string;
 }
 
 interface AuthResponse {
@@ -561,4 +563,30 @@ export async function linkWorkoutToActivity(workoutId: string, scheduledActivity
     method: 'PUT',
     body: JSON.stringify({ scheduled_activity_id: scheduledActivityId }),
   });
+}
+
+// Usage types
+
+export interface ResourceUsage {
+  used: number;
+  limit: number;
+  period: string;
+  resets_at: string;
+}
+
+export interface ProgramUsage {
+  current_count: number;
+  limit: number;
+}
+
+export interface UsageSummary {
+  tier: string;
+  chat_messages: ResourceUsage;
+  program_creations: ResourceUsage;
+  post_workout_reviews: ResourceUsage;
+  programs: ProgramUsage;
+}
+
+export async function getUsage(): Promise<UsageSummary> {
+  return apiFetch<UsageSummary>('/api/v1/users/me/usage');
 }

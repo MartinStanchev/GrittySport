@@ -330,6 +330,15 @@ type ActivityDetailResponse struct {
 	LinkedGPSRoute          json.RawMessage `json:"linked_gps_route,omitempty"`
 }
 
+// AddWeekActivityInput is used by the add_week_activity tool to insert
+// a single activity into a specific week.
+type AddWeekActivityInput struct {
+	DayOfWeek    int             `json:"day_of_week"`
+	ActivityType string          `json:"activity_type"`
+	Prescription json.RawMessage `json:"prescription"`
+	Notes        string          `json:"notes"`
+}
+
 type UpdateActivityInput struct {
 	Prescription json.RawMessage `json:"prescription,omitempty"`
 	Notes        *string         `json:"notes,omitempty"`

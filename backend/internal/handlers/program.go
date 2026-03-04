@@ -12,19 +12,31 @@ import (
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
+	"github.com/grittyfitness/api/internal/usage"
 )
 
 type ProgramHandler struct {
 	programService *services.ProgramService
 	chatService    *services.ChatService
+	usageService   *usage.Service
 }
 
-func NewProgramHandler(programService *services.ProgramService, chatService *services.ChatService) *ProgramHandler {
-	return &ProgramHandler{programService: programService, chatService: chatService}
+func NewProgramHandler(programService *services.ProgramService, chatService *services.ChatService, usageSvc *usage.Service) *ProgramHandler {
+	return &ProgramHandler{programService: programService, chatService: chatService, usageService: usageSvc}
 }
 
 func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
+
+	// Check program limit for free users
+	if allowed, _ := h.usageService.CanCreateProgram(r.Context(), userID); !allowed {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error":            "free_tier_limit",
+			"message":          "Free accounts are limited to 1 program. Upgrade to premium for unlimited programs.",
+			"upgrade_required": true,
+		})
+		return
+	}
 
 	var input models.TemplateProgramInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {

@@ -19,9 +19,9 @@ func NewUserService(pool *pgxpool.Pool) *UserService {
 func (s *UserService) GetByID(ctx context.Context, userID string) (*models.UserResponse, error) {
 	var user models.UserResponse
 	err := s.pool.QueryRow(ctx,
-		"SELECT id, email, name, timezone, units_preference, max_heart_rate FROM users WHERE id = $1",
+		"SELECT id, email, name, timezone, units_preference, max_heart_rate, subscription_tier, subscription_expires_at FROM users WHERE id = $1",
 		userID,
-	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate)
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +45,9 @@ func (s *UserService) Update(ctx context.Context, userID string, input UpdateUse
 			max_heart_rate = COALESCE($5, max_heart_rate),
 			updated_at = NOW()
 		 WHERE id = $1
-		 RETURNING id, email, name, timezone, units_preference, max_heart_rate`,
+		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, subscription_tier, subscription_expires_at`,
 		userID, input.Name, input.Timezone, input.UnitsPreference, input.MaxHeartRate,
-	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate)
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
 		return nil, err
 	}

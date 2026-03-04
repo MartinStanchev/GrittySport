@@ -16,6 +16,7 @@ import (
 	"github.com/grittyfitness/api/internal/handlers"
 	appmw "github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/services"
+	"github.com/grittyfitness/api/internal/usage"
 )
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -93,7 +94,8 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)
-	userHandler := handlers.NewUserHandler(userService)
+	usageService := usage.NewService(pool)
+	userHandler := handlers.NewUserHandler(userService, usageService)
 
 	chatMemoryEnabled := os.Getenv("ENABLE_CHAT_MEMORY") == "true"
 	log.Info().Bool("chat_memory", chatMemoryEnabled).Msg("Feature flags")
@@ -101,8 +103,8 @@ func main() {
 	chatService := services.NewChatService(pool)
 
 	programService := services.NewProgramService(pool)
-	programHandler := handlers.NewProgramHandler(programService, chatService)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, chatMemoryEnabled)
+	programHandler := handlers.NewProgramHandler(programService, chatService, usageService)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, chatMemoryEnabled, usageService)
 
 	workoutService := services.NewWorkoutService(pool)
 	workoutHandler := handlers.NewWorkoutHandler(workoutService)
@@ -132,6 +134,7 @@ func main() {
 		r.Use(appmw.JWTAuth(authService))
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
+		r.Get("/users/me/usage", userHandler.GetUsage)
 		r.Get("/chat/history", chatHandler.History)
 		r.Delete("/chat/memory", chatHandler.ClearMemory)
 

@@ -6,14 +6,16 @@ import (
 
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/services"
+	"github.com/grittyfitness/api/internal/usage"
 )
 
 type UserHandler struct {
-	userService *services.UserService
+	userService  *services.UserService
+	usageService *usage.Service
 }
 
-func NewUserHandler(userService *services.UserService) *UserHandler {
-	return &UserHandler{userService: userService}
+func NewUserHandler(userService *services.UserService, usageSvc *usage.Service) *UserHandler {
+	return &UserHandler{userService: userService, usageService: usageSvc}
 }
 
 func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
@@ -41,4 +43,14 @@ func (h *UserHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, user)
+}
+
+func (h *UserHandler) GetUsage(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	summary, err := h.usageService.GetUsage(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get usage")
+		return
+	}
+	writeJSON(w, http.StatusOK, summary)
 }

@@ -455,17 +455,71 @@ func appendTypeFilter(filter string, args []any, argIdx int) (clause string, upd
 	return clause, append(args, filter)
 }
 
+// VerifyProgramOwnership checks that a program exists and belongs to the given user.
+func (s *ProgramService) VerifyProgramOwnership(ctx context.Context, programID, userID string) error {
+	var ownerID string
+	err := s.pool.QueryRow(ctx, `SELECT user_id FROM programs WHERE id = $1`, programID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return fmt.Errorf("program not found")
+	}
+	if err != nil {
+		return fmt.Errorf("verify program ownership: %w", err)
+	}
+	if ownerID != userID {
+		return fmt.Errorf("access denied")
+	}
+	return nil
+}
+
+// AddActivityToWeek inserts a single scheduled_activity into a specific week.
+func (s *ProgramService) AddActivityToWeek(ctx context.Context, programID, weekID, userID string, input models.AddWeekActivityInput) (*models.ScheduledActivity, error) {
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return nil, err
+	}
+
+	// Verify week belongs to program
+	var exists bool
+	err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM weeks w
+			JOIN phases ph ON ph.id = w.phase_id
+			WHERE w.id = $1 AND ph.program_id = $2
+		)`, weekID, programID).Scan(&exists)
+	if err != nil {
+		return nil, fmt.Errorf("check week: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("week %s does not belong to program %s", weekID, programID)
+	}
+
+	var orderIdx int
+	_ = s.pool.QueryRow(ctx,
+		`SELECT COALESCE(MAX(order_index)+1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
+		weekID, input.DayOfWeek).Scan(&orderIdx)
+
+	prescription := input.Prescription
+	if prescription == nil {
+		prescription = json.RawMessage("{}")
+	}
+
+	var a models.ScheduledActivity
+	err = s.pool.QueryRow(ctx,
+		`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id, week_id, day_of_week, activity_type, prescription, notes, order_index, created_at, updated_at`,
+		weekID, input.DayOfWeek, input.ActivityType, prescription, nilIfEmpty(input.Notes), orderIdx,
+	).Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("insert activity: %w", err)
+	}
+	return &a, nil
+}
+
 // ModifyProgram applies structural modifications to a saved program across all weeks
 // (or filtered by phase index). Returns the number of affected rows.
 func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID string, mods []models.ProgramModificationAction) (int, error) {
-	// Verify ownership
-	var ownerID string
-	err := s.pool.QueryRow(ctx, `SELECT user_id FROM programs WHERE id = $1`, programID).Scan(&ownerID)
-	if err != nil {
-		return 0, fmt.Errorf("program not found: %w", err)
-	}
-	if ownerID != userID {
-		return 0, fmt.Errorf("access denied")
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return 0, err
 	}
 
 	tx, err := s.pool.Begin(ctx)

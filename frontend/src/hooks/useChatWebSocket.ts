@@ -20,6 +20,9 @@ interface WsIncoming {
   status?: string;
   data?: any;
   quick_replies?: string[];
+  usage_remaining?: number;
+  usage_limit?: number;
+  resets_at?: string;
 }
 
 interface UseChatWebSocketOptions {
@@ -34,6 +37,10 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [activeToolAction, setActiveToolAction] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [rateLimitResetsAt, setRateLimitResetsAt] = useState<string | null>(null);
+  const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
+  const [usageLimit, setUsageLimit] = useState<number | null>(null);
 
   // Tracks whether the chat overlay is currently open
   const chatOpenRef = useRef(false);
@@ -105,11 +112,32 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
 
       const data: WsIncoming = JSON.parse(event.data);
 
-      if (data.type === 'grit_chunk') {
+      if (data.type === 'rate_limited') {
+        setIsRateLimited(true);
+        setIsGritTyping(false);
+        if (data.resets_at) setRateLimitResetsAt(data.resets_at);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `rate-limit-${Date.now()}`,
+            role: 'system',
+            content: data.content || "You've used your free messages this week.",
+            messageType: 'text',
+          },
+        ]);
+      } else if (data.type === 'grit_chunk') {
         if (data.done) {
           lastActivityRef.current = Date.now();
           setIsGritTyping(false);
           setActiveToolAction(null);
+          // Update usage remaining from the done frame
+          if (data.usage_remaining != null) {
+            setUsageRemaining(data.usage_remaining);
+            setIsRateLimited(false);
+          }
+          if (data.usage_limit != null) {
+            setUsageLimit(data.usage_limit);
+          }
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.isStreaming) {
@@ -363,6 +391,10 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     quickReplies,
     activeToolAction,
     unreadCount,
+    isRateLimited,
+    rateLimitResetsAt,
+    usageRemaining,
+    usageLimit,
     sendMessage,
     respondToProposal,
     loadHistory,
