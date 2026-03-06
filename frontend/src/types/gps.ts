@@ -69,3 +69,61 @@ export interface CadenceReading {
 
 export type HRZone = 1 | 2 | 3 | 4 | 5;
 export type HRZoneDistribution = Record<HRZone, number>; // seconds in each zone
+
+export interface KmSplit {
+  km: number;
+  durationSec: number;
+  paceSecPerKm: number;
+  avgHR?: number;
+  elevationGain: number;
+}
+
+export interface EffortScoreData {
+  score: number;
+  label: 'Easy' | 'Moderate' | 'Hard' | 'Very Hard' | 'Max';
+}
+
+export interface SplitsAnalysis {
+  splits: KmSplit[];
+  fastestSplitKm: number;
+  slowestSplitKm: number;
+  fadePct: number;
+  isNegativeSplit: boolean;
+}
+
+export interface PersonalRecord {
+  category: string;
+  value: number;
+  previousBest?: number;
+  improvementPct?: number;
+}
+
+export interface WorkoutAnalytics {
+  effort_score: number;
+  effort_label: EffortScoreData['label'];
+  splits: KmSplit[];
+  fastest_split_km: number;
+  slowest_split_km: number;
+  fade_pct: number;
+  is_negative_split: boolean;
+  program_alignment?: ProgramAlignment;
+  trend?: TrendComparison;
+  personal_records?: PersonalRecord[];
+}
+
+export interface ProgramAlignment {
+  prescribed_distance_km?: number;
+  actual_distance_km?: number;
+  distance_deviation_pct?: number;
+  prescribed_pace?: string;
+  actual_pace?: string;
+  pace_deviation_pct?: number;
+  prescribed_duration_min?: number;
+  actual_duration_min?: number;
+  duration_deviation_pct?: number;
+}
+
+export interface TrendComparison {
+  comparison_text: string;
+  avg_pace_trend: 'improving' | 'stable' | 'declining';
+}

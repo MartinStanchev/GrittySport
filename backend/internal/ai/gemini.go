@@ -163,6 +163,19 @@ func NewGeminiClient(ctx context.Context, apiKey string) (*GeminiClient, error) 
 	return &GeminiClient{client: client}, nil
 }
 
+// GenerateContent performs a single non-streaming generation with the given contents and config.
+// Returns the text response.
+func (g *GeminiClient) GenerateContent(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (string, error) {
+	resp, err := g.client.Models.GenerateContent(ctx, model, contents, config)
+	if err != nil {
+		return "", fmt.Errorf("generate content: %w", err)
+	}
+	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+		return "", fmt.Errorf("no response generated")
+	}
+	return extractText(resp.Candidates[0].Content.Parts), nil
+}
+
 // SummarizeConversation uses a cheap/fast model to summarize a conversation for long-term memory.
 func (g *GeminiClient) SummarizeConversation(ctx context.Context, messages []ChatMessage) (string, error) {
 	if len(messages) == 0 {

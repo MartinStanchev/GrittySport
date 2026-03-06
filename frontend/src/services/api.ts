@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import type { WorkoutAnalytics } from '../types/gps';
 
 function resolveBaseUrl(): string {
   if (!__DEV__) return 'https://api.grittyfitness.com';
@@ -589,4 +590,10 @@ export interface UsageSummary {
 
 export async function getUsage(): Promise<UsageSummary> {
   return apiFetch<UsageSummary>('/api/v1/users/me/usage');
+}
+
+// Workout analytics (premium)
+
+export async function getWorkoutAnalytics(workoutId: string): Promise<WorkoutAnalytics> {
+  return apiFetch<WorkoutAnalytics>(`/api/v1/workouts/${workoutId}/analytics`);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Platform,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import MapView, { Polyline, UrlTile } from '../components/NativeMap';
@@ -36,7 +35,6 @@ import {
 import { bleService } from '../services/bleService';
 import { cadenceService } from '../services/cadenceService';
 import HRSensorModal from '../components/HRSensorModal';
-import LiveHRChart from '../components/LiveHRChart';
 import type { GPSPoint, CadenceReading } from '../types/gps';
 
 export type RecordGPSParams = {
@@ -77,9 +75,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const followTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [hrModalVisible, setHRModalVisible] = useState(false);
-  const [metricsPage, setMetricsPage] = useState(0);
-  const { width: screenWidth } = useWindowDimensions();
-  const panelWidth = screenWidth - 32; // account for horizontal padding
+  const [userMovedMap, setUserMovedMap] = useState(false);
 
   const workout = activeGPSWorkout;
   const recordingState = workout?.recordingState ?? 'idle';
@@ -116,6 +112,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       locationSubRef.current?.remove();
       locationSubRef.current = null;
       cadenceService.stop();
+      if (followTimerRef.current) clearTimeout(followTimerRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -141,6 +138,11 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     }, 1000);
     return () => clearInterval(interval);
   }, [workout?.startedAt, workout?.autoPausedDurationSec, recordingState]);
+
+  const handleAutoPause = useCallback((timestamp: number) => {
+    updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: timestamp });
+    slowPointCountRef.current = 0;
+  }, [updateGPSWorkout]);
 
   const handleNewPoint = useCallback(
     (location: Location.LocationObject) => {
@@ -236,15 +238,17 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         );
       }
     },
-    [updateGPSWorkout]
+    [updateGPSWorkout, handleAutoPause]
   );
 
   // Fix 3: 5-second map re-center delay after user pans
   const handleMapPanDrag = useCallback(() => {
     userMovedMapRef.current = true;
+    setUserMovedMap(true);
     if (followTimerRef.current) clearTimeout(followTimerRef.current);
     followTimerRef.current = setTimeout(() => {
       userMovedMapRef.current = false;
+      setUserMovedMap(false);
     }, 5000);
   }, []);
 
@@ -286,11 +290,6 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 
   const handlePause = useCallback(() => {
     updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: Date.now() });
-  }, [updateGPSWorkout]);
-
-  const handleAutoPause = useCallback((timestamp: number) => {
-    updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: timestamp });
-    slowPointCountRef.current = 0;
   }, [updateGPSWorkout]);
 
   const handleResume = useCallback(() => {
@@ -380,10 +379,10 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     updateGPSWorkout({ hrDeviceName: deviceName });
   }, [updateGPSWorkout]);
 
-  const polylineCoords = (workout?.points ?? []).map((p) => ({
-    latitude: p.lat,
-    longitude: p.lng,
-  }));
+  const polylineCoords = useMemo(
+    () => (workout?.points ?? []).map((p) => ({ latitude: p.lat, longitude: p.lng })),
+    [workout?.points],
+  );
 
   const currentPosition =
     workout && workout.points.length > 0
@@ -394,153 +393,134 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     ? getHRZoneColor(workout.currentHR, maxHR)
     : Colors.textSecondary;
 
+  // Re-center map on user
+  const handleRecenter = useCallback(() => {
+    const gpsWorkout = gpsWorkoutRef.current;
+    if (gpsWorkout && gpsWorkout.points.length > 0) {
+      const last = gpsWorkout.points[gpsWorkout.points.length - 1];
+      mapRef.current?.animateToRegion(
+        { latitude: last.lat, longitude: last.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 },
+        300,
+      );
+    }
+    userMovedMapRef.current = false;
+    setUserMovedMap(false);
+    if (followTimerRef.current) clearTimeout(followTimerRef.current);
+  }, []);
+
+  // Build compact metric items for horizontal scroll
+  const metricItems: { label: string; value: string; unit?: string; color?: string }[] = [
+    { label: 'Distance', value: formatDistanceKm(workout?.totalDistanceM ?? 0), unit: 'km' },
+    { label: 'Time', value: formatTime(elapsed) },
+    {
+      label: isRun ? 'Pace' : 'Speed',
+      value: isRun
+        ? formatPaceSecPerKm(workout?.currentPaceSecPerKm ?? 0)
+        : formatSpeedKph(workout?.currentSpeedKph ?? 0),
+      unit: isRun ? '/km' : 'km/h',
+    },
+    {
+      label: 'HR',
+      value: workout?.currentHR ? `${workout.currentHR}` : '—',
+      unit: workout?.currentHR ? 'bpm' : undefined,
+      color: hrZoneColor,
+    },
+    {
+      label: isRun ? 'Avg Pace' : 'Avg Spd',
+      value: isRun
+        ? formatPaceSecPerKm(workout?.avgPaceSecPerKm ?? 0)
+        : formatSpeedKph(workout?.avgSpeedKph ?? 0),
+      unit: isRun ? '/km' : 'km/h',
+    },
+    {
+      label: 'Avg HR',
+      value: workout?.avgHR ? `${workout.avgHR}` : '—',
+      unit: workout?.avgHR ? 'bpm' : undefined,
+    },
+    { label: 'Elev +', value: `${workout?.elevationGainM ?? 0}`, unit: 'm' },
+    ...(showCadence
+      ? [
+          { label: 'Cadence', value: workout?.currentCadence ? `${workout.currentCadence}` : '—', unit: 'spm' },
+          { label: 'Avg Cad', value: workout?.avgCadence ? `${workout.avgCadence}` : '—', unit: 'spm' },
+        ]
+      : []),
+    { label: 'Lap', value: `${(workout?.laps.length ?? 0) + 1}` },
+  ];
+
   return (
     <View style={styles.container}>
-      {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-        showsUserLocation
-        followsUserLocation={false}
-        onPanDrag={handleMapPanDrag}
-        initialRegion={
-          currentPosition
-            ? { ...currentPosition, latitudeDelta: 0.01, longitudeDelta: 0.01 }
-            : { latitude: 0, longitude: 0, latitudeDelta: 90, longitudeDelta: 90 }
-        }
-      >
-        {Platform.OS === 'android' && (
-          <UrlTile
-            urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-            flipY={false}
-          />
+      {/* Map section — takes ~75% of screen */}
+      <View style={styles.mapSection}>
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFillObject}
+          mapType={Platform.OS === 'android' ? 'none' : 'standard'}
+          showsUserLocation
+          followsUserLocation={false}
+          onPanDrag={handleMapPanDrag}
+          initialRegion={
+            currentPosition
+              ? { ...currentPosition, latitudeDelta: 0.01, longitudeDelta: 0.01 }
+              : { latitude: 0, longitude: 0, latitudeDelta: 90, longitudeDelta: 90 }
+          }
+        >
+          {Platform.OS === 'android' && (
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
+          )}
+          {polylineCoords.length > 1 && (
+            <Polyline
+              coordinates={polylineCoords}
+              strokeColor={Colors.primary}
+              strokeWidth={4}
+            />
+          )}
+        </MapView>
+
+        {/* Floating close button */}
+        <Pressable style={[styles.mapCloseBtn, { top: insets.top + 12 }]} onPress={handleDiscard}>
+          <Ionicons name="close" size={20} color="#FFF" />
+        </Pressable>
+
+        {/* Re-center button */}
+        {userMovedMap && recordingState === 'recording' && (
+          <Pressable style={styles.recenterBtn} onPress={handleRecenter}>
+            <Ionicons name="navigate" size={20} color={Colors.primary} />
+          </Pressable>
         )}
-        {polylineCoords.length > 1 && (
-          <Polyline
-            coordinates={polylineCoords}
-            strokeColor={Colors.primary}
-            strokeWidth={4}
-          />
+
+        {/* Auto-pause indicator */}
+        {recordingState === 'paused' && workout && workout.points.length > 0 && (
+          <View style={styles.autoPauseBanner}>
+            <Ionicons name="pause-circle" size={16} color="#FFF" />
+            <Text style={styles.autoPauseText}>Auto-paused</Text>
+          </View>
         )}
-      </MapView>
+      </View>
 
-      {/* Floating close button */}
-      <Pressable style={[styles.mapCloseBtn, { top: insets.top + 12 }]} onPress={handleDiscard}>
-        <Ionicons name="close" size={20} color="#FFF" />
-      </Pressable>
-
-      {/* Auto-pause indicator */}
-      {recordingState === 'paused' && workout && workout.points.length > 0 && (
-        <View style={styles.autoPauseBanner}>
-          <Ionicons name="pause-circle" size={16} color="#FFF" />
-          <Text style={styles.autoPauseText}>Auto-paused</Text>
-        </View>
-      )}
-
-      {/* Metrics panel */}
-      <View style={[styles.metricsPanel, { paddingBottom: insets.bottom + 12 }]}>
-        {/* Swipeable metrics area */}
+      {/* Compact bottom panel */}
+      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 8 }]}>
+        {/* Horizontally scrollable metrics */}
         <ScrollView
           horizontal
-          pagingEnabled
           showsHorizontalScrollIndicator={false}
-          decelerationRate="fast"
-          onMomentumScrollEnd={(e) => {
-            const page = Math.round(e.nativeEvent.contentOffset.x / panelWidth);
-            setMetricsPage(page);
-          }}
-          style={{ flexGrow: 0 }}
+          contentContainerStyle={styles.metricsScroll}
         >
-          {/* Page 0: Numeric Metrics */}
-          <View style={{ width: panelWidth }}>
-            {/* Distance — hero metric */}
-            <View style={styles.heroRow}>
-              <Text style={styles.heroValue}>{formatDistanceKm(workout?.totalDistanceM ?? 0)}</Text>
-              <Text style={styles.heroUnit}>km</Text>
+          {metricItems.map((item, i) => (
+            <View key={item.label} style={[styles.compactMetric, i === 0 && { marginLeft: 0 }]}>
+              <Text style={styles.compactLabel}>{item.label}</Text>
+              <View style={styles.compactValueRow}>
+                <Text style={[styles.compactValue, item.color ? { color: item.color } : undefined]}>
+                  {item.value}
+                </Text>
+                {item.unit && <Text style={styles.compactUnit}>{item.unit}</Text>}
+              </View>
             </View>
-
-            {/* Row 1: pace/speed, time, HR */}
-            <View style={styles.metricRow}>
-              <MetricCell
-                label={isRun ? 'Pace' : 'Speed'}
-                value={isRun ? formatPaceSecPerKm(workout?.currentPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.currentSpeedKph ?? 0)}`}
-                unit={isRun ? '/km' : 'km/h'}
-              />
-              <View style={styles.metricDivider} />
-              <MetricCell label="Time" value={formatTime(elapsed)} />
-              <View style={styles.metricDivider} />
-              <MetricCell
-                label="HR"
-                value={workout?.currentHR ? `${workout.currentHR}` : '—'}
-                unit={workout?.currentHR ? 'bpm' : undefined}
-                valueStyle={{ color: hrZoneColor }}
-              />
-            </View>
-
-            {/* Row 2: avg pace/speed, avg HR, elevation */}
-            <View style={styles.metricRow}>
-              <MetricCell
-                label={isRun ? 'Avg Pace' : 'Avg Speed'}
-                value={isRun ? formatPaceSecPerKm(workout?.avgPaceSecPerKm ?? 0) : `${formatSpeedKph(workout?.avgSpeedKph ?? 0)}`}
-                unit={isRun ? '/km' : 'km/h'}
-              />
-              <View style={styles.metricDivider} />
-              <MetricCell
-                label="Avg HR"
-                value={workout?.avgHR ? `${workout.avgHR}` : '—'}
-                unit={workout?.avgHR ? 'bpm' : undefined}
-              />
-              <View style={styles.metricDivider} />
-              <MetricCell
-                label="Elev +"
-                value={`${workout?.elevationGainM ?? 0}`}
-                unit="m"
-              />
-            </View>
-
-            {/* Row 3: cadence (run/walk) + lap */}
-            <View style={styles.metricRow}>
-              {showCadence && (
-                <>
-                  <MetricCell
-                    label="Cadence"
-                    value={workout?.currentCadence ? `${workout.currentCadence}` : '—'}
-                    unit="spm"
-                  />
-                  <View style={styles.metricDivider} />
-                  <MetricCell
-                    label="Avg Cad"
-                    value={workout?.avgCadence ? `${workout.avgCadence}` : '—'}
-                    unit="spm"
-                  />
-                  <View style={styles.metricDivider} />
-                </>
-              )}
-              <MetricCell
-                label="Lap"
-                value={`${(workout?.laps.length ?? 0) + 1}`}
-              />
-            </View>
-          </View>
-
-          {/* Page 1: Live HR Graph */}
-          <View style={{ width: panelWidth }}>
-            <LiveHRChart
-              hrReadings={workout?.hrReadings ?? []}
-              maxHR={maxHR}
-              startedAt={workout?.startedAt ?? new Date()}
-              width={panelWidth}
-            />
-          </View>
+          ))}
         </ScrollView>
-
-        {/* Page indicator dots */}
-        <View style={styles.pageIndicator}>
-          <View style={[styles.dot, metricsPage === 0 && styles.dotActive]} />
-          <View style={[styles.dot, metricsPage === 1 && styles.dotActive]} />
-        </View>
 
         {/* Control buttons */}
         <View style={styles.controls}>
@@ -552,14 +532,14 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           {recordingState === 'recording' && (
             <>
               <Pressable style={styles.controlBtn} onPress={handleManualLap}>
-                <Ionicons name="flag-outline" size={22} color={Colors.primary} />
+                <Ionicons name="flag-outline" size={20} color={Colors.primary} />
                 <Text style={styles.controlBtnLabel}>Lap</Text>
               </Pressable>
               <Pressable style={[styles.bigBtn, styles.pauseBtn]} onPress={handlePause}>
-                <Ionicons name="pause" size={28} color="#FFF" />
+                <Ionicons name="pause" size={24} color="#FFF" />
               </Pressable>
               <Pressable style={styles.controlBtn} onPress={handleStop}>
-                <Ionicons name="stop" size={22} color={Colors.primary} />
+                <Ionicons name="stop" size={20} color={Colors.primary} />
                 <Text style={styles.controlBtnLabel}>Stop</Text>
               </Pressable>
             </>
@@ -567,11 +547,11 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           {recordingState === 'paused' && (
             <>
               <Pressable style={styles.controlBtn} onPress={handleStop}>
-                <Ionicons name="stop" size={22} color={Colors.primary} />
+                <Ionicons name="stop" size={20} color={Colors.primary} />
                 <Text style={styles.controlBtnLabel}>Stop</Text>
               </Pressable>
               <Pressable style={[styles.bigBtn, styles.resumeBtn]} onPress={handleResume}>
-                <Ionicons name="play" size={28} color="#FFF" />
+                <Ionicons name="play" size={24} color="#FFF" />
               </Pressable>
               <View style={styles.controlBtn} />
             </>
@@ -582,7 +562,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         <Pressable style={styles.hrRow} onPress={() => setHRModalVisible(true)}>
           <Ionicons
             name={bleService.isConnected() ? 'heart' : 'heart-outline'}
-            size={16}
+            size={14}
             color={bleService.isConnected() ? Colors.primary : Colors.textSecondary}
           />
           <Text style={styles.hrRowText}>
@@ -603,30 +583,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   );
 }
 
-function MetricCell({
-  label,
-  value,
-  unit,
-  valueStyle,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  valueStyle?: object;
-}) {
-  return (
-    <View style={styles.metricCell}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <View style={styles.metricValueRow}>
-        <Text style={[styles.metricValue, valueStyle]}>{value}</Text>
-        {unit && <Text style={styles.metricUnit}>{unit}</Text>}
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: Colors.surface },
+  mapSection: { flex: 3, position: 'relative' },
   mapCloseBtn: {
     position: 'absolute',
     left: 16,
@@ -637,6 +596,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
+  },
+  recenterBtn: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: '#FFF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   autoPauseBanner: {
     position: 'absolute',
@@ -651,75 +626,59 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   autoPauseText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-  metricsPanel: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  bottomPanel: {
+    flex: 1,
     backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 16,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 8,
+    marginTop: -16,
   },
-  heroRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', marginBottom: 12 },
-  heroValue: { fontSize: 52, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  heroUnit: { fontSize: 20, fontWeight: '500', color: Colors.textSecondary, marginLeft: 6 },
-  metricRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  metricDivider: { width: 1, height: 36, backgroundColor: '#E0E0E0' },
-  metricCell: { flex: 1, alignItems: 'center' },
-  metricLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 2 },
-  metricValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  metricValue: { fontSize: 20, fontWeight: '600', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  metricUnit: { fontSize: 11, color: Colors.textSecondary },
+  metricsScroll: { paddingHorizontal: 12, gap: 8 },
+  compactMetric: {
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    alignItems: 'center',
+    minWidth: 72,
+  },
+  compactLabel: { fontSize: 10, color: Colors.textSecondary, marginBottom: 1 },
+  compactValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  compactValue: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
+  compactUnit: { fontSize: 10, color: Colors.textSecondary },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
     marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   bigBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  startBtn: { backgroundColor: '#4CAF50', width: 120, height: 56, borderRadius: 28 },
+  startBtn: { backgroundColor: '#4CAF50', width: 110, height: 48, borderRadius: 24 },
   pauseBtn: { backgroundColor: Colors.primary },
   resumeBtn: { backgroundColor: '#4CAF50' },
-  bigBtnText: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  controlBtn: { width: 56, alignItems: 'center', gap: 4 },
-  controlBtnLabel: { fontSize: 11, color: Colors.textSecondary },
+  bigBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  controlBtn: { width: 48, alignItems: 'center', gap: 2 },
+  controlBtnLabel: { fontSize: 10, color: Colors.textSecondary },
   hrRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingTop: 4,
+    paddingTop: 2,
   },
-  hrRowText: { fontSize: 12, color: Colors.textSecondary },
-  pageIndicator: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 6,
-    marginBottom: 2,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#D0D0D0',
-  },
-  dotActive: {
-    backgroundColor: Colors.primary,
-  },
+  hrRowText: { fontSize: 11, color: Colors.textSecondary },
 });

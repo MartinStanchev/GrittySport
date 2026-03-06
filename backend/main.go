@@ -15,6 +15,7 @@ import (
 	"github.com/grittyfitness/api/internal/db"
 	"github.com/grittyfitness/api/internal/handlers"
 	appmw "github.com/grittyfitness/api/internal/middleware"
+	"github.com/grittyfitness/api/internal/review"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/usage"
 )
@@ -107,7 +108,17 @@ func main() {
 	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, chatMemoryEnabled, usageService)
 
 	workoutService := services.NewWorkoutService(pool)
-	workoutHandler := handlers.NewWorkoutHandler(workoutService)
+
+	// Load review prompts
+	reviewPrompt, _ := skillLoader.GetSkill("post_workout_review")
+	missedPrompt, _ := skillLoader.GetSkill("missed_workout_review")
+	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, reviewPrompt, missedPrompt)
+
+	// Start missed workout checker
+	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)
+	go missedChecker.Run(ctx)
+
+	workoutHandler := handlers.NewWorkoutHandler(workoutService, reviewService, usageService, pool)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -154,6 +165,7 @@ func main() {
 		r.Get("/workouts", workoutHandler.List)
 		r.Get("/workouts/{workoutId}", workoutHandler.Get)
 		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
+		r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

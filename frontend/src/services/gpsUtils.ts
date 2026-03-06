@@ -1,4 +1,4 @@
-import type { GPSPoint, HRReading, CadenceReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution, KmSplit, EffortScoreData, SplitsAnalysis } from '../types/gps';
 
 // --- Distance ---
 
@@ -237,6 +237,117 @@ export function computeSpeedTimeSeries(points: GPSPoint[], windowSize = 10): Spe
     }
   }
   return result;
+}
+
+// --- Effort Score (TRIMP-based) ---
+
+const ZONE_WEIGHTS: Record<HRZone, number> = { 1: 1, 2: 1.5, 3: 2.5, 4: 3.5, 5: 5 };
+// 60min Z2 workout ≈ 50, used as normalisation anchor
+const NORMALISATION_FACTOR = 60 * 1.5; // = 90
+
+export function computeEffortScore(
+  hrReadings: HRReading[],
+  maxHR: number,
+  durationSec: number,
+): EffortScoreData {
+  if (hrReadings.length < 2 || durationSec <= 0) {
+    return { score: 0, label: 'Easy' };
+  }
+
+  let trimp = 0;
+  for (let i = 1; i < hrReadings.length; i++) {
+    const dtMin = (hrReadings[i].timestamp - hrReadings[i - 1].timestamp) / 60000;
+    const zone = getHRZone(hrReadings[i - 1].bpm, maxHR);
+    trimp += dtMin * ZONE_WEIGHTS[zone];
+  }
+
+  const score = Math.min(100, Math.round((trimp / NORMALISATION_FACTOR) * 50));
+
+  let label: EffortScoreData['label'];
+  if (score < 25) label = 'Easy';
+  else if (score < 50) label = 'Moderate';
+  else if (score < 75) label = 'Hard';
+  else if (score < 90) label = 'Very Hard';
+  else label = 'Max';
+
+  return { score, label };
+}
+
+export function getEffortColor(score: number): string {
+  if (score < 25) return '#4CAF50';
+  if (score < 50) return '#FFC107';
+  if (score < 75) return '#FF9800';
+  return '#F44336';
+}
+
+// --- Per-KM Splits ---
+
+export function computeKmSplits(
+  points: GPSPoint[],
+  hrReadings?: HRReading[],
+): SplitsAnalysis {
+  const splits: KmSplit[] = [];
+  if (points.length < 2) {
+    return { splits, fastestSplitKm: 0, slowestSplitKm: 0, fadePct: 0, isNegativeSplit: false };
+  }
+
+  let splitStart = 0; // index of the first point in this split
+  let splitDistAccum = 0;
+  let hrIdx = 0; // two-pointer index into hrReadings
+
+  for (let i = 1; i < points.length; i++) {
+    splitDistAccum += points[i].distance_from_prev;
+
+    if (splitDistAccum >= 1000) {
+      const km = splits.length + 1;
+      const startTs = points[splitStart].timestamp;
+      const endTs = points[i].timestamp;
+      const durationSec = (endTs - startTs) / 1000;
+      const paceSecPerKm = durationSec > 0 ? (durationSec / splitDistAccum) * 1000 : 0;
+      const elevGain = computeElevationGain(points.slice(splitStart, i + 1));
+
+      let avgHR: number | undefined;
+      if (hrReadings && hrReadings.length > 0) {
+        // Two-pointer: advance hrIdx to the start of this split, then scan to end
+        let hrSum = 0;
+        let hrCount = 0;
+        while (hrIdx < hrReadings.length && hrReadings[hrIdx].timestamp < startTs) hrIdx++;
+        for (let j = hrIdx; j < hrReadings.length && hrReadings[j].timestamp <= endTs; j++) {
+          hrSum += hrReadings[j].bpm;
+          hrCount++;
+        }
+        if (hrCount > 0) avgHR = Math.round(hrSum / hrCount);
+      }
+
+      splits.push({ km, durationSec, paceSecPerKm, avgHR, elevationGain: elevGain });
+      splitStart = i;
+      splitDistAccum = 0;
+    }
+  }
+
+  if (splits.length === 0) {
+    return { splits, fastestSplitKm: 0, slowestSplitKm: 0, fadePct: 0, isNegativeSplit: false };
+  }
+
+  let fastestKm = splits[0].km;
+  let slowestKm = splits[0].km;
+  let fastestPace = splits[0].paceSecPerKm;
+  let slowestPace = splits[0].paceSecPerKm;
+  for (const s of splits) {
+    if (s.paceSecPerKm < fastestPace) { fastestPace = s.paceSecPerKm; fastestKm = s.km; }
+    if (s.paceSecPerKm > slowestPace) { slowestPace = s.paceSecPerKm; slowestKm = s.km; }
+  }
+
+  const firstPace = splits[0].paceSecPerKm;
+  const lastPace = splits[splits.length - 1].paceSecPerKm;
+  const fadePct = firstPace > 0 ? ((lastPace - firstPace) / firstPace) * 100 : 0;
+
+  const half = Math.floor(splits.length / 2);
+  const firstHalfAvg = splits.slice(0, half).reduce((s, sp) => s + sp.paceSecPerKm, 0) / half;
+  const secondHalfAvg = splits.slice(half).reduce((s, sp) => s + sp.paceSecPerKm, 0) / (splits.length - half);
+  const isNegativeSplit = secondHalfAvg < firstHalfAvg;
+
+  return { splits, fastestSplitKm: fastestKm, slowestSplitKm: slowestKm, fadePct: Math.round(fadePct * 10) / 10, isNegativeSplit };
 }
 
 // --- Final payload builder ---

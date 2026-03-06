@@ -16,6 +16,9 @@ import {
   getHRZone,
   getHRZoneColor,
   HR_ZONE_COLORS,
+  computeEffortScore,
+  getEffortColor,
+  computeKmSplits,
 } from '../services/gpsUtils';
 import type { GPSPoint, HRReading, CadenceReading } from '../types/gps';
 
@@ -499,6 +502,178 @@ describe('computeSpeedTimeSeries', () => {
     const series = computeSpeedTimeSeries(points, 5);
     for (let i = 1; i < series.length; i++) {
       expect(series[i].elapsedMin).toBeGreaterThan(series[i - 1].elapsedMin);
+    }
+  });
+});
+
+// ─── computeEffortScore ─────────────────────────────────────────────────
+
+describe('computeEffortScore', () => {
+  function hrReadings(bpms: number[], intervalMs = 60000): HRReading[] {
+    return bpms.map((bpm, i) => ({ bpm, timestamp: i * intervalMs }));
+  }
+
+  it('returns 0 for empty readings', () => {
+    const result = computeEffortScore([], 185, 3600);
+    expect(result.score).toBe(0);
+    expect(result.label).toBe('Easy');
+  });
+
+  it('returns 0 for a single reading', () => {
+    const result = computeEffortScore([{ bpm: 120, timestamp: 0 }], 185, 3600);
+    expect(result.score).toBe(0);
+  });
+
+  it('returns low score for Z1 workout', () => {
+    // 30 minutes of HR at 100 bpm with max 185 = Z1 (< 60%)
+    const readings = hrReadings(Array(31).fill(100), 60000);
+    const result = computeEffortScore(readings, 185, 1800);
+    expect(result.score).toBeLessThan(25);
+    expect(result.label).toBe('Easy');
+  });
+
+  it('returns moderate score for Z2 workout', () => {
+    // 60 minutes of HR at 125 bpm with max 185 = Z2 (67%)
+    const readings = hrReadings(Array(61).fill(125), 60000);
+    const result = computeEffortScore(readings, 185, 3600);
+    expect(result.score).toBeGreaterThanOrEqual(40);
+    expect(result.score).toBeLessThan(65);
+    expect(['Moderate', 'Hard']).toContain(result.label);
+  });
+
+  it('returns high score for Z4/Z5 workout', () => {
+    // 45 minutes of HR at 170 bpm with max 185 = Z4/Z5
+    const readings = hrReadings(Array(46).fill(170), 60000);
+    const result = computeEffortScore(readings, 185, 2700);
+    expect(result.score).toBeGreaterThan(50);
+  });
+
+  it('score is capped at 100', () => {
+    // Very long hard workout should cap at 100
+    const readings = hrReadings(Array(181).fill(180), 60000);
+    const result = computeEffortScore(readings, 185, 10800);
+    expect(result.score).toBeLessThanOrEqual(100);
+  });
+});
+
+// ─── getEffortColor ──────────────────────────────────────────────────────
+
+describe('getEffortColor', () => {
+  it('returns green for easy', () => {
+    expect(getEffortColor(10)).toBe('#4CAF50');
+  });
+
+  it('returns yellow for moderate', () => {
+    expect(getEffortColor(30)).toBe('#FFC107');
+  });
+
+  it('returns orange for hard', () => {
+    expect(getEffortColor(60)).toBe('#FF9800');
+  });
+
+  it('returns red for very hard', () => {
+    expect(getEffortColor(80)).toBe('#F44336');
+  });
+});
+
+// ─── computeKmSplits ─────────────────────────────────────────────────────
+
+describe('computeKmSplits', () => {
+  it('returns empty analysis for fewer than 2 points', () => {
+    const result = computeKmSplits([]);
+    expect(result.splits).toEqual([]);
+    expect(result.fastestSplitKm).toBe(0);
+  });
+
+  it('returns empty if total distance < 1km', () => {
+    // 500m route — too short for even 1 split
+    const points = straightRoute(6, 100, 30000);
+    const result = computeKmSplits(points);
+    expect(result.splits.length).toBe(0);
+  });
+
+  it('produces correct splits for a multi-km route', () => {
+    // 41 points, 100m apart = 4000m total, should produce 4 full km splits
+    // Each point 30s apart = 300s per km = 5:00/km
+    const points = straightRoute(41, 100, 30000);
+    const result = computeKmSplits(points);
+
+    expect(result.splits.length).toBeGreaterThanOrEqual(3);
+    expect(result.splits[0].km).toBe(1);
+    expect(result.splits[1].km).toBe(2);
+
+    // Each split should be ~300 sec/km pace
+    for (const s of result.splits) {
+      expect(s.paceSecPerKm).toBeGreaterThan(250);
+      expect(s.paceSecPerKm).toBeLessThan(350);
+    }
+  });
+
+  it('identifies fastest and slowest splits', () => {
+    // Build a route where km 2 is faster (shorter interval)
+    const points: GPSPoint[] = [];
+    let ts = 0;
+    let lng = 4.0;
+    const metresToLng = 100 / 68600;
+
+    for (let i = 0; i < 31; i++) {
+      const isKm2 = i >= 10 && i < 20;
+      const interval = isKm2 ? 20000 : 35000; // km2 is faster
+      if (i > 0) ts += interval;
+
+      points.push({
+        lat: 52.0,
+        lng,
+        altitude: null,
+        accuracy: 5,
+        speed: null,
+        timestamp: ts,
+        distance_from_prev: i === 0 ? 0 : 100,
+      });
+      lng += metresToLng;
+    }
+
+    const result = computeKmSplits(points);
+    expect(result.splits.length).toBe(3);
+    expect(result.fastestSplitKm).toBe(2);
+    expect(result.slowestSplitKm).not.toBe(2);
+  });
+
+  it('detects negative split correctly', () => {
+    // Build route where second half is faster
+    const points: GPSPoint[] = [];
+    let ts = 0;
+    let lng = 4.0;
+    const metresToLng = 100 / 68600;
+
+    for (let i = 0; i < 41; i++) {
+      const isSecondHalf = i >= 20;
+      const interval = isSecondHalf ? 20000 : 35000;
+      if (i > 0) ts += interval;
+
+      points.push({
+        lat: 52.0,
+        lng,
+        altitude: null,
+        accuracy: 5,
+        speed: null,
+        timestamp: ts,
+        distance_from_prev: i === 0 ? 0 : 100,
+      });
+      lng += metresToLng;
+    }
+
+    const result = computeKmSplits(points);
+    expect(result.isNegativeSplit).toBe(true);
+  });
+
+  it('includes HR data in splits when provided', () => {
+    const points = straightRoute(21, 100, 30000);
+    const hrReadings: HRReading[] = points.map((p) => ({ bpm: 140, timestamp: p.timestamp }));
+
+    const result = computeKmSplits(points, hrReadings);
+    for (const s of result.splits) {
+      expect(s.avgHR).toBe(140);
     }
   });
 });

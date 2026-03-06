@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -32,8 +32,14 @@ import {
   isRunSport,
   computeHRZoneDistribution,
   HR_ZONE_COLORS,
+  computeEffortScore,
+  computeKmSplits,
 } from '../services/gpsUtils';
 import type { Lap, HRZone } from '../types/gps';
+import { isPremium } from '../utils/premium';
+import { PremiumStatsCard } from '../components/PremiumStatsCard';
+import { EffortScoreCard } from '../components/EffortScoreCard';
+import { SplitsCard } from '../components/SplitsCard';
 
 export default function WorkoutSummaryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -45,7 +51,34 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const [saving, setSaving] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
 
-  if (!activeGPSWorkout) {
+  const gpsPayload = useMemo(() => {
+    if (!activeGPSWorkout) return null;
+    const finishedAt = activeGPSWorkout.finishedAt ?? new Date();
+    return buildFinalGPSPayload({
+      activityType: activeGPSWorkout.activityType,
+      points: activeGPSWorkout.points,
+      laps: activeGPSWorkout.laps,
+      hrReadings: activeGPSWorkout.hrReadings,
+      cadenceReadings: activeGPSWorkout.cadenceReadings,
+      totalDistanceM: activeGPSWorkout.totalDistanceM,
+      autoPausedDurationSec: activeGPSWorkout.autoPausedDurationSec,
+      startedAt: activeGPSWorkout.startedAt,
+      finishedAt,
+      hrDeviceName: activeGPSWorkout.hrDeviceName,
+    });
+  }, [activeGPSWorkout]);
+
+  const effortData = useMemo(() => {
+    if (!gpsPayload?.hrData || gpsPayload.hrData.readings.length <= 1) return null;
+    return computeEffortScore(gpsPayload.hrData.readings, maxHR, gpsPayload.routeData.duration_sec);
+  }, [gpsPayload, maxHR]);
+
+  const splitsData = useMemo(() => {
+    if (!activeGPSWorkout || !gpsPayload || gpsPayload.routeData.distance_km < 1) return null;
+    return computeKmSplits(activeGPSWorkout.points, gpsPayload.hrData?.readings);
+  }, [activeGPSWorkout, gpsPayload]);
+
+  if (!activeGPSWorkout || !gpsPayload) {
     return (
       <View style={styles.centered}>
         <Text style={styles.emptyText}>No workout data available.</Text>
@@ -56,19 +89,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const workout = activeGPSWorkout;
   const isRun = isRunSport(workout.activityType);
   const finishedAt = workout.finishedAt ?? new Date();
-
-  const { routeData, summaryData, hrData } = buildFinalGPSPayload({
-    activityType: workout.activityType,
-    points: workout.points,
-    laps: workout.laps,
-    hrReadings: workout.hrReadings,
-    cadenceReadings: workout.cadenceReadings,
-    totalDistanceM: workout.totalDistanceM,
-    autoPausedDurationSec: workout.autoPausedDurationSec,
-    startedAt: workout.startedAt,
-    finishedAt,
-    hrDeviceName: workout.hrDeviceName,
-  });
+  const { routeData, summaryData, hrData } = gpsPayload;
 
   const totalElapsed = routeData.duration_sec;
   let bestLap = null;
@@ -84,6 +105,8 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const hrZoneTotalSec = hrZoneDist
     ? (Object.values(hrZoneDist) as number[]).reduce((s, v) => s + v, 0)
     : 0;
+
+  const userIsPremium = isPremium(user);
 
   const polylineCoords = workout.points.map((p) => ({ latitude: p.lat, longitude: p.lng }));
   const firstPoint = workout.points[0];
@@ -126,9 +149,16 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
     }
 
     setSaving(false);
-    clearGPSWorkout();
     notifyProgramDataChanged();
-    navigation.navigate('History');
+
+    // Navigate away BEFORE clearing workout data to avoid a flash of the empty state
+    if (savedWorkout) {
+      navigation.getParent()?.navigate('Home');
+    } else {
+      navigation.navigate('History');
+    }
+
+    clearGPSWorkout();
 
     // Offer to link to today's scheduled activity if not already linked
     if (savedWorkout && !workout.scheduledActivityId) {
@@ -353,6 +383,16 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 )}
               />
             </View>
+          )}
+
+          {/* Per-KM Splits (free) */}
+          {splitsData && splitsData.splits.length > 0 && <SplitsCard data={splitsData} />}
+
+          {/* Premium Analytics */}
+          {effortData && (
+            <PremiumStatsCard isPremium={userIsPremium} title="Advanced Analytics">
+              <EffortScoreCard data={effortData} />
+            </PremiumStatsCard>
           )}
 
           {/* Notes */}

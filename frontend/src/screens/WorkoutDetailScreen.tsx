@@ -5,12 +5,19 @@ import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
-import { getWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
+import type { WorkoutAnalytics } from '../types/gps';
 import { formatPaceSecPerKm, formatSpeedKph, isRunSport } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
 import { useAuth } from '../contexts/AuthContext';
+import { isPremium } from '../utils/premium';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
+import { PremiumStatsCard } from '../components/PremiumStatsCard';
+import { EffortScoreCard } from '../components/EffortScoreCard';
+import { SplitsCard } from '../components/SplitsCard';
+import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
+import { PRBadge } from '../components/PRBadge';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -32,9 +39,7 @@ function formatDate(iso: string): string {
 
 function formatPace(paceSecPerKm: number): string {
   if (!paceSecPerKm) return '—';
-  const m = Math.floor(paceSecPerKm / 60);
-  const s = Math.floor(paceSecPerKm % 60);
-  return `${m}:${String(s).padStart(2, '0')} /km`;
+  return `${formatPaceSecPerKm(paceSecPerKm)} /km`;
 }
 
 type NormalizedType = 'run' | 'cycling' | 'swim' | 'strength' | 'mobility' | 'drill' | 'other';
@@ -261,7 +266,10 @@ type Props = NativeStackScreenProps<any, 'WorkoutDetail'>;
 
 export default function WorkoutDetailScreen({ route }: Props) {
   const { workoutId } = route.params as { workoutId: string };
+  const { user } = useAuth();
+  const userIsPremium = isPremium(user);
   const [workout, setWorkout] = useState<WorkoutResponse | null>(null);
+  const [analytics, setAnalytics] = useState<WorkoutAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [linkSheetVisible, setLinkSheetVisible] = useState(false);
@@ -270,11 +278,18 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
   const loadWorkout = useCallback(() => {
-    getWorkout(workoutId)
-      .then(setWorkout)
+    const promises: [Promise<WorkoutResponse>, Promise<WorkoutAnalytics | null>] = [
+      getWorkout(workoutId),
+      userIsPremium ? getWorkoutAnalytics(workoutId).catch(() => null) : Promise.resolve(null),
+    ];
+    Promise.all(promises)
+      .then(([w, a]) => {
+        setWorkout(w);
+        if (a) setAnalytics(a);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [workoutId]);
+  }, [workoutId, userIsPremium]);
 
   useEffect(() => { loadWorkout(); }, [loadWorkout]);
 
@@ -380,6 +395,47 @@ export default function WorkoutDetailScreen({ route }: Props) {
 
       {/* Type-specific data */}
       <TypeSpecificDetail workout={workout} />
+
+      {/* Premium Analytics */}
+      {(analytics || !userIsPremium) && (
+        <PremiumStatsCard isPremium={userIsPremium} title="Advanced Analytics">
+          {analytics && (
+            <>
+              {analytics.effort_score > 0 && (
+                <EffortScoreCard data={{ score: analytics.effort_score, label: analytics.effort_label }} />
+              )}
+              {analytics.splits.length > 0 && (
+                <SplitsCard data={{
+                  splits: analytics.splits,
+                  fastestSplitKm: analytics.fastest_split_km,
+                  slowestSplitKm: analytics.slowest_split_km,
+                  fadePct: analytics.fade_pct,
+                  isNegativeSplit: analytics.is_negative_split,
+                }} />
+              )}
+              {analytics.program_alignment && (
+                <ProgramAlignmentCard data={analytics.program_alignment} />
+              )}
+              {analytics.personal_records && analytics.personal_records.length > 0 && (
+                <View style={{ gap: 6, marginTop: 8 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary }}>Personal Records</Text>
+                  {analytics.personal_records.map((pr) => (
+                    <View key={pr.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <PRBadge />
+                      <Text style={{ fontSize: 13, color: Colors.textPrimary }}>{pr.category}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {analytics.trend && (
+                <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 8 }}>
+                  {analytics.trend.comparison_text}
+                </Text>
+              )}
+            </>
+          )}
+        </PremiumStatsCard>
+      )}
 
       {/* Notes */}
       {workout.notes ? (

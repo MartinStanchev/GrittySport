@@ -39,6 +39,7 @@ Full details for each change are in the `progress/` folder.
 | [task-10-apple-health-import](progress/task-10-apple-health-import.md) | Apple Health import: HealthKit integration, Import screen, type mapping, source badges |
 | [premium-membership-infrastructure](progress/premium-membership-infrastructure.md) | Free/premium tier, usage limits, input sanitization, chat rate limiting, program gating |
 | [fix-program-modification-validation](progress/fix-program-modification-validation.md) | Validate program_id at propose time, add_week_activity tool for single-week changes |
+| [task-12-post-workout-review](progress/task-12-post-workout-review.md) | Post-workout AI review, premium analytics (effort/splits/alignment/PRs), missed workout scheduler |
 
 ## Instructions for Agents
 

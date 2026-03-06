@@ -699,9 +699,9 @@ export default function RecordManualScreen() {
         finished_at: activeWorkout.finishedAt?.toISOString(),
         notes: activeWorkout.workoutNotes || undefined,
       });
-      clearWorkout();
       notifyProgramDataChanged();
-      navigation.navigate('HomeMain');
+      navigation.getParent()?.navigate('Home');
+      clearWorkout();
     } catch {
       Alert.alert('Error', 'Failed to save workout. Please try again.');
     } finally {

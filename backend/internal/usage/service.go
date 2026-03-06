@@ -11,10 +11,14 @@ import (
 )
 
 const (
-	FreeChatMessagesPerWeek        = 50
-	FreeProgramCreationsPerMonth   = 2
-	FreePostWorkoutReviewsPerMonth = 3
-	FreeProgramsTotal              = 1
+	TierPremium = "premium"
+	TierFree    = "free"
+
+	FreeChatMessagesPerWeek            = 50
+	FreeProgramCreationsPerMonth       = 2
+	FreePostWorkoutReviewsPerMonth     = 3
+	FreeMissedWorkoutReviewsPerMonth   = 3
+	FreeProgramsTotal                  = 1
 )
 
 type Service struct {
@@ -36,8 +40,8 @@ func (s *Service) GetTier(ctx context.Context, userID string) (string, error) {
 	if err != nil {
 		return "free", err
 	}
-	if tier == "premium" && expiresAt != nil && time.Now().After(*expiresAt) {
-		return "free", nil
+	if tier == TierPremium && expiresAt != nil && time.Now().After(*expiresAt) {
+		return TierFree, nil
 	}
 	return tier, nil
 }
@@ -51,7 +55,7 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		return true, -1, nil
 	}
 
-	if tier == "premium" {
+	if tier == TierPremium {
 		return true, -1, nil
 	}
 
@@ -72,6 +76,10 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		periodType = "month"
 		limit = FreePostWorkoutReviewsPerMonth
 		column = "post_workout_reviews_used"
+	case "missed_workout_review":
+		periodType = "month"
+		limit = FreeMissedWorkoutReviewsPerMonth
+		column = "missed_workout_reviews_used"
 	default:
 		return true, -1, nil
 	}
@@ -148,11 +156,12 @@ type ProgramUsage struct {
 
 // UsageSummary is the full usage response.
 type UsageSummary struct {
-	Tier               string        `json:"tier"`
-	ChatMessages       ResourceUsage `json:"chat_messages"`
-	ProgramCreations   ResourceUsage `json:"program_creations"`
-	PostWorkoutReviews ResourceUsage `json:"post_workout_reviews"`
-	Programs           ProgramUsage  `json:"programs"`
+	Tier                  string        `json:"tier"`
+	ChatMessages          ResourceUsage `json:"chat_messages"`
+	ProgramCreations      ResourceUsage `json:"program_creations"`
+	PostWorkoutReviews    ResourceUsage `json:"post_workout_reviews"`
+	MissedWorkoutReviews  ResourceUsage `json:"missed_workout_reviews"`
+	Programs              ProgramUsage  `json:"programs"`
 }
 
 // GetUsage returns the current usage summary for a user.
@@ -165,7 +174,7 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 	weekStart := computePeriodStart("week")
 	monthStart := computePeriodStart("month")
 
-	var chatUsed, programsCreated, reviewsUsed int
+	var chatUsed, programsCreated, reviewsUsed, missedReviewsUsed int
 
 	// Weekly usage
 	_ = s.pool.QueryRow(ctx,
@@ -176,10 +185,10 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 
 	// Monthly usage
 	_ = s.pool.QueryRow(ctx,
-		`SELECT programs_created, post_workout_reviews_used FROM usage_tracking
+		`SELECT programs_created, post_workout_reviews_used, missed_workout_reviews_used FROM usage_tracking
 		 WHERE user_id = $1 AND period_type = 'month' AND period_start = $2`,
 		userID, monthStart,
-	).Scan(&programsCreated, &reviewsUsed)
+	).Scan(&programsCreated, &reviewsUsed, &missedReviewsUsed)
 
 	// Program count
 	var programCount int
@@ -191,11 +200,13 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 	chatLimit := FreeChatMessagesPerWeek
 	programCreationLimit := FreeProgramCreationsPerMonth
 	reviewLimit := FreePostWorkoutReviewsPerMonth
+	missedReviewLimit := FreeMissedWorkoutReviewsPerMonth
 	programTotalLimit := FreeProgramsTotal
-	if tier == "premium" {
+	if tier == TierPremium {
 		chatLimit = -1
 		programCreationLimit = -1
 		reviewLimit = -1
+		missedReviewLimit = -1
 		programTotalLimit = -1
 	}
 
@@ -219,6 +230,12 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 		PostWorkoutReviews: ResourceUsage{
 			Used:     reviewsUsed,
 			Limit:    reviewLimit,
+			Period:   "month",
+			ResetsAt: nextMonth.Format(time.RFC3339),
+		},
+		MissedWorkoutReviews: ResourceUsage{
+			Used:     missedReviewsUsed,
+			Limit:    missedReviewLimit,
 			Period:   "month",
 			ResetsAt: nextMonth.Format(time.RFC3339),
 		},
@@ -247,7 +264,7 @@ func (s *Service) CanCreateProgram(ctx context.Context, userID string) (bool, er
 		// Fail open
 		return true, nil
 	}
-	if tier == "premium" {
+	if tier == TierPremium {
 		return true, nil
 	}
 	count, err := s.CountUserPrograms(ctx, userID)

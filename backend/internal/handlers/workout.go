@@ -1,24 +1,43 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog/log"
 
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
+	"github.com/grittyfitness/api/internal/review"
 	"github.com/grittyfitness/api/internal/services"
+	"github.com/grittyfitness/api/internal/usage"
 )
 
 type WorkoutHandler struct {
 	workoutService *services.WorkoutService
+	reviewService  *review.Service
+	usageService   *usage.Service
+	pool           *pgxpool.Pool
 }
 
-func NewWorkoutHandler(workoutService *services.WorkoutService) *WorkoutHandler {
-	return &WorkoutHandler{workoutService: workoutService}
+func NewWorkoutHandler(
+	workoutService *services.WorkoutService,
+	reviewService *review.Service,
+	usageService *usage.Service,
+	pool *pgxpool.Pool,
+) *WorkoutHandler {
+	return &WorkoutHandler{
+		workoutService: workoutService,
+		reviewService:  reviewService,
+		usageService:   usageService,
+		pool:           pool,
+	}
 }
 
 func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +61,23 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save workout")
 		return
+	}
+
+	// Trigger post-workout review async (non-blocking).
+	// Use a detached context — the HTTP request context is cancelled after response.
+	if h.reviewService != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			allowed, _, _ := h.usageService.CheckAndIncrement(ctx, userID, "post_workout_review")
+			if !allowed {
+				log.Debug().Str("user_id", userID).Msg("Post-workout review skipped: free tier limit reached")
+				return
+			}
+			if err := h.reviewService.TriggerReview(ctx, userID, workout.ID); err != nil {
+				log.Error().Err(err).Str("workout_id", workout.ID).Msg("Post-workout review failed")
+			}
+		}()
 	}
 
 	writeJSON(w, http.StatusCreated, workout)
@@ -112,4 +148,50 @@ func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// Analytics returns computed premium analytics for a workout.
+func (h *WorkoutHandler) Analytics(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	workoutID := chi.URLParam(r, "workoutId")
+
+	// Tier check — free users get 403
+	tier, err := h.usageService.GetTier(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check tier")
+		return
+	}
+	if tier != usage.TierPremium {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error":            "upgrade_required",
+			"message":          "Premium subscription required for workout analytics",
+			"upgrade_required": true,
+		})
+		return
+	}
+
+	workout, err := h.workoutService.GetByID(r.Context(), workoutID, userID)
+	if err == pgx.ErrNoRows {
+		writeError(w, http.StatusNotFound, "workout not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get workout")
+		return
+	}
+
+	// Get user's max HR
+	var maxHR int
+	_ = h.pool.QueryRow(r.Context(), "SELECT max_heart_rate FROM users WHERE id = $1", userID).Scan(&maxHR)
+	if maxHR <= 0 {
+		maxHR = 185
+	}
+
+	analytics, err := review.ComputeAnalytics(r.Context(), h.pool, workout, maxHR)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to compute analytics")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, analytics)
 }
