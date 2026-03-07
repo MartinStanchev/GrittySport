@@ -19,6 +19,15 @@ type Workout struct {
 	Notes               *string         `json:"notes,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
+	CompletionStatus    string          `json:"completion_status,omitempty"`
+}
+
+type WorkoutListFilter struct {
+	Limit        int
+	Offset       int
+	ActivityType string
+	StartDate    *time.Time
+	EndDate      *time.Time
 }
 
 type SaveWorkoutInput struct {

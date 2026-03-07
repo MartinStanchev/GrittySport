@@ -519,6 +519,7 @@ export interface WorkoutResponse {
   gps_route?: Record<string, any>;
   heart_rate_data?: Record<string, any>;
   notes?: string;
+  completion_status?: 'completed' | 'met_targets' | 'below_targets';
   created_at: string;
   updated_at: string;
 }
@@ -546,11 +547,15 @@ export async function getWorkouts(params?: {
   limit?: number;
   offset?: number;
   activity_type?: string;
+  start_date?: string;
+  end_date?: string;
 }): Promise<WorkoutResponse[]> {
   const p = new URLSearchParams();
-  if (params?.limit) p.set('limit', String(params.limit));
-  if (params?.offset) p.set('offset', String(params.offset));
+  if (params?.limit != null) p.set('limit', String(params.limit));
+  if (params?.offset != null) p.set('offset', String(params.offset));
   if (params?.activity_type) p.set('activity_type', params.activity_type);
+  if (params?.start_date) p.set('start_date', params.start_date);
+  if (params?.end_date) p.set('end_date', params.end_date);
   const query = p.toString();
   return apiFetch<WorkoutResponse[]>(`/api/v1/workouts${query ? `?${query}` : ''}`);
 }

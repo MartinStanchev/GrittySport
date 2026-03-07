@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -85,16 +87,24 @@ func (s *WorkoutService) GetByID(ctx context.Context, workoutID, userID string) 
 	return scanWorkout(row)
 }
 
-func (s *WorkoutService) ListByUser(ctx context.Context, userID string, limit, offset int, activityType string) ([]models.Workout, error) {
+func (s *WorkoutService) ListByUser(ctx context.Context, userID string, filter models.WorkoutListFilter) ([]models.Workout, error) {
 	query := `SELECT ` + workoutColumns + ` FROM workouts WHERE user_id = $1`
 	args := []any{userID}
 
-	if activityType != "" {
-		args = append(args, activityType)
+	if filter.ActivityType != "" {
+		args = append(args, filter.ActivityType)
 		query += fmt.Sprintf(" AND activity_type = $%d", len(args))
 	}
+	if filter.StartDate != nil {
+		args = append(args, *filter.StartDate)
+		query += fmt.Sprintf(" AND started_at >= $%d", len(args))
+	}
+	if filter.EndDate != nil {
+		args = append(args, *filter.EndDate)
+		query += fmt.Sprintf(" AND started_at < $%d", len(args))
+	}
 
-	args = append(args, limit, offset)
+	args = append(args, filter.Limit, filter.Offset)
 	query += fmt.Sprintf(" ORDER BY started_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args))
 
 	rows, err := s.pool.Query(ctx, query, args...)
@@ -114,7 +124,145 @@ func (s *WorkoutService) ListByUser(ctx context.Context, userID string, limit, o
 	if workouts == nil {
 		workouts = []models.Workout{}
 	}
-	return workouts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Compute completion status for workouts linked to scheduled activities
+	s.populateCompletionStatus(ctx, workouts)
+
+	return workouts, nil
+}
+
+// populateCompletionStatus sets CompletionStatus on each workout.
+// Workouts not linked to a scheduled activity get "completed".
+// Linked workouts compare recorded data against the prescription.
+func (s *WorkoutService) populateCompletionStatus(ctx context.Context, workouts []models.Workout) {
+	// Collect scheduled_activity_ids
+	saIDs := make([]string, 0, len(workouts))
+	saMap := make(map[string]json.RawMessage)
+	for _, w := range workouts {
+		if w.ScheduledActivityID != nil {
+			saIDs = append(saIDs, *w.ScheduledActivityID)
+		}
+	}
+
+	if len(saIDs) > 0 {
+		// Fetch prescriptions in one query
+		placeholders := make([]string, len(saIDs))
+		args := make([]any, len(saIDs))
+		for i, id := range saIDs {
+			placeholders[i] = fmt.Sprintf("$%d", i+1)
+			args[i] = id
+		}
+		q := `SELECT id, prescription FROM scheduled_activities WHERE id IN (` + strings.Join(placeholders, ",") + `)`
+		rows, err := s.pool.Query(ctx, q, args...)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var id string
+				var prescription json.RawMessage
+				if err := rows.Scan(&id, &prescription); err == nil {
+					saMap[id] = prescription
+				}
+			}
+		}
+	}
+
+	for i := range workouts {
+		if workouts[i].ScheduledActivityID == nil {
+			workouts[i].CompletionStatus = "completed"
+			continue
+		}
+		prescription, ok := saMap[*workouts[i].ScheduledActivityID]
+		if !ok {
+			workouts[i].CompletionStatus = "completed"
+			continue
+		}
+		workouts[i].CompletionStatus = evaluateCompletion(workouts[i].RecordedData, prescription, workouts[i].ActivityType)
+	}
+}
+
+// evaluateCompletion compares recorded data against prescription.
+// Returns "met_targets" if >= 80% of key metrics met, "below_targets" otherwise.
+func evaluateCompletion(recorded, prescription json.RawMessage, activityType string) string {
+	var rec map[string]any
+	var presc map[string]any
+	if err := json.Unmarshal(recorded, &rec); err != nil {
+		return "completed"
+	}
+	if err := json.Unmarshal(prescription, &presc); err != nil {
+		return "completed"
+	}
+	if len(presc) == 0 {
+		return "completed"
+	}
+
+	t := strings.ToLower(activityType)
+	metricKeys := []string{"duration_minutes", "distance_km"}
+	if strings.Contains(t, "strength") || strings.Contains(t, "weight") {
+		metricKeys = []string{"exercises"}
+	} else if strings.Contains(t, "swim") {
+		metricKeys = []string{"duration_minutes", "distance_m"}
+	}
+
+	checked := 0
+	met := 0
+	for _, key := range metricKeys {
+		pVal, pOk := presc[key]
+		rVal, rOk := rec[key]
+		if !pOk {
+			continue
+		}
+		checked++
+		if !rOk {
+			continue
+		}
+		// Special case: exercises — compare count
+		if key == "exercises" {
+			pExArr, pIsArr := pVal.([]any)
+			rExArr, rIsArr := rVal.([]any)
+			if pIsArr && rIsArr && len(pExArr) > 0 {
+				ratio := float64(len(rExArr)) / float64(len(pExArr))
+				if ratio >= 0.8 {
+					met++
+				}
+			} else {
+				met++ // can't compare, assume met
+			}
+			continue
+		}
+		pNum, pOkN := toFloat(pVal)
+		rNum, rOkN := toFloat(rVal)
+		if pOkN && rOkN && pNum > 0 {
+			if rNum/pNum >= 0.8 {
+				met++
+			}
+		} else {
+			met++ // can't compare numerically, assume met
+		}
+	}
+
+	if checked == 0 {
+		return "completed"
+	}
+	if float64(met)/float64(checked) >= 0.8 {
+		return "met_targets"
+	}
+	return "below_targets"
+}
+
+func toFloat(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case json.Number:
+		f, err := n.Float64()
+		return f, err == nil
+	}
+	return 0, false
 }
 
 func (s *WorkoutService) LinkToActivity(ctx context.Context, workoutID, scheduledActivityID, userID string) error {

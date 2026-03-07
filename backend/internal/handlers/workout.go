@@ -86,21 +86,35 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *WorkoutHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	limit := 20
-	offset := 0
+	filter := models.WorkoutListFilter{
+		Limit:  20,
+		Offset: 0,
+	}
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 {
-			limit = v
+			filter.Limit = v
 		}
 	}
 	if o := r.URL.Query().Get("offset"); o != "" {
 		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
-			offset = v
+			filter.Offset = v
 		}
 	}
-	activityType := r.URL.Query().Get("activity_type")
+	filter.ActivityType = r.URL.Query().Get("activity_type")
 
-	workouts, err := h.workoutService.ListByUser(r.Context(), userID, limit, offset, activityType)
+	if sd := r.URL.Query().Get("start_date"); sd != "" {
+		if t, err := time.Parse("2006-01-02", sd); err == nil {
+			filter.StartDate = &t
+		}
+	}
+	if ed := r.URL.Query().Get("end_date"); ed != "" {
+		if t, err := time.Parse("2006-01-02", ed); err == nil {
+			endOfDay := t.AddDate(0, 0, 1) // exclusive upper bound
+			filter.EndDate = &endOfDay
+		}
+	}
+
+	workouts, err := h.workoutService.ListByUser(r.Context(), userID, filter)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list workouts")
 		return

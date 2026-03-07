@@ -40,6 +40,7 @@ Full details for each change are in the `progress/` folder.
 | [premium-membership-infrastructure](progress/premium-membership-infrastructure.md) | Free/premium tier, usage limits, input sanitization, chat rate limiting, program gating |
 | [fix-program-modification-validation](progress/fix-program-modification-validation.md) | Validate program_id at propose time, add_week_activity tool for single-week changes |
 | [task-12-post-workout-review](progress/task-12-post-workout-review.md) | Post-workout AI review, premium analytics (effort/splits/alignment/PRs), missed workout scheduler |
+| [task-13-history-screen-improvements](progress/task-13-history-screen-improvements.md) | Pagination, filter chips, date range filter, completion status icons, RPE in strength sets |
 
 ## Instructions for Agents
 

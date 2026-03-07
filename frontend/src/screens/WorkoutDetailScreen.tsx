@@ -5,6 +5,7 @@ import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Colors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
+import { formatDuration, formatFullDate } from '../utils/dates';
 import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import type { WorkoutAnalytics } from '../types/gps';
@@ -20,22 +21,6 @@ import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
 import { PRBadge } from '../components/PRBadge';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatDuration(startedAt: string, finishedAt?: string): string {
-  if (!finishedAt) return '—';
-  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-}
 
 function formatPace(paceSecPerKm: number): string {
   if (!paceSecPerKm) return '—';
@@ -134,12 +119,14 @@ function StrengthDetail({ data }: { data: Record<string, any> }) {
                 <Text style={[styles.setColLabel, { flex: 1 }]}>Set</Text>
                 <Text style={[styles.setColLabel, { flex: 2 }]}>Reps</Text>
                 <Text style={[styles.setColLabel, { flex: 2 }]}>Weight</Text>
+                <Text style={[styles.setColLabel, { flex: 1 }]}>RPE</Text>
               </View>
               {(ex.sets ?? []).map((s: any, si: number) => (
                 <View key={si} style={styles.setRow}>
                   <Text style={[styles.setCell, { flex: 1 }]}>{si + 1}</Text>
                   <Text style={[styles.setCell, { flex: 2 }]}>{s.reps ?? '—'}</Text>
                   <Text style={[styles.setCell, { flex: 2 }]}>{s.weight ? `${s.weight} kg` : '—'}</Text>
+                  <Text style={[styles.setCell, { flex: 1 }]}>{s.rpe ?? '—'}</Text>
                 </View>
               ))}
             </View>
@@ -361,7 +348,7 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const icon = getActivityIcon(workout.activity_type);
   const label = activityTypeLabel(workout.activity_type);
   const duration = formatDuration(workout.started_at, workout.finished_at);
-  const date = formatDate(workout.started_at);
+  const date = formatFullDate(workout.started_at);
   const badge = SOURCE_BADGES[workout.source] ?? null;
 
   return (
