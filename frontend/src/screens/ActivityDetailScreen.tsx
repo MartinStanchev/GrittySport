@@ -20,6 +20,7 @@ import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import { RouteMapPreview } from '../components/RouteMapPreview';
 import { useProgram } from '../contexts/ProgramContext';
+import { pickWorkoutFile } from '../services/workoutFileParser';
 
 const ACTIVITY_TYPES = [
   'Easy Run', 'Interval Run', 'Long Run',
@@ -341,6 +342,25 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                 <Ionicons name="play" size={18} color="#FFF" />
                 <Text style={styles.actionButtonTextLight}>Record This Activity</Text>
               </Pressable>
+              {activity && !activity.linked_workout_id && isGPSActivity(activity.activity_type) && (
+                <Pressable
+                  style={[styles.actionButton, styles.editButton]}
+                  onPress={async () => {
+                    const file = await pickWorkoutFile();
+                    if (file) {
+                      navigation.navigate('WorkoutFilePreview', {
+                        fileUri: file.uri,
+                        fileName: file.fileName,
+                        scheduledActivityId: activity.id,
+                        preselectedType: activity.activity_type,
+                      });
+                    }
+                  }}
+                >
+                  <Ionicons name="cloud-upload-outline" size={18} color="#2196F3" />
+                  <Text style={[styles.actionButtonTextDark, { color: '#2196F3' }]}>Import File</Text>
+                </Pressable>
+              )}
               <Pressable style={[styles.actionButton, styles.editButton]} onPress={enterEditMode}>
                 <Ionicons name="pencil" size={18} color={Colors.primary} />
                 <Text style={[styles.actionButtonTextDark, { color: Colors.primary }]}>Edit</Text>

@@ -41,6 +41,8 @@ Full details for each change are in the `progress/` folder.
 | [fix-program-modification-validation](progress/fix-program-modification-validation.md) | Validate program_id at propose time, add_week_activity tool for single-week changes |
 | [task-12-post-workout-review](progress/task-12-post-workout-review.md) | Post-workout AI review, premium analytics (effort/splits/alignment/PRs), missed workout scheduler |
 | [task-13-history-screen-improvements](progress/task-13-history-screen-improvements.md) | Pagination, filter chips, date range filter, completion status icons, RPE in strength sets |
+| [gpx-file-import](progress/gpx-file-import.md) | GPX file import: file picker, XML parsing, preview screen, 3 entry points |
+| [multi-format-workout-import](progress/multi-format-workout-import.md) | Multi-format import: TCX, FIT, CSV, ZIP support with unified preview screen |
 
 ## Instructions for Agents
 

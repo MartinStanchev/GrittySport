@@ -57,7 +57,6 @@ export function SplitsCard({ data }: SplitsCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 12,
   },
   title: {
     fontSize: 14,

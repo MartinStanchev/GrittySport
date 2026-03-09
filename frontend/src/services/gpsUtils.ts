@@ -159,6 +159,58 @@ export function formatDistanceKm(distM: number): string {
   return (distM / 1000).toFixed(2);
 }
 
+// --- Max Pace / Speed ---
+
+/** Compute the fastest pace and fastest speed from GPS points using a sliding window. O(N). */
+export function computeMaxPaceAndSpeed(
+  points: GPSPoint[],
+  windowSize = 10,
+): { maxPaceSecPerKm: number; maxSpeedKph: number } {
+  let maxPace = 0;
+  let maxSpeed = 0;
+  if (points.length <= windowSize) return { maxPaceSecPerKm: maxPace, maxSpeedKph: maxSpeed };
+
+  // Seed running distance for the first window
+  let runningDist = 0;
+  for (let j = 1; j <= windowSize; j++) {
+    runningDist += points[j].distance_from_prev;
+  }
+  const firstDur = points[windowSize].timestamp - points[0].timestamp;
+  if (runningDist > 1 && firstDur > 0) {
+    maxPace = (firstDur / 1000 / runningDist) * 1000;
+    maxSpeed = (runningDist / 1000) / (firstDur / 1000 / 3600);
+  }
+
+  // Slide the window
+  for (let i = windowSize + 1; i < points.length; i++) {
+    runningDist += points[i].distance_from_prev;
+    runningDist -= points[i - windowSize].distance_from_prev;
+    const durMs = points[i].timestamp - points[i - windowSize].timestamp;
+    if (runningDist > 1 && durMs > 0) {
+      const pace = (durMs / 1000 / runningDist) * 1000;
+      const speed = (runningDist / 1000) / (durMs / 1000 / 3600);
+      if (maxPace === 0 || pace < maxPace) maxPace = pace;
+      if (speed > maxSpeed) maxSpeed = speed;
+    }
+  }
+
+  return { maxPaceSecPerKm: maxPace, maxSpeedKph: maxSpeed };
+}
+
+// --- Calorie Estimation ---
+
+const MET_VALUES: Record<string, number> = {
+  run: 10, easy_run: 8, long_run: 9, interval: 12, trail_run: 11,
+  cycling: 8, bike: 8, swim: 7, walk: 3.5, hike: 6,
+};
+
+/** Estimate calories burned using MET values. Default weight 70kg. */
+export function estimateCalories(activityType: string, durationSec: number, weightKg = 70): number {
+  if (durationSec <= 0) return 0;
+  const met = MET_VALUES[activityType.toLowerCase()] ?? 6;
+  return Math.round(met * weightKg * (durationSec / 3600));
+}
+
 // --- Sport Classification ---
 
 const RUN_TYPES = new Set(['run', 'easy_run', 'interval', 'long_run', 'trail_run']);

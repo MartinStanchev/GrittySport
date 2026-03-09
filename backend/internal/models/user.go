@@ -18,7 +18,7 @@ type User struct {
 }
 
 func (u *User) ToResponse() UserResponse {
-	return UserResponse{
+	r := UserResponse{
 		ID:                    u.ID,
 		Email:                 u.Email,
 		Name:                  u.Name,
@@ -28,6 +28,8 @@ func (u *User) ToResponse() UserResponse {
 		SubscriptionTier:      u.SubscriptionTier,
 		SubscriptionExpiresAt: u.SubscriptionExpiresAt,
 	}
+	r.ApplyEffectiveTier()
+	return r
 }
 
 type UserResponse struct {
@@ -39,4 +41,13 @@ type UserResponse struct {
 	MaxHeartRate          int        `json:"max_heart_rate"`
 	SubscriptionTier      string     `json:"subscription_tier"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
+}
+
+// ApplyEffectiveTier downgrades SubscriptionTier to "free" if the
+// subscription has expired. This keeps the API response consistent
+// with the backend tier checks in the usage service.
+func (u *UserResponse) ApplyEffectiveTier() {
+	if u.SubscriptionTier == "premium" && u.SubscriptionExpiresAt != nil && time.Now().After(*u.SubscriptionExpiresAt) {
+		u.SubscriptionTier = "free"
+	}
 }

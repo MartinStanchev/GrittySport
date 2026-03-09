@@ -27,6 +27,7 @@ import { ProgramModificationCard } from '../components/ProgramModificationCard';
 import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
 import { FABActionSheet } from '../components/FABActionSheet';
 import { ClearChatModal } from '../components/ClearChatModal';
+import { pickWorkoutFile } from '../services/workoutFileParser';
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -393,6 +394,10 @@ export default function HomeScreen() {
         onClose={() => setFabSheetVisible(false)}
         onStartWorkout={() => navigation.navigate('RecordManual')}
         onLogActivity={() => navigation.navigate('LogActivity')}
+        onImportFile={async () => {
+          const file = await pickWorkoutFile();
+          if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+        }}
       />
 
       {/* Chat Modal */}

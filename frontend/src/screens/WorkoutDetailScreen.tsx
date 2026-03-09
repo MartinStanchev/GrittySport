@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
@@ -8,12 +8,12 @@ import { getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatFullDate } from '../utils/dates';
 import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
-import type { WorkoutAnalytics } from '../types/gps';
-import { formatPaceSecPerKm, formatSpeedKph, isRunSport } from '../services/gpsUtils';
+import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
+import { formatPaceSecPerKm, formatSpeedKph, isRunSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { isPremium } from '../utils/premium';
-import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
+import { HROverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import { PremiumStatsCard } from '../components/PremiumStatsCard';
 import { EffortScoreCard } from '../components/EffortScoreCard';
 import { SplitsCard } from '../components/SplitsCard';
@@ -21,11 +21,6 @@ import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
 import { PRBadge } from '../components/PRBadge';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function formatPace(paceSecPerKm: number): string {
-  if (!paceSecPerKm) return '—';
-  return `${formatPaceSecPerKm(paceSecPerKm)} /km`;
-}
 
 type NormalizedType = 'run' | 'cycling' | 'swim' | 'strength' | 'mobility' | 'drill' | 'other';
 
@@ -61,55 +56,67 @@ function activityTypeLabel(type: string): string {
 const SOURCE_BADGES: Record<string, { icon: string; color: string; label: string }> = {
   apple_health: { icon: 'heart', color: '#FF2D55', label: 'Apple Health' },
   garmin: { icon: 'watch-outline', color: '#007DC3', label: 'Garmin' },
+  gpx: { icon: 'map-outline', color: '#2196F3', label: 'GPX Import' },
 };
+
+// ── Stat Components ────────────────────────────────────────────────────────────
+
+interface StatItem {
+  label: string;
+  value: string;
+  unit?: string;
+}
+
+function StatGrid({ stats }: { stats: StatItem[] }) {
+  const filtered = stats.filter((s) => s.value && s.value !== '—');
+  if (filtered.length === 0) return null;
+  return (
+    <View style={styles.statGrid}>
+      {filtered.map((stat) => (
+        <View key={stat.label} style={styles.statTile}>
+          <View style={styles.statTileValueRow}>
+            <Text style={styles.statTileValue}>{stat.value}</Text>
+            {stat.unit && <Text style={styles.statTileUnit}>{stat.unit}</Text>}
+          </View>
+          <Text style={styles.statTileLabel}>{stat.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // ── Detail Section Renderers ────────────────────────────────────────────────────
 
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statRow}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
-
 function RunDetail({ data }: { data: Record<string, any> }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Run Stats</Text>
-      <StatRow label="Distance" value={data.distance_km ? `${data.distance_km} km` : '—'} />
-      <StatRow label="Avg Pace" value={formatPace(data.avg_pace_sec_per_km)} />
-    </View>
-  );
+  const stats: StatItem[] = [
+    { label: 'Distance', value: data.distance_km ? `${data.distance_km}` : '', unit: 'km' },
+    { label: 'Avg Pace', value: data.avg_pace_sec_per_km ? formatPaceSecPerKm(data.avg_pace_sec_per_km) : '', unit: '/km' },
+  ];
+  return <StatGrid stats={stats} />;
 }
 
 function CyclingDetail({ data }: { data: Record<string, any> }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Cycling Stats</Text>
-      <StatRow label="Distance" value={data.distance_km ? `${data.distance_km} km` : '—'} />
-      <StatRow label="Avg Speed" value={data.avg_speed_kph ? `${data.avg_speed_kph} km/h` : '—'} />
-    </View>
-  );
+  const stats: StatItem[] = [
+    { label: 'Distance', value: data.distance_km ? `${data.distance_km}` : '', unit: 'km' },
+    { label: 'Avg Speed', value: data.avg_speed_kph ? `${data.avg_speed_kph}` : '', unit: 'km/h' },
+  ];
+  return <StatGrid stats={stats} />;
 }
 
 function SwimDetail({ data }: { data: Record<string, any> }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Swim Stats</Text>
-      <StatRow label="Distance" value={data.distance_m ? `${data.distance_m} m` : '—'} />
-      {data.laps ? <StatRow label="Laps" value={String(data.laps)} /> : null}
-    </View>
-  );
+  const stats: StatItem[] = [
+    { label: 'Distance', value: data.distance_m ? `${data.distance_m}` : '', unit: 'm' },
+    ...(data.laps ? [{ label: 'Laps', value: String(data.laps) }] : []),
+  ];
+  return <StatGrid stats={stats} />;
 }
 
 function StrengthDetail({ data }: { data: Record<string, any> }) {
   const exercises: any[] = data.exercises ?? [];
   if (exercises.length === 0) return null;
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Exercises</Text>
+    <View style={styles.detailSection}>
+      <Text style={styles.sectionLabel}>Exercises</Text>
       {exercises.map((ex: any, i: number) => (
         <View key={i} style={styles.exerciseBlock}>
           <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
@@ -141,8 +148,8 @@ function MobilityDetail({ data }: { data: Record<string, any> }) {
   const exercises: any[] = data.exercises ?? [];
   if (exercises.length === 0) return null;
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Exercises</Text>
+    <View style={styles.detailSection}>
+      <Text style={styles.sectionLabel}>Exercises</Text>
       {exercises.map((ex: any, i: number) => {
         const durSec = ex.duration_seconds ?? 0;
         const durLabel = durSec > 0 ? `${Math.floor(durSec / 60)}m ${durSec % 60}s` : '—';
@@ -173,31 +180,62 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
 
+  const points: GPSPoint[] = useMemo(() => (route.points ?? []) as GPSPoint[], [route.points]);
+  const hrReadings = useMemo(() => hrData?.readings ?? [], [hrData?.readings]);
+
+  const { maxPaceSecPerKm, maxSpeedKph } = useMemo(
+    () => computeMaxPaceAndSpeed(points),
+    [points],
+  );
+
+  const durationSec = route.duration_sec ?? (
+    workout.finished_at && workout.started_at
+      ? (new Date(workout.finished_at).getTime() - new Date(workout.started_at).getTime()) / 1000
+      : 0
+  );
+  const calories = useMemo(
+    () => estimateCalories(workout.activity_type, durationSec),
+    [workout.activity_type, durationSec],
+  );
+
+  const effortData = useMemo(
+    () => hrReadings.length >= 2 ? computeEffortScore(hrReadings, maxHR, durationSec) : null,
+    [hrReadings, maxHR, durationSec],
+  );
+
+  const splitsData = useMemo(() => {
+    if (points.length < 20) return null;
+    const data = computeKmSplits(points, hrReadings);
+    return data.splits.length > 0 ? data : null;
+  }, [points, hrReadings]);
+
+  const stats: StatItem[] = [
+    { label: 'Distance', value: summary.distance_km ? Number(summary.distance_km).toFixed(2) : '', unit: 'km' },
+    isRun
+      ? { label: 'Avg Pace', value: formatPaceSecPerKm(summary.avg_pace_sec_per_km ?? 0), unit: '/km' }
+      : { label: 'Avg Speed', value: summary.avg_speed_kph ? formatSpeedKph(summary.avg_speed_kph) : '', unit: 'km/h' },
+    isRun && maxPaceSecPerKm > 0
+      ? { label: 'Best Pace', value: formatPaceSecPerKm(maxPaceSecPerKm), unit: '/km' }
+      : !isRun && maxSpeedKph > 0
+        ? { label: 'Top Speed', value: formatSpeedKph(maxSpeedKph), unit: 'km/h' }
+        : { label: '', value: '' },
+    { label: 'Elevation', value: summary.elevation_gain_m ? `+${Math.round(summary.elevation_gain_m)}` : '', unit: 'm' },
+    calories > 0 ? { label: 'Calories', value: `${calories}`, unit: 'kcal' } : { label: '', value: '' },
+    summary.avg_hr ? { label: 'Avg HR', value: `${summary.avg_hr}`, unit: 'bpm' } : { label: '', value: '' },
+    summary.max_hr ? { label: 'Max HR', value: `${summary.max_hr}`, unit: 'bpm' } : { label: '', value: '' },
+    effortData && effortData.score > 0
+      ? { label: 'Effort', value: `${effortData.score}/100`, unit: effortData.label }
+      : { label: '', value: '' },
+    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: 'spm' } : { label: '', value: '' },
+  ];
+
   return (
     <>
       <RouteMapPreview gpsRoute={route} style={styles.gpsMap} />
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>GPS Stats</Text>
-        <StatRow label="Distance" value={summary.distance_km ? `${Number(summary.distance_km).toFixed(2)} km` : '—'} />
-        {isRun && <StatRow label="Avg Pace" value={formatPaceSecPerKm(summary.avg_pace_sec_per_km ?? 0)} />}
-        {!isRun && <StatRow label="Avg Speed" value={summary.avg_speed_kph ? `${formatSpeedKph(summary.avg_speed_kph)} km/h` : '—'} />}
-        <StatRow label="Elevation Gain" value={summary.elevation_gain_m ? `+${summary.elevation_gain_m} m` : '—'} />
-        {summary.avg_hr && <StatRow label="Avg Heart Rate" value={`${summary.avg_hr} bpm`} />}
-        {summary.max_hr && <StatRow label="Max Heart Rate" value={`${summary.max_hr} bpm`} />}
-        {summary.avg_cadence && <StatRow label="Avg Cadence" value={`${summary.avg_cadence} spm`} />}
-      </View>
+      <StatGrid stats={stats} />
 
-      {/* Charts */}
-      {hrData?.readings && hrData.readings.length > 5 && (
-        <HROverTimeChart readings={hrData.readings} maxHR={maxHR} />
-      )}
-
-      {route.points && route.points.length > 10 && isRun && (
-        <PaceOverTimeChart points={route.points} />
-      )}
-
-      {route.points && route.points.length > 10 && !isRun && (
-        <SpeedOverTimeChart points={route.points} />
+      {hrReadings.length > 5 && (
+        <HROverTimeChart readings={hrReadings} maxHR={maxHR} />
       )}
 
       {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
@@ -205,8 +243,8 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
       )}
 
       {laps.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lap Splits</Text>
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionLabel}>Lap Splits</Text>
           <View style={styles.lapHeader}>
             <Text style={[styles.lapCell, styles.lapCellLabel]}>Lap</Text>
             <Text style={[styles.lapCell, styles.lapCellLabel]}>Dist</Text>
@@ -227,6 +265,49 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
           ))}
         </View>
       )}
+
+      {splitsData && <SplitsCard data={splitsData} />}
+    </>
+  );
+}
+
+function HROnlyDetail({ workout }: { workout: WorkoutResponse }) {
+  const hrData = workout.heart_rate_data;
+  const summary = workout.recorded_data ?? {};
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
+  const hrReadings: HRReading[] = useMemo(() => hrData?.readings ?? [], [hrData?.readings]);
+
+  const durationSec = workout.gps_route?.duration_sec ?? (
+    workout.finished_at && workout.started_at
+      ? (new Date(workout.finished_at).getTime() - new Date(workout.started_at).getTime()) / 1000
+      : 0
+  );
+  const effortData = useMemo(
+    () => hrReadings.length >= 2 ? computeEffortScore(hrReadings, maxHR, durationSec) : null,
+    [hrReadings, maxHR, durationSec],
+  );
+
+  const stats: StatItem[] = [
+    summary.avg_hr ? { label: 'Avg HR', value: `${summary.avg_hr}`, unit: 'bpm' } : { label: '', value: '' },
+    summary.max_hr ? { label: 'Max HR', value: `${summary.max_hr}`, unit: 'bpm' } : { label: '', value: '' },
+    effortData && effortData.score > 0
+      ? { label: 'Effort', value: `${effortData.score}/100`, unit: effortData.label }
+      : { label: '', value: '' },
+    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: 'spm' } : { label: '', value: '' },
+  ];
+
+  return (
+    <>
+      <StatGrid stats={stats} />
+
+      {hrReadings.length > 5 && (
+        <HROverTimeChart readings={hrReadings} maxHR={maxHR} />
+      )}
+
+      {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
+        <CadenceChart readings={hrData.cadence_readings} />
+      )}
     </>
   );
 }
@@ -235,16 +316,25 @@ function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
   const data = workout.recorded_data ?? {};
   const normalized = normalizeActivityType(workout.activity_type);
   const hasGPSRoute = workout.gps_route && (workout.gps_route as any).points?.length > 0;
+  const hasHRData = (workout.heart_rate_data?.readings?.length ?? 0) > 0;
 
-  if (workout.source === 'gps' || (workout.source === 'apple_health' && hasGPSRoute)) {
+  if (hasGPSRoute) {
     return <GPSDetail workout={workout} />;
   }
-  if (normalized === 'run') return <RunDetail data={data} />;
-  if (normalized === 'cycling') return <CyclingDetail data={data} />;
-  if (normalized === 'swim') return <SwimDetail data={data} />;
-  if (normalized === 'strength') return <StrengthDetail data={data} />;
-  if (normalized === 'mobility') return <MobilityDetail data={data} />;
-  return null;
+
+  const typeDetail = normalized === 'run' ? <RunDetail data={data} />
+    : normalized === 'cycling' ? <CyclingDetail data={data} />
+    : normalized === 'swim' ? <SwimDetail data={data} />
+    : normalized === 'strength' ? <StrengthDetail data={data} />
+    : normalized === 'mobility' ? <MobilityDetail data={data} />
+    : null;
+
+  return (
+    <>
+      {typeDetail}
+      {hasHRData && <HROnlyDetail workout={workout} />}
+    </>
+  );
 }
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
@@ -351,54 +441,53 @@ export default function WorkoutDetailScreen({ route }: Props) {
   const date = formatFullDate(workout.started_at);
   const badge = SOURCE_BADGES[workout.source] ?? null;
 
+  const hasGPSOrHR = !!(workout.gps_route && (workout.gps_route as any).points?.length > 0)
+    || !!workout.heart_rate_data?.readings?.length;
+  const hasAnalyticsContent = analytics && (
+    analytics.effort_score > 0 ||
+    analytics.program_alignment ||
+    (analytics.personal_records && analytics.personal_records.length > 0) ||
+    analytics.trend
+  );
+  const showPremiumAnalytics = userIsPremium ? !!hasAnalyticsContent : hasGPSOrHR;
+
   return (
     <>
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header card */}
-      <View style={styles.headerCard}>
-        <View style={styles.iconCircle}>
-          <Ionicons name={icon} size={32} color={Colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.activityLabel}>{label}</Text>
-          <Text style={styles.dateLabel}>{date}</Text>
-        </View>
-        {badge && (
-          <View style={styles.sourceBadge}>
-            <Ionicons name={badge.icon as any} size={12} color={badge.color} />
-            <Text style={styles.sourceBadgeText}>{badge.label}</Text>
+      {/* Header */}
+      <View style={styles.headerSection}>
+        <View style={styles.headerRow}>
+          <View style={styles.iconCircle}>
+            <Ionicons name={icon} size={28} color={Colors.primary} />
           </View>
-        )}
+          <View style={{ flex: 1 }}>
+            <View style={styles.headerTopRow}>
+              <Text style={styles.activityLabel}>{label}</Text>
+              {badge && (
+                <View style={styles.sourceBadge}>
+                  <Ionicons name={badge.icon as any} size={12} color={badge.color} />
+                  <Text style={styles.sourceBadgeText}>{badge.label}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.dateLabel}>{date}</Text>
+          </View>
+        </View>
+        <Text style={styles.durationLabel}>{duration}</Text>
       </View>
 
-      {/* Summary row */}
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryItem}>
-          <Ionicons name="time-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.summaryValue}>{duration}</Text>
-          <Text style={styles.summaryCaption}>Duration</Text>
-        </View>
-      </View>
+      <View style={styles.separator} />
 
       {/* Type-specific data */}
       <TypeSpecificDetail workout={workout} />
 
       {/* Premium Analytics */}
-      {(analytics || !userIsPremium) && (
+      {showPremiumAnalytics && (
         <PremiumStatsCard isPremium={userIsPremium} title="Advanced Analytics">
           {analytics && (
             <>
               {analytics.effort_score > 0 && (
                 <EffortScoreCard data={{ score: analytics.effort_score, label: analytics.effort_label }} />
-              )}
-              {analytics.splits.length > 0 && (
-                <SplitsCard data={{
-                  splits: analytics.splits,
-                  fastestSplitKm: analytics.fastest_split_km,
-                  slowestSplitKm: analytics.slowest_split_km,
-                  fadePct: analytics.fade_pct,
-                  isNegativeSplit: analytics.is_negative_split,
-                }} />
               )}
               {analytics.program_alignment && (
                 <ProgramAlignmentCard data={analytics.program_alignment} />
@@ -426,8 +515,8 @@ export default function WorkoutDetailScreen({ route }: Props) {
 
       {/* Notes */}
       {workout.notes ? (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
+        <View style={styles.detailSection}>
+          <Text style={styles.sectionLabel}>Notes</Text>
           <Text style={styles.notesText}>{workout.notes}</Text>
         </View>
       ) : null}
@@ -484,7 +573,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   content: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 40,
   },
   center: {
@@ -497,45 +586,53 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: 15,
   },
-  headerCard: {
+
+  // Header
+  headerSection: {
+    marginBottom: 20,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 14,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FEE2E5',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activityLabel: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
   dateLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  durationLabel: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginTop: 16,
+    letterSpacing: -0.5,
   },
   sourceBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F0F0F0',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   sourceBadgeText: {
@@ -543,67 +640,59 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.textSecondary,
   },
-  summaryRow: {
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#E0E0E0',
+    marginBottom: 20,
+  },
+
+  // Stats grid
+  statGrid: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    gap: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    flexWrap: 'wrap',
+    marginBottom: 24,
   },
-  summaryItem: {
-    alignItems: 'center',
-    gap: 4,
+  statTile: {
+    width: '50%',
+    paddingVertical: 12,
+    paddingRight: 8,
   },
-  summaryValue: {
-    fontSize: 20,
+  statTileValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+  },
+  statTileValue: {
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
+    letterSpacing: -0.3,
   },
-  summaryCaption: {
+  statTileUnit: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  statTileLabel: {
     fontSize: 12,
     color: Colors.textSecondary,
+    marginTop: 2,
   },
-  section: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+
+  // Detail sections (laps, exercises, notes)
+  detailSection: {
+    marginBottom: 24,
   },
-  sectionTitle: {
+  sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textSecondary,
+    fontWeight: '600',
+    color: '#999',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
   },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.background,
-  },
-  statLabel: {
-    fontSize: 15,
-    color: Colors.textSecondary,
-  },
-  statValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
+
+  // Exercise styles
   exerciseBlock: {
     marginBottom: 16,
   },
@@ -630,7 +719,7 @@ const styles = StyleSheet.create({
   },
   setRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.background,
+    backgroundColor: '#F5F5F5',
     borderRadius: 6,
     padding: 8,
     paddingHorizontal: 4,
@@ -643,9 +732,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.background,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EBEBEB',
   },
   mobilityInfo: {
     flex: 1,
@@ -663,9 +752,11 @@ const styles = StyleSheet.create({
   gpsMap: {
     height: 200,
     borderRadius: 14,
-    marginBottom: 12,
+    marginBottom: 20,
     overflow: 'hidden',
   },
+
+  // Lap table
   lapHeader: {
     flexDirection: 'row',
     paddingBottom: 6,
@@ -690,6 +781,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+
+  // Link button
   linkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -706,6 +799,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+
+  // Bottom sheet
   sheetBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',

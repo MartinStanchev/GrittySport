@@ -25,6 +25,7 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*models.UserR
 	if err != nil {
 		return nil, err
 	}
+	user.ApplyEffectiveTier()
 	return &user, nil
 }
 
@@ -51,5 +52,6 @@ func (s *UserService) Update(ctx context.Context, userID string, input UpdateUse
 	if err != nil {
 		return nil, err
 	}
+	user.ApplyEffectiveTier()
 	return &user, nil
 }

@@ -9,6 +9,7 @@ import { getWorkouts } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
+import { pickWorkoutFile } from '../services/workoutFileParser';
 
 const PAGE_SIZE = 20;
 
@@ -69,7 +70,7 @@ function getDateRange(preset: DatePreset): { start_date?: string; end_date?: str
 function keyStat(workout: WorkoutResponse): string {
   const data = workout.recorded_data ?? {};
   const type = workout.activity_type.toLowerCase();
-  if ((workout.source === 'gps' || workout.source === 'apple_health') && data.distance_km) {
+  if ((workout.source === 'gps' || workout.source === 'apple_health' || workout.source === 'gpx') && data.distance_km) {
     return `${Number(data.distance_km).toFixed(2)} km`;
   }
   if (type.includes('strength') || type.includes('weight')) {
@@ -89,6 +90,7 @@ function keyStat(workout: WorkoutResponse): string {
 function sourceBadge(source: string): { icon: string; color: string } | null {
   if (source === 'apple_health') return { icon: 'heart', color: '#FF2D55' };
   if (source === 'garmin') return { icon: 'watch-outline', color: '#007DC3' };
+  if (source === 'gpx') return { icon: 'map-outline', color: '#2196F3' };
   return null;
 }
 
@@ -233,6 +235,15 @@ export default function HistoryScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>HISTORY</Text>
         <Pressable onPress={() => navigation.navigate('Import')} style={styles.addBtn}>
           <Ionicons name="download-outline" size={22} color={Colors.primary} />
+        </Pressable>
+        <Pressable
+          onPress={async () => {
+            const file = await pickWorkoutFile();
+            if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+          }}
+          style={styles.addBtn}
+        >
+          <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
         </Pressable>
         <Pressable onPress={() => navigation.navigate('LogActivity')} style={styles.addBtn}>
           <Ionicons name="add" size={24} color={Colors.primary} />

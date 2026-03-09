@@ -59,6 +59,7 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	workout, err := h.workoutService.Create(r.Context(), userID, input)
 	if err != nil {
+		log.Error().Err(err).Str("user_id", userID).Str("source", input.Source).Msg("failed to save workout")
 		writeError(w, http.StatusInternalServerError, "failed to save workout")
 		return
 	}

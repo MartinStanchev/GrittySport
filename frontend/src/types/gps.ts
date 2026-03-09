@@ -67,6 +67,11 @@ export interface CadenceReading {
   timestamp: number; // Unix ms
 }
 
+export interface PowerReading {
+  watts: number;
+  timestamp: number; // Unix ms
+}
+
 export type HRZone = 1 | 2 | 3 | 4 | 5;
 export type HRZoneDistribution = Record<HRZone, number>; // seconds in each zone
 

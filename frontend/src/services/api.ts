@@ -199,7 +199,8 @@ async function apiFetch<T>(
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
     if (__DEV__) {
-      console.error(`[API] Error response:`, error);
+      const logFn = response.status === 403 ? console.warn : console.error;
+      logFn(`[API] ${response.status} response:`, error);
     }
     throw new ApiError(response.status, error.error || error.message || 'Request failed');
   }
@@ -528,7 +529,7 @@ export interface SaveWorkoutInput {
   scheduled_activity_id?: string;
   activity_type: string;
   recorded_data: Record<string, any>;
-  source: 'manual' | 'gps' | 'garmin' | 'apple_health';
+  source: 'manual' | 'gps' | 'garmin' | 'apple_health' | 'gpx' | 'tcx' | 'fit' | 'csv';
   started_at: string;
   finished_at?: string;
   gps_route?: Record<string, any>;

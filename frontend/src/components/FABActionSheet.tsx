@@ -8,9 +8,10 @@ interface Props {
   onClose: () => void;
   onStartWorkout: () => void;
   onLogActivity: () => void;
+  onImportFile: () => void;
 }
 
-export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity }: Props) {
+export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity, onImportFile }: Props) {
   const slideAnim = useRef(new Animated.Value(200)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -59,6 +60,27 @@ export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Log Past Activity</Text>
               <Text style={styles.rowSubtitle}>Record a completed workout</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          </Pressable>
+
+          <View style={styles.separator} />
+
+          <Pressable
+            style={styles.row}
+            onPress={() => {
+              onClose();
+              // Delay picker until the Modal has fully dismissed — native document
+              // picker cannot present over a React Native Modal.
+              setTimeout(onImportFile, 400);
+            }}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: '#2196F318' }]}>
+              <Ionicons name="cloud-upload-outline" size={22} color="#2196F3" />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>Import Workout File</Text>
+              <Text style={styles.rowSubtitle}>GPX, TCX, FIT, CSV, or ZIP</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
           </Pressable>

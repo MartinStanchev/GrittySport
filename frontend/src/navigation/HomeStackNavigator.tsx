@@ -7,6 +7,7 @@ import RecordGPSScreen from '../screens/RecordGPSScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ImportScreen from '../screens/ImportScreen';
+import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
 import { Colors } from '../constants/colors';
 
 const Stack = createNativeStackNavigator();
@@ -58,6 +59,11 @@ export default function HomeStackNavigator() {
         name="Import"
         component={ImportScreen}
         options={{ title: 'Import Workouts' }}
+      />
+      <Stack.Screen
+        name="WorkoutFilePreview"
+        component={WorkoutFilePreviewScreen}
+        options={{ title: 'Import Workout' }}
       />
     </Stack.Navigator>
   );

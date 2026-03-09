@@ -57,7 +57,7 @@ export function formatActivityDate(dateStr: string): string {
 }
 
 const MANUAL_ACTIVITY_TYPES = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling'];
-const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'trail_run', 'walk', 'swim', 'cycling', 'bike'];
+export const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'trail_run', 'walk', 'swim', 'cycling', 'bike'];
 
 export function isManualActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');
