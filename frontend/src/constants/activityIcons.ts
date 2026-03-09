@@ -7,13 +7,13 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   walk: 'walk-outline',
   trail_run: 'walk-outline',
   swim: 'water-outline',
+  open_water_swim: 'water-outline',
   strength: 'barbell-outline',
   rest: 'bed-outline',
   recovery: 'bed-outline',
   mobility: 'body-outline',
   yoga: 'body-outline',
   cycling: 'bicycle-outline',
-  bike: 'bicycle-outline',
   indoor_cycling: 'bicycle-outline',
   indoor_run: 'walk-outline',
   drill: 'flag-outline',
@@ -56,15 +56,28 @@ export function formatActivityDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-const MANUAL_ACTIVITY_TYPES = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling'];
-export const GPS_ACTIVITY_TYPES = ['run', 'easy_run', 'interval', 'long_run', 'trail_run', 'walk', 'swim', 'cycling', 'bike'];
+export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
+  { type: 'run', label: 'Run' },
+  { type: 'walk', label: 'Walk' },
+  { type: 'cycling', label: 'Cycling' },
+  { type: 'indoor_run', label: 'Indoor Run' },
+  { type: 'indoor_cycling', label: 'Indoor Cycling' },
+  { type: 'swim', label: 'Swim' },
+  { type: 'open_water_swim', label: 'Open Water Swim' },
+  { type: 'strength', label: 'Strength' },
+  { type: 'mobility', label: 'Mobility' },
+  { type: 'drill', label: 'Drill' },
+];
 
-export function isManualActivity(type: string): boolean {
-  const normalized = type.toLowerCase().replace(/\s+/g, '_');
-  return MANUAL_ACTIVITY_TYPES.some((t) => normalized.includes(t));
-}
+const GPS_ROOTS = ['run', 'walk', 'swim', 'cycling', 'open_water_swim'];
+const MANUAL_ROOTS = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling'];
 
 export function isGPSActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');
-  return GPS_ACTIVITY_TYPES.some((t) => normalized.includes(t));
+  return GPS_ROOTS.some((t) => normalized.includes(t));
+}
+
+export function isManualActivity(type: string): boolean {
+  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  return MANUAL_ROOTS.some((t) => normalized.includes(t));
 }

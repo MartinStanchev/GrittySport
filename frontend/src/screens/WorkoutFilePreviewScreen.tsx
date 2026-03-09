@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
-import { GPS_ACTIVITY_TYPES, getActivityIcon } from '../constants/activityIcons';
+import { IMPORT_ACTIVITY_TYPES, getActivityIcon } from '../constants/activityIcons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
 import { HROverTimeChart } from '../components/WorkoutCharts';
 import { useAuth } from '../contexts/AuthContext';
@@ -330,7 +330,7 @@ function WorkoutPreview({
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Activity Type</Text>
           <View style={styles.typePicker}>
-            {GPS_ACTIVITY_TYPES.map((type) => (
+            {IMPORT_ACTIVITY_TYPES.map(({ type, label }) => (
               <Pressable
                 key={type}
                 style={[styles.typeChip, activityType === type && styles.typeChipActive]}
@@ -342,7 +342,7 @@ function WorkoutPreview({
                   color={activityType === type ? '#FFF' : Colors.textSecondary}
                 />
                 <Text style={[styles.typeChipText, activityType === type && styles.typeChipTextActive]}>
-                  {type.replace(/_/g, ' ')}
+                  {label}
                 </Text>
               </Pressable>
             ))}
