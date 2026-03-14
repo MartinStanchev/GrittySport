@@ -10,16 +10,18 @@ import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
 import CreateProgramBasicsScreen from '../screens/CreateProgramBasicsScreen';
 import CreateProgramScheduleScreen from '../screens/CreateProgramScheduleScreen';
 import CreateProgramReviewScreen from '../screens/CreateProgramReviewScreen';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
 export default function ProgramsStackNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.textPrimary,
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.textPrimary,
       }}
     >
       <Stack.Screen

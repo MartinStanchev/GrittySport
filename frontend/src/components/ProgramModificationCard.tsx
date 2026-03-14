@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ProgramModificationData {
   type: 'program_modification';
@@ -40,42 +40,44 @@ function describeAction(mod: ProgramModificationData['modifications'][0]): strin
 }
 
 export function ProgramModificationCard({ data, onAccept, onDeny, disabled }: ProgramModificationCardProps) {
+  const { colors } = useTheme();
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.header}>
-        <Ionicons name="calendar-outline" size={22} color={Colors.primary} />
-        <Text style={styles.title}>Program Change</Text>
+        <Ionicons name="calendar-outline" size={22} color={colors.primary} />
+        <Text style={[styles.title, { color: colors.textPrimary }]}>Program Change</Text>
       </View>
 
-      <Text style={styles.description}>{data.description}</Text>
+      <Text style={[styles.description, { color: colors.textPrimary }]}>{data.description}</Text>
 
       {data.modifications?.length > 0 && (
-        <View style={styles.modList}>
+        <View style={[styles.modList, { backgroundColor: colors.background }]}>
           {data.modifications.map((mod, i) => (
             <View key={i} style={styles.modRow}>
-              <Ionicons name="ellipse" size={6} color={Colors.textSecondary} style={styles.bullet} />
-              <Text style={styles.modText}>{describeAction(mod)}</Text>
+              <Ionicons name="ellipse" size={6} color={colors.textSecondary} style={styles.bullet} />
+              <Text style={[styles.modText, { color: colors.textPrimary }]}>{describeAction(mod)}</Text>
             </View>
           ))}
-          <Text style={styles.allWeeksNote}>Applied to all weeks</Text>
+          <Text style={[styles.allWeeksNote, { color: colors.textSecondary }]}>Applied to all weeks</Text>
         </View>
       )}
 
       <View style={styles.buttons}>
         <TouchableOpacity
-          style={[styles.button, styles.denyButton, disabled && styles.buttonDisabled]}
+          style={[styles.button, styles.denyButton, { backgroundColor: colors.background }, disabled && styles.buttonDisabled]}
           onPress={onDeny}
           disabled={disabled}
         >
-          <Text style={styles.denyText}>No changes</Text>
+          <Text style={[styles.denyText, { color: colors.textSecondary }]}>No changes</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.button, styles.acceptButton, disabled && styles.buttonDisabled]}
+          style={[styles.button, styles.acceptButton, { backgroundColor: colors.primary }, disabled && styles.buttonDisabled]}
           onPress={onAccept}
           disabled={disabled}
         >
-          <Ionicons name="checkmark" size={16} color="#FFF" />
-          <Text style={styles.acceptText}>Apply changes</Text>
+          <Ionicons name="checkmark" size={16} color={colors.surface} />
+          <Text style={[styles.acceptText, { color: colors.surface }]}>Apply changes</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -84,16 +86,11 @@ export function ProgramModificationCard({ data, onAccept, onDeny, disabled }: Pr
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
     marginVertical: 6,
     alignSelf: 'stretch',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',
@@ -104,16 +101,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   description: {
     fontSize: 14,
-    color: Colors.textPrimary,
     lineHeight: 20,
     marginBottom: 12,
   },
   modList: {
-    backgroundColor: Colors.background,
     borderRadius: 10,
     padding: 12,
     marginBottom: 16,
@@ -129,12 +123,10 @@ const styles = StyleSheet.create({
   },
   modText: {
     fontSize: 13,
-    color: Colors.textPrimary,
     flex: 1,
   },
   allWeeksNote: {
     fontSize: 11,
-    color: Colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 4,
   },
@@ -154,20 +146,15 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-  denyButton: {
-    backgroundColor: Colors.background,
-  },
-  acceptButton: {
-    backgroundColor: Colors.primary,
-  },
+  denyButton: {},
+  acceptButton: {},
   denyText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   acceptText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FFF',
+    // color applied inline via theme
   },
 });

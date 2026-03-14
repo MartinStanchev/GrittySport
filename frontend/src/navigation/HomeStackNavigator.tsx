@@ -8,16 +8,18 @@ import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ImportScreen from '../screens/ImportScreen';
 import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
 export default function HomeStackNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.textPrimary,
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.textPrimary,
       }}
     >
       <Stack.Screen

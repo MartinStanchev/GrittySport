@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -12,6 +12,7 @@ interface Props {
 }
 
 export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity, onImportFile }: Props) {
+  const { colors } = useTheme();
   const slideAnim = useRef(new Animated.Value(200)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -31,40 +32,40 @@ export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Animated.View style={[styles.backdrop, { opacity: opacityAnim }]}>
+      <Animated.View style={[styles.backdrop, { opacity: opacityAnim, backgroundColor: colors.overlay }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
           <Pressable
             style={styles.row}
             onPress={() => { onClose(); onStartWorkout(); }}
           >
-            <View style={[styles.rowIcon, { backgroundColor: Colors.primary + '18' }]}>
-              <Ionicons name="fitness-outline" size={22} color={Colors.primary} />
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="fitness-outline" size={22} color={colors.primary} />
             </View>
             <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Start Workout</Text>
-              <Text style={styles.rowSubtitle}>Track a live workout</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Start Workout</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>Track a live workout</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </Pressable>
 
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
           <Pressable
             style={styles.row}
             onPress={() => { onClose(); onLogActivity(); }}
           >
-            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5018' }]}>
-              <Ionicons name="document-text-outline" size={22} color="#4CAF50" />
+            <View style={[styles.rowIcon, { backgroundColor: colors.success + '18' }]}>
+              <Ionicons name="document-text-outline" size={22} color={colors.success} />
             </View>
             <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Log Past Activity</Text>
-              <Text style={styles.rowSubtitle}>Record a completed workout</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Log Past Activity</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>Record a completed workout</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </Pressable>
 
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
           <Pressable
             style={styles.row}
@@ -75,14 +76,14 @@ export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity
               setTimeout(onImportFile, 400);
             }}
           >
-            <View style={[styles.rowIcon, { backgroundColor: '#2196F318' }]}>
-              <Ionicons name="cloud-upload-outline" size={22} color="#2196F3" />
+            <View style={[styles.rowIcon, { backgroundColor: colors.info + '18' }]}>
+              <Ionicons name="cloud-upload-outline" size={22} color={colors.info} />
             </View>
             <View style={styles.rowText}>
-              <Text style={styles.rowTitle}>Import Workout File</Text>
-              <Text style={styles.rowSubtitle}>GPX, TCX, FIT, CSV, or ZIP</Text>
+              <Text style={[styles.rowTitle, { color: colors.textPrimary }]}>Import Workout File</Text>
+              <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>GPX, TCX, FIT, CSV, or ZIP</Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -93,13 +94,12 @@ export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    // backgroundColor applied inline via theme overlay
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     paddingBottom: 148, // positions sheet above FAB + chat bar
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingVertical: 6,
     shadowColor: '#000',
@@ -123,11 +123,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary },
-  rowSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  rowTitle: { fontSize: 16, fontWeight: '600' },
+  rowSubtitle: { fontSize: 13, marginTop: 1 },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EBEBEB',
     marginHorizontal: 18,
   },
 });

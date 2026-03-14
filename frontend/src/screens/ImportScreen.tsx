@@ -16,7 +16,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
 import { getUpcomingActivities, saveWorkout } from '../services/api';
 import type { UpcomingActivity } from '../services/api';
@@ -51,49 +52,61 @@ function WorkoutRow({
   workout,
   imported,
   onPress,
+  colors,
 }: {
   workout: HealthKitWorkoutSummary;
   imported: boolean;
   onPress: () => void;
+  colors: ThemeColors;
 }) {
   const icon = getActivityIcon(workout.mappedActivityType);
   return (
-    <Pressable style={styles.row} onPress={onPress} disabled={imported}>
-      <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={20} color={imported ? Colors.textSecondary : Colors.primary} />
+    <Pressable
+      style={[
+        styles.row,
+        {
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.border,
+        },
+      ]}
+      onPress={onPress}
+      disabled={imported}
+    >
+      <View style={[styles.rowIcon, { backgroundColor: colors.background }]}>
+        <Ionicons name={icon} size={20} color={imported ? colors.textSecondary : colors.primary} />
       </View>
       <View style={styles.rowContent}>
         <View style={styles.rowHeader}>
-          <Text style={[styles.rowType, imported && styles.rowDimmed]}>
+          <Text style={[styles.rowType, { color: colors.textPrimary }, imported && { color: colors.textSecondary }]}>
             {workout.mappedActivityType.replace(/_/g, ' ')}
           </Text>
           {imported && (
             <View style={styles.importedBadge}>
-              <Ionicons name="checkmark-circle" size={14} color={Colors.textSecondary} />
-              <Text style={styles.importedBadgeText}>Imported</Text>
+              <Ionicons name="checkmark-circle" size={14} color={colors.textSecondary} />
+              <Text style={[styles.importedBadgeText, { color: colors.textSecondary }]}>Imported</Text>
             </View>
           )}
         </View>
-        <Text style={[styles.rowMeta, imported && styles.rowDimmed]}>
+        <Text style={[styles.rowMeta, { color: colors.textSecondary }, imported && { color: colors.textSecondary }]}>
           {formatDate(workout.startDate)} at {formatTime(workout.startDate)}
         </Text>
         <View style={styles.rowStats}>
-          <Text style={[styles.rowStat, imported && styles.rowDimmed]}>
+          <Text style={[styles.rowStat, { color: colors.textPrimary }, imported && { color: colors.textSecondary }]}>
             {formatDuration(workout.durationSeconds)}
           </Text>
           {workout.distanceKm != null && workout.distanceKm > 0 && (
-            <Text style={[styles.rowStat, imported && styles.rowDimmed]}>
+            <Text style={[styles.rowStat, { color: colors.textPrimary }, imported && { color: colors.textSecondary }]}>
               {workout.distanceKm.toFixed(2)} km
             </Text>
           )}
           {workout.totalEnergyBurnedKcal != null && (
-            <Text style={[styles.rowStat, imported && styles.rowDimmed]}>
+            <Text style={[styles.rowStat, { color: colors.textPrimary }, imported && { color: colors.textSecondary }]}>
               {Math.round(workout.totalEnergyBurnedKcal)} kcal
             </Text>
           )}
         </View>
         {workout.sourceDevice && (
-          <Text style={styles.sourceDevice}>{workout.sourceDevice}</Text>
+          <Text style={[styles.sourceDevice, { color: colors.textSecondary }]}>{workout.sourceDevice}</Text>
         )}
       </View>
     </Pressable>
@@ -107,11 +120,13 @@ function ImportDetailSheet({
   visible,
   onClose,
   onImported,
+  colors,
 }: {
   workout: HealthKitWorkoutSummary | null;
   visible: boolean;
   onClose: () => void;
   onImported: () => void;
+  colors: ThemeColors;
 }) {
   const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
@@ -181,57 +196,57 @@ function ImportDetailSheet({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[styles.sheetOverlay, { opacity: opacityAnim }]}>
+      <Animated.View style={[styles.sheetOverlay, { opacity: opacityAnim, backgroundColor: colors.overlay }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        <View style={styles.sheetHandle} />
+      <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
+        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
         <ScrollView style={styles.sheetScroll} bounces={false}>
-          <Text style={styles.sheetTitle}>Import Workout</Text>
+          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Import Workout</Text>
 
-          <View style={styles.sheetSummary}>
+          <View style={[styles.sheetSummary, { backgroundColor: colors.surfaceAlt }]}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Type</Text>
-              <Text style={styles.summaryValue}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Type</Text>
+              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
                 {workout.mappedActivityType.replace(/_/g, ' ')}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date</Text>
-              <Text style={styles.summaryValue}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Date</Text>
+              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
                 {formatDate(workout.startDate)} at {formatTime(workout.startDate)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Duration</Text>
-              <Text style={styles.summaryValue}>{formatDuration(workout.durationSeconds)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Duration</Text>
+              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{formatDuration(workout.durationSeconds)}</Text>
             </View>
             {workout.distanceKm != null && workout.distanceKm > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Distance</Text>
-                <Text style={styles.summaryValue}>{workout.distanceKm.toFixed(2)} km</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Distance</Text>
+                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{workout.distanceKm.toFixed(2)} km</Text>
               </View>
             )}
             {workout.totalEnergyBurnedKcal != null && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Calories</Text>
-                <Text style={styles.summaryValue}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Calories</Text>
+                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
                   {Math.round(workout.totalEnergyBurnedKcal)} kcal
                 </Text>
               </View>
             )}
             {workout.sourceDevice && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Device</Text>
-                <Text style={styles.summaryValue}>{workout.sourceDevice}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Device</Text>
+                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{workout.sourceDevice}</Text>
               </View>
             )}
           </View>
 
           {upcomingActivities.length > 0 && (
             <View style={styles.linkSection}>
-              <Text style={styles.linkTitle}>Link to Scheduled Activity</Text>
-              <Text style={styles.linkSubtitle}>
+              <Text style={[styles.linkTitle, { color: colors.textPrimary }]}>Link to Scheduled Activity</Text>
+              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
                 Connect this import to a planned activity in your program
               </Text>
               {upcomingActivities.map((a) => (
@@ -239,7 +254,8 @@ function ImportDetailSheet({
                   key={a.id}
                   style={[
                     styles.linkOption,
-                    selectedActivityId === a.id && styles.linkOptionSelected,
+                    { borderColor: colors.border },
+                    selectedActivityId === a.id && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
                   ]}
                   onPress={() =>
                     setSelectedActivityId(selectedActivityId === a.id ? null : a.id)
@@ -248,11 +264,11 @@ function ImportDetailSheet({
                   <Ionicons
                     name={selectedActivityId === a.id ? 'radio-button-on' : 'radio-button-off'}
                     size={18}
-                    color={selectedActivityId === a.id ? Colors.primary : Colors.textSecondary}
+                    color={selectedActivityId === a.id ? colors.primary : colors.textSecondary}
                   />
                   <View style={styles.linkOptionContent}>
-                    <Text style={styles.linkOptionType}>{a.activity_type}</Text>
-                    <Text style={styles.linkOptionMeta}>
+                    <Text style={[styles.linkOptionType, { color: colors.textPrimary }]}>{a.activity_type}</Text>
+                    <Text style={[styles.linkOptionMeta, { color: colors.textSecondary }]}>
                       {a.date} - {a.phase_name}, Week {a.week_number}
                     </Text>
                   </View>
@@ -262,28 +278,28 @@ function ImportDetailSheet({
           )}
         </ScrollView>
 
-        <View style={styles.sheetActions}>
+        <View style={[styles.sheetActions, { borderTopColor: colors.border }]}>
           {loadingDetails && (
             <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.loadingText}>Fetching heart rate & route data...</Text>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching heart rate & route data...</Text>
             </View>
           )}
           <TouchableOpacity
-            style={[styles.importButton, importing && styles.importButtonDisabled]}
+            style={[styles.importButton, { backgroundColor: colors.primary }, importing && styles.importButtonDisabled]}
             onPress={handleImport}
             disabled={importing}
           >
             {importing && !loadingDetails ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.surface} />
             ) : (
-              <Text style={styles.importButtonText}>
+              <Text style={[styles.importButtonText, { color: colors.surface }]}>
                 {selectedActivityId ? 'Import & Link' : 'Import as Unscheduled'}
               </Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelButton} onPress={onClose} disabled={importing}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
+            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -295,6 +311,7 @@ function ImportDetailSheet({
 
 export default function ImportScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [workouts, setWorkouts] = useState<HealthKitWorkoutSummary[]>([]);
   const [importedUUIDs, setImportedUUIDs] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -341,10 +358,10 @@ export default function ImportScreen({ navigation }: Props) {
 
   if (Platform.OS !== 'ios') {
     return (
-      <View style={[styles.emptyContainer, { paddingBottom: insets.bottom }]}>
-        <Ionicons name="phone-portrait-outline" size={48} color={Colors.textSecondary} />
-        <Text style={styles.emptyTitle}>Not Available</Text>
-        <Text style={styles.emptySubtitle}>
+      <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
+        <Ionicons name="phone-portrait-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Not Available</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           Apple Health import is only available on iOS devices.
         </Text>
       </View>
@@ -353,17 +370,17 @@ export default function ImportScreen({ navigation }: Props) {
 
   if (!appleHealthEnabled && !loading) {
     return (
-      <View style={[styles.emptyContainer, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
         <Ionicons name="heart-outline" size={48} color="#FF2D55" />
-        <Text style={styles.emptyTitle}>Apple Health Not Connected</Text>
-        <Text style={styles.emptySubtitle}>
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Apple Health Not Connected</Text>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           Enable Apple Health in Settings to import your workouts.
         </Text>
         <TouchableOpacity
-          style={styles.goToSettingsButton}
+          style={[styles.goToSettingsButton, { backgroundColor: colors.primary }]}
           onPress={() => navigation.getParent()?.navigate('Settings')}
         >
-          <Text style={styles.goToSettingsText}>Go to Settings</Text>
+          <Text style={[styles.goToSettingsText, { color: colors.surface }]}>Go to Settings</Text>
         </TouchableOpacity>
       </View>
     );
@@ -377,17 +394,17 @@ export default function ImportScreen({ navigation }: Props) {
   });
 
   return (
-    <View style={styles.flex}>
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingMainText}>Loading Apple Health workouts...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingMainText, { color: colors.textSecondary }]}>Loading Apple Health workouts...</Text>
         </View>
       ) : workouts.length === 0 ? (
-        <View style={[styles.emptyContainer, { paddingBottom: insets.bottom }]}>
-          <Ionicons name="fitness-outline" size={48} color={Colors.textSecondary} />
-          <Text style={styles.emptyTitle}>No Recent Workouts</Text>
-          <Text style={styles.emptySubtitle}>
+        <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
+          <Ionicons name="fitness-outline" size={48} color={colors.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Recent Workouts</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
             No workouts found in Apple Health from the last 14 days.
           </Text>
         </View>
@@ -397,7 +414,7 @@ export default function ImportScreen({ navigation }: Props) {
           keyExtractor={(w) => w.uuid}
           contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
           renderItem={({ item }) => (
             <WorkoutRow
@@ -406,6 +423,7 @@ export default function ImportScreen({ navigation }: Props) {
               onPress={() => {
                 if (!importedUUIDs.has(item.uuid)) setSelectedWorkout(item);
               }}
+              colors={colors}
             />
           )}
         />
@@ -416,6 +434,7 @@ export default function ImportScreen({ navigation }: Props) {
         visible={selectedWorkout != null}
         onClose={() => setSelectedWorkout(null)}
         onImported={loadData}
+        colors={colors}
       />
     </View>
   );
@@ -424,39 +443,34 @@ export default function ImportScreen({ navigation }: Props) {
 // ── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
 
   // Loading
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingMainText: { fontSize: 15, color: Colors.textSecondary },
+  loadingMainText: { fontSize: 15 },
 
   // Empty states
   emptyContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 40,
     gap: 12,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: Colors.textPrimary, textAlign: 'center' },
-  emptySubtitle: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  emptySubtitle: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   goToSettingsButton: {
     marginTop: 8,
-    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
-  goToSettingsText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  goToSettingsText: { fontSize: 15, fontWeight: '600' },
 
   // Workout list rows
   row: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     marginHorizontal: 16,
-    marginTop: 10,
-    borderRadius: 12,
     padding: 14,
     gap: 12,
   },
@@ -464,7 +478,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -473,28 +486,25 @@ const styles = StyleSheet.create({
   rowType: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
     textTransform: 'capitalize',
   },
-  rowDimmed: { color: Colors.textSecondary },
-  rowMeta: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  rowMeta: { fontSize: 13, marginTop: 2 },
   rowStats: { flexDirection: 'row', gap: 12, marginTop: 6 },
-  rowStat: { fontSize: 13, fontWeight: '500', color: Colors.textPrimary },
+  rowStat: { fontSize: 13, fontWeight: '500' },
   importedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  importedBadgeText: { fontSize: 12, color: Colors.textSecondary },
-  sourceDevice: { fontSize: 12, color: Colors.textSecondary, marginTop: 4 },
+  importedBadgeText: { fontSize: 12 },
+  sourceDevice: { fontSize: 12, marginTop: 4 },
 
   // Bottom sheet
   sheetOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    // backgroundColor applied inline via theme overlay
   },
   sheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
@@ -503,30 +513,28 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.tabBarBorder,
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 8,
   },
   sheetScroll: { paddingHorizontal: 20 },
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: Colors.textPrimary, marginBottom: 16 },
+  sheetTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
 
   // Summary
   sheetSummary: {
-    backgroundColor: Colors.background,
     borderRadius: 12,
     padding: 14,
     gap: 8,
     marginBottom: 16,
   },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryLabel: { fontSize: 14, color: Colors.textSecondary },
-  summaryValue: { fontSize: 14, fontWeight: '500', color: Colors.textPrimary },
+  summaryLabel: { fontSize: 14 },
+  summaryValue: { fontSize: 14, fontWeight: '500' },
 
   // Link section
   linkSection: { marginBottom: 16 },
-  linkTitle: { fontSize: 15, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
-  linkSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+  linkTitle: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
+  linkSubtitle: { fontSize: 13, marginBottom: 10 },
   linkOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -535,30 +543,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.tabBarBorder,
     marginBottom: 6,
   },
-  linkOptionSelected: { borderColor: Colors.primary, backgroundColor: '#FFF0F1' },
   linkOptionContent: { flex: 1 },
-  linkOptionType: { fontSize: 14, fontWeight: '500', color: Colors.textPrimary },
-  linkOptionMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  linkOptionType: { fontSize: 14, fontWeight: '500' },
+  linkOptionMeta: { fontSize: 12, marginTop: 2 },
 
   // Actions
-  sheetActions: { padding: 20, gap: 10, borderTopWidth: 1, borderTopColor: Colors.tabBarBorder },
+  sheetActions: { padding: 20, gap: 10, borderTopWidth: 1 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
-  loadingText: { fontSize: 13, color: Colors.textSecondary },
+  loadingText: { fontSize: 13 },
   importButton: {
-    backgroundColor: Colors.primary,
     borderRadius: 10,
     paddingVertical: 14,
     alignItems: 'center',
   },
   importButtonDisabled: { opacity: 0.6 },
-  importButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  importButtonText: { fontSize: 16, fontWeight: '600' },
   cancelButton: {
     borderRadius: 10,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  cancelButtonText: { color: Colors.textSecondary, fontSize: 15, fontWeight: '500' },
+  cancelButtonText: { fontSize: 15, fontWeight: '500' },
 });

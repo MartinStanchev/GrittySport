@@ -1,6 +1,6 @@
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Polyline, UrlTile } from './NativeMap';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface RouteMapPreviewProps {
   gpsRoute: Record<string, any>;
@@ -8,6 +8,7 @@ interface RouteMapPreviewProps {
 }
 
 export function RouteMapPreview({ gpsRoute, style }: RouteMapPreviewProps) {
+  const { colors } = useTheme();
   const points: { latitude: number; longitude: number }[] = (gpsRoute.points ?? []).map(
     (p: any) => ({ latitude: p.lat, longitude: p.lng }),
   );
@@ -44,7 +45,7 @@ export function RouteMapPreview({ gpsRoute, style }: RouteMapPreviewProps) {
             flipY={false}
           />
         )}
-        <Polyline coordinates={points} strokeColor={Colors.primary} strokeWidth={4} />
+        <Polyline coordinates={points} strokeColor={colors.primary} strokeWidth={4} />
       </MapView>
     </View>
   );

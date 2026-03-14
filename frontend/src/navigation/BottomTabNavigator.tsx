@@ -4,25 +4,27 @@ import HomeStackNavigator from './HomeStackNavigator';
 import HistoryStackNavigator from './HistoryStackNavigator';
 import ProgramsStackNavigator from './ProgramsStackNavigator';
 import SettingsScreen from '../screens/SettingsScreen';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: Colors.tabActive,
-        tabBarInactiveTintColor: Colors.tabInactive,
+        tabBarActiveTintColor: colors.tabActive,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.tabBarBorder,
+          backgroundColor: colors.tabBarBackground,
+          borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
         },
         headerStyle: {
-          backgroundColor: Colors.surface,
+          backgroundColor: colors.surface,
         },
-        headerTintColor: Colors.textPrimary,
+        headerTintColor: colors.textPrimary,
       }}
     >
       <Tab.Screen

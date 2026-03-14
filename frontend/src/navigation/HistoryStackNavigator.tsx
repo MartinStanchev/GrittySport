@@ -6,16 +6,18 @@ import RecordGPSScreen from '../screens/RecordGPSScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import ImportScreen from '../screens/ImportScreen';
 import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
 export default function HistoryStackNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.textPrimary,
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.textPrimary,
       }}
     >
       <Stack.Screen

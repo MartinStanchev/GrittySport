@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { navigationRef } from '../navigation/navigationRef';
 import { formatDistanceKm } from '../services/gpsUtils';
 
 export function ActiveWorkoutBanner() {
+  const { colors } = useTheme();
   const { activeWorkout, activeGPSWorkout, workoutMode } = useWorkout();
   const insets = useSafeAreaInsets();
   const [elapsed, setElapsed] = useState(0);
@@ -38,7 +39,7 @@ export function ActiveWorkoutBanner() {
     const distKm = formatDistanceKm(activeGPSWorkout.totalDistanceM);
     const isRecording = activeGPSWorkout.recordingState === 'recording';
     return (
-      <Pressable style={[styles.banner, { paddingTop: insets.top + 10 }]} onPress={handlePress}>
+      <Pressable style={[styles.banner, { backgroundColor: colors.primary, paddingTop: insets.top + 10 }]} onPress={handlePress}>
         <View style={[styles.pulsingDot, !isRecording && styles.pausedDot]} />
         <Ionicons name="location-outline" size={16} color="#FFF" style={styles.icon} />
         <Text style={styles.type} numberOfLines={1}>
@@ -53,7 +54,7 @@ export function ActiveWorkoutBanner() {
 
   if (workoutMode === 'manual' && activeWorkout && activeWorkout.phase === 'recording') {
     return (
-      <Pressable style={[styles.banner, { paddingTop: insets.top + 10 }]} onPress={handlePress}>
+      <Pressable style={[styles.banner, { backgroundColor: colors.primary, paddingTop: insets.top + 10 }]} onPress={handlePress}>
         <View style={styles.pulsingDot} />
         <Ionicons name="fitness-outline" size={16} color="#FFF" style={styles.icon} />
         <Text style={styles.type} numberOfLines={1}>
@@ -73,7 +74,6 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
     paddingHorizontal: 14,
     paddingBottom: 10,
     gap: 8,

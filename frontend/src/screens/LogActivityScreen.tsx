@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../constants/colors';
 import { getActivityIcon } from '../constants/activityIcons';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
@@ -119,13 +120,17 @@ function formatPace(paceSecPerKm: number): string {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function TypeSelector({ onSelect }: { onSelect: (t: LogType) => void }) {
+function TypeSelector({ onSelect, colors }: { onSelect: (t: LogType) => void; colors: ThemeColors }) {
   return (
     <View style={styles.typeGrid}>
       {TYPE_OPTIONS.map(({ type, label }) => (
-        <Pressable key={type} style={styles.typeCard} onPress={() => onSelect(type)}>
-          <Ionicons name={getActivityIcon(type)} size={28} color={Colors.primary} />
-          <Text style={styles.typeCardLabel}>{label}</Text>
+        <Pressable
+          key={type}
+          style={[styles.typeCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
+          onPress={() => onSelect(type)}
+        >
+          <Ionicons name={getActivityIcon(type)} size={28} color={colors.primary} />
+          <Text style={[styles.typeCardLabel, { color: colors.textPrimary }]}>{label}</Text>
         </Pressable>
       ))}
     </View>
@@ -135,9 +140,11 @@ function TypeSelector({ onSelect }: { onSelect: (t: LogType) => void }) {
 function ExerciseEditor({
   exercises,
   onChange,
+  colors,
 }: {
   exercises: ExerciseLog[];
   onChange: (ex: ExerciseLog[]) => void;
+  colors: ThemeColors;
 }) {
   function addExercise() {
     onChange([...exercises, { name: '', sets: [{ reps: '', weight: '' }] }]);
@@ -166,37 +173,37 @@ function ExerciseEditor({
   return (
     <View>
       {exercises.map((ex, i) => (
-        <View key={i} style={styles.exerciseBlock}>
+        <View key={i} style={[styles.exerciseBlock, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           <View style={styles.exHeader}>
             <TextInput
-              style={[styles.input, styles.exNameInput]}
+              style={[styles.input, styles.exNameInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="Exercise name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={ex.name}
               onChangeText={(t) => updateName(i, t)}
             />
             <Pressable onPress={() => removeExercise(i)} style={styles.removeBtn}>
-              <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
           <View style={styles.setHeaderRow}>
-            <Text style={[styles.setColLabel, { flex: 2 }]}>Reps</Text>
-            <Text style={[styles.setColLabel, { flex: 2 }]}>Weight (kg)</Text>
+            <Text style={[styles.setColLabel, { flex: 2, color: colors.textSecondary }]}>Reps</Text>
+            <Text style={[styles.setColLabel, { flex: 2, color: colors.textSecondary }]}>Weight (kg)</Text>
           </View>
           {ex.sets.map((s, si) => (
             <View key={si} style={styles.setRow}>
               <TextInput
-                style={[styles.input, styles.setInput]}
+                style={[styles.input, styles.setInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
                 placeholder="0"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
                 value={s.reps}
                 onChangeText={(v) => updateSet(i, si, 'reps', v)}
               />
               <TextInput
-                style={[styles.input, styles.setInput]}
+                style={[styles.input, styles.setInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
                 placeholder="0"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="decimal-pad"
                 value={s.weight}
                 onChangeText={(v) => updateSet(i, si, 'weight', v)}
@@ -204,14 +211,14 @@ function ExerciseEditor({
             </View>
           ))}
           <Pressable style={styles.addSetBtn} onPress={() => addSet(i)}>
-            <Ionicons name="add" size={14} color={Colors.primary} />
-            <Text style={styles.addSetLabel}>Add Set</Text>
+            <Ionicons name="add" size={14} color={colors.primary} />
+            <Text style={[styles.addSetLabel, { color: colors.primary }]}>Add Set</Text>
           </Pressable>
         </View>
       ))}
       <Pressable style={styles.addExerciseBtn} onPress={addExercise}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addExerciseLabel}>Add Exercise</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addExerciseLabel, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
     </View>
   );
@@ -220,9 +227,11 @@ function ExerciseEditor({
 function MobilityEditor({
   exercises,
   onChange,
+  colors,
 }: {
   exercises: MobilityExLog[];
   onChange: (ex: MobilityExLog[]) => void;
+  colors: ThemeColors;
 }) {
   function addExercise() {
     onChange([...exercises, { name: '', durationSeconds: '', completed: false }]);
@@ -239,45 +248,45 @@ function MobilityEditor({
   return (
     <View>
       {exercises.map((ex, i) => (
-        <View key={i} style={styles.exerciseBlock}>
+        <View key={i} style={[styles.exerciseBlock, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           <View style={styles.exHeader}>
             <TextInput
-              style={[styles.input, styles.exNameInput]}
+              style={[styles.input, styles.exNameInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="Exercise name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={ex.name}
               onChangeText={(t) => update(i, { name: t })}
             />
             <Pressable onPress={() => removeExercise(i)} style={styles.removeBtn}>
-              <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
           <View style={styles.mobilityRow}>
             <TextInput
-              style={[styles.input, styles.durationInput]}
+              style={[styles.input, styles.durationInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="Duration (sec)"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               value={ex.durationSeconds}
               onChangeText={(t) => update(i, { durationSeconds: t })}
             />
             <Pressable
-              style={[styles.completedToggle, ex.completed && styles.completedToggleOn]}
+              style={[styles.completedToggle, { backgroundColor: colors.surfaceAlt }, ex.completed && { backgroundColor: colors.primaryLight }]}
               onPress={() => update(i, { completed: !ex.completed })}
             >
               <Ionicons
                 name={ex.completed ? 'checkmark-circle' : 'ellipse-outline'}
                 size={20}
-                color={ex.completed ? Colors.primary : Colors.textSecondary}
+                color={ex.completed ? colors.primary : colors.textSecondary}
               />
-              <Text style={[styles.completedLabel, ex.completed && { color: Colors.primary }]}>Done</Text>
+              <Text style={[styles.completedLabel, { color: colors.textSecondary }, ex.completed && { color: colors.primary }]}>Done</Text>
             </Pressable>
           </View>
         </View>
       ))}
       <Pressable style={styles.addExerciseBtn} onPress={addExercise}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addExerciseLabel}>Add Exercise</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addExerciseLabel, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
     </View>
   );
@@ -288,6 +297,7 @@ function MobilityEditor({
 type Props = NativeStackScreenProps<any, 'LogActivity'>;
 
 export default function LogActivityScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const { notifyProgramDataChanged } = useProgram();
   const [selectedType, setSelectedType] = useState<LogType | null>(null);
   const [dateOffset, setDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
@@ -364,74 +374,74 @@ export default function LogActivityScreen({ navigation }: Props) {
 
   if (!selectedType) {
     return (
-      <ScrollView style={styles.container} contentContainerStyle={styles.typeSelectorContent}>
-        <Text style={styles.sectionTitle}>What did you do?</Text>
-        <TypeSelector onSelect={setSelectedType} />
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.typeSelectorContent}>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>What did you do?</Text>
+        <TypeSelector onSelect={setSelectedType} colors={colors} />
       </ScrollView>
     );
   }
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
 
         {/* Activity type badge */}
-        <View style={styles.typeBadge}>
-          <Ionicons name={getActivityIcon(selectedType)} size={20} color={Colors.primary} />
-          <Text style={styles.typeBadgeLabel}>{DISPLAY_LABELS[selectedType]}</Text>
-          <Pressable onPress={() => setSelectedType(null)} style={styles.changeTypeBtn}>
-            <Text style={styles.changeTypeLabel}>Change</Text>
+        <View style={[styles.typeBadge, { backgroundColor: colors.surface }]}>
+          <Ionicons name={getActivityIcon(selectedType)} size={20} color={colors.primary} />
+          <Text style={[styles.typeBadgeLabel, { color: colors.textPrimary }]}>{DISPLAY_LABELS[selectedType]}</Text>
+          <Pressable onPress={() => setSelectedType(null)} style={[styles.changeTypeBtn, { backgroundColor: colors.background }]}>
+            <Text style={[styles.changeTypeLabel, { color: colors.primary }]}>Change</Text>
           </Pressable>
         </View>
 
         {/* Date */}
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Date</Text>
-          <View style={styles.dateRow}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Date</Text>
+          <View style={[styles.dateRow, { backgroundColor: colors.surface }]}>
             <Pressable style={styles.dateArrow} onPress={() => setDateOffset(dateOffset - 1)}>
-              <Ionicons name="chevron-back" size={20} color={Colors.textPrimary} />
+              <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
             </Pressable>
-            <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
+            <Text style={[styles.dateText, { color: colors.textPrimary }]}>{formatDisplayDate(date)}</Text>
             <Pressable
               style={styles.dateArrow}
               onPress={() => setDateOffset(Math.min(0, dateOffset + 1))}
               disabled={dateOffset >= 0}
             >
-              <Ionicons name="chevron-forward" size={20} color={dateOffset >= 0 ? Colors.textSecondary : Colors.textPrimary} />
+              <Ionicons name="chevron-forward" size={20} color={dateOffset >= 0 ? colors.textSecondary : colors.textPrimary} />
             </Pressable>
           </View>
         </View>
 
         {/* Duration */}
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Duration</Text>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Duration</Text>
           <View style={styles.durationRow}>
             <View style={styles.durationField}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
                 placeholder="0"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
                 value={hours}
                 onChangeText={setHours}
                 maxLength={2}
               />
-              <Text style={styles.durationUnit}>h</Text>
+              <Text style={[styles.durationUnit, { color: colors.textSecondary }]}>h</Text>
             </View>
             <View style={styles.durationField}>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
                 placeholder="0"
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
                 keyboardType="numeric"
                 value={minutes}
                 onChangeText={setMinutes}
                 maxLength={2}
               />
-              <Text style={styles.durationUnit}>min</Text>
+              <Text style={[styles.durationUnit, { color: colors.textSecondary }]}>min</Text>
             </View>
           </View>
         </View>
@@ -439,40 +449,40 @@ export default function LogActivityScreen({ navigation }: Props) {
         {/* Type-specific fields */}
         {(isPaceType || isSpeedType) && (
           <View style={styles.fieldBlock}>
-            <Text style={styles.fieldLabel}>Distance (km)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Distance (km)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="0.0"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               keyboardType="decimal-pad"
               value={distanceKm}
               onChangeText={setDistanceKm}
             />
             {isPaceType && avgPaceSec > 0 && (
-              <Text style={styles.computedStat}>Avg pace: {formatPace(avgPaceSec)}</Text>
+              <Text style={[styles.computedStat, { color: colors.primary }]}>Avg pace: {formatPace(avgPaceSec)}</Text>
             )}
             {isSpeedType && avgSpeed > 0 && (
-              <Text style={styles.computedStat}>Avg speed: {avgSpeed} km/h</Text>
+              <Text style={[styles.computedStat, { color: colors.primary }]}>Avg speed: {avgSpeed} km/h</Text>
             )}
           </View>
         )}
 
         {selectedType === 'swim' && (
           <View style={styles.fieldBlock}>
-            <Text style={styles.fieldLabel}>Distance (m)</Text>
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Distance (m)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="0"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               value={distanceKm}
               onChangeText={setDistanceKm}
             />
-            <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Laps (optional)</Text>
+            <Text style={[styles.fieldLabel, { marginTop: 12, color: colors.textSecondary }]}>Laps (optional)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               placeholder="0"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               value={laps}
               onChangeText={setLaps}
@@ -482,25 +492,25 @@ export default function LogActivityScreen({ navigation }: Props) {
 
         {selectedType === 'strength' && (
           <View style={styles.fieldBlock}>
-            <Text style={styles.fieldLabel}>Exercises</Text>
-            <ExerciseEditor exercises={exercises} onChange={setExercises} />
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Exercises</Text>
+            <ExerciseEditor exercises={exercises} onChange={setExercises} colors={colors} />
           </View>
         )}
 
         {selectedType === 'mobility' && (
           <View style={styles.fieldBlock}>
-            <Text style={styles.fieldLabel}>Exercises</Text>
-            <MobilityEditor exercises={mobilityExercises} onChange={setMobilityExercises} />
+            <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Exercises</Text>
+            <MobilityEditor exercises={mobilityExercises} onChange={setMobilityExercises} colors={colors} />
           </View>
         )}
 
         {/* Notes */}
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Notes (optional)</Text>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Notes (optional)</Text>
           <TextInput
-            style={[styles.input, styles.notesInput]}
+            style={[styles.input, styles.notesInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
             placeholder="How did it go?"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             multiline
             numberOfLines={3}
             value={notes}
@@ -510,7 +520,7 @@ export default function LogActivityScreen({ navigation }: Props) {
 
         {/* Save button */}
         <Pressable
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={saving}
         >
@@ -526,7 +536,6 @@ export default function LogActivityScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   typeSelectorContent: {
     padding: 20,
@@ -538,7 +547,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 20,
   },
   typeGrid: {
@@ -548,28 +556,20 @@ const styles = StyleSheet.create({
   },
   typeCard: {
     width: '46%',
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   typeCardLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   typeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 20,
-    backgroundColor: Colors.surface,
     borderRadius: 10,
     padding: 12,
   },
@@ -577,17 +577,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   changeTypeBtn: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
-    backgroundColor: Colors.background,
   },
   changeTypeLabel: {
     fontSize: 13,
-    color: Colors.primary,
     fontWeight: '600',
   },
   fieldBlock: {
@@ -596,22 +593,18 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: Colors.surface,
     borderRadius: 10,
     padding: 12,
     fontSize: 15,
-    color: Colors.textPrimary,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 4,
@@ -624,7 +617,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   durationRow: {
     flexDirection: 'row',
@@ -638,20 +630,16 @@ const styles = StyleSheet.create({
   },
   durationUnit: {
     fontSize: 15,
-    color: Colors.textSecondary,
     fontWeight: '600',
   },
   computedStat: {
     marginTop: 8,
     fontSize: 13,
-    color: Colors.primary,
     fontWeight: '600',
   },
   exerciseBlock: {
-    backgroundColor: Colors.surface,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
   exHeader: {
     flexDirection: 'row',
@@ -673,7 +661,6 @@ const styles = StyleSheet.create({
   },
   setColLabel: {
     fontSize: 11,
-    color: Colors.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -697,7 +684,6 @@ const styles = StyleSheet.create({
   },
   addSetLabel: {
     fontSize: 13,
-    color: Colors.primary,
     fontWeight: '600',
   },
   addExerciseBtn: {
@@ -708,7 +694,6 @@ const styles = StyleSheet.create({
   },
   addExerciseLabel: {
     fontSize: 14,
-    color: Colors.primary,
     fontWeight: '600',
   },
   mobilityRow: {
@@ -726,14 +711,9 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: 8,
     borderRadius: 8,
-    backgroundColor: Colors.background,
-  },
-  completedToggleOn: {
-    backgroundColor: '#FEE2E5',
   },
   completedLabel: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '600',
   },
   notesInput: {
@@ -741,7 +721,6 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',

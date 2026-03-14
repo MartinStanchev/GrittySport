@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { ApiError, createProgram } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import StepIndicator from '../components/StepIndicator';
@@ -34,6 +34,7 @@ interface Props {
 }
 
 export default function CreateProgramReviewScreen({ navigation, route }: Props) {
+  const { colors } = useTheme();
   const { name, sport, goal, startDate, endDate, phases } = route.params;
   const insets = useSafeAreaInsets();
   const { notifyProgramDataChanged } = useProgram();
@@ -79,23 +80,23 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <ScrollView contentContainerStyle={styles.content}>
         <StepIndicator current={3} total={3} />
 
         {/* Summary header */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.programName}>{name}</Text>
-          {sport ? <Text style={styles.programSport}>{sport}</Text> : null}
-          {goal ? <Text style={styles.programGoal}>{goal}</Text> : null}
-          <View style={styles.summaryMeta}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+          <Text style={[styles.programName, { color: colors.textPrimary }]}>{name}</Text>
+          {sport ? <Text style={[styles.programSport, { color: colors.primary }]}>{sport}</Text> : null}
+          {goal ? <Text style={[styles.programGoal, { color: colors.textSecondary }]}>{goal}</Text> : null}
+          <View style={[styles.summaryMeta, { borderTopColor: colors.border }]}>
             <View style={styles.metaItem}>
-              <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.metaText}>{formatDateRange(startDate, endDate)}</Text>
+              <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>{formatDateRange(startDate, endDate)}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.metaText}>{totalWeeks} weeks</Text>
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+              <Text style={[styles.metaText, { color: colors.textSecondary }]}>{totalWeeks} weeks</Text>
             </View>
           </View>
         </View>
@@ -112,10 +113,12 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
           const orderedDays = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
 
           return (
-            <View key={pi} style={styles.phaseCard}>
-              <View style={styles.phaseHeader}>
-                <Text style={styles.phaseName}>{phase.name}</Text>
-                <Text style={styles.phaseDuration}>{phase.duration_weeks} weeks</Text>
+            <View key={pi} style={[styles.phaseCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+              <View style={[styles.phaseHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.phaseName, { color: colors.textPrimary }]}>{phase.name}</Text>
+                <Text style={[styles.phaseDuration, { color: colors.textSecondary, backgroundColor: colors.surfaceAlt }]}>
+                  {phase.duration_weeks} weeks
+                </Text>
               </View>
               <View style={styles.phaseActivities}>
                 {orderedDays.map(day => {
@@ -123,12 +126,12 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
                   if (!acts || acts.length === 0) return null;
                   return (
                     <View key={day} style={styles.dayRow}>
-                      <Text style={styles.dayLabel}>{DAY_NAMES[day]}</Text>
+                      <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>{DAY_NAMES[day]}</Text>
                       <View style={styles.dayActivities}>
                         {acts.map((act: any, ai: number) => (
                           <View key={ai} style={styles.activityRow}>
-                            <Text style={styles.activityType}>{act.activity_type}</Text>
-                            <Text style={styles.activityDetail} numberOfLines={1}>
+                            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{act.activity_type}</Text>
+                            <Text style={[styles.activityDetail, { color: colors.textSecondary }]} numberOfLines={1}>
                               {prescriptionSummary(act.prescription)}
                             </Text>
                           </View>
@@ -144,9 +147,9 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
       </ScrollView>
 
       {/* Create button */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
         <Pressable
-          style={[styles.createButton, saving && styles.createButtonSaving]}
+          style={[styles.createButton, { backgroundColor: colors.primary }, saving && styles.createButtonSaving]}
           onPress={handleCreate}
           disabled={saving}
         >
@@ -165,12 +168,11 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   content: { padding: 20, paddingBottom: 100 },
 
   // Summary
   summaryCard: {
-    backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
@@ -178,18 +180,15 @@ const styles = StyleSheet.create({
   programName: {
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.textPrimary,
     marginBottom: 4,
   },
   programSport: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.primary,
     marginBottom: 4,
   },
   programGoal: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginBottom: 12,
   },
   summaryMeta: {
@@ -197,7 +196,6 @@ const styles = StyleSheet.create({
     gap: 20,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   metaItem: {
     flexDirection: 'row',
@@ -206,13 +204,11 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
 
   // Phase cards
   phaseCard: {
-    backgroundColor: Colors.surface,
     borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
@@ -223,18 +219,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   phaseName: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   phaseDuration: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
-    backgroundColor: '#F0F0F0',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -250,7 +242,6 @@ const styles = StyleSheet.create({
     width: 40,
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     paddingTop: 2,
   },
   dayActivities: {
@@ -265,12 +256,10 @@ const styles = StyleSheet.create({
   activityType: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   activityDetail: {
     flex: 1,
     fontSize: 12,
-    color: Colors.textSecondary,
   },
 
   // Footer
@@ -278,15 +267,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: Colors.surface,
   },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
   },

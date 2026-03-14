@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { IMPORT_ACTIVITY_TYPES, getActivityIcon } from '../constants/activityIcons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
@@ -52,6 +52,7 @@ export default function WorkoutFilePreviewScreen({ route, navigation }: any) {
   const { fileUri, fileName, scheduledActivityId, preselectedType } = route.params as RouteParams;
   const insets = useSafeAreaInsets();
   const { notifyProgramDataChanged } = useProgram();
+  const { colors } = useTheme();
 
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,19 +96,19 @@ export default function WorkoutFilePreviewScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Parsing workout file...</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Parsing workout file...</Text>
       </View>
     );
   }
 
   if (error || !parseResult) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.textSecondary} />
-        <Text style={styles.errorText}>{error || 'Unable to parse file'}</Text>
-        <Pressable style={styles.retryButton} onPress={() => navigation.goBack()}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.errorText, { color: colors.textSecondary }]}>{error || 'Unable to parse file'}</Text>
+        <Pressable style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
           <Text style={styles.retryButtonText}>Go Back</Text>
         </Pressable>
       </View>
@@ -154,14 +155,16 @@ function ZipFileList({
   onGoBack: () => void;
   insets: { bottom: number };
 }) {
+  const { colors } = useTheme();
+
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 20 }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.zipHeader}>
-        <Text style={styles.zipTitle}>
+        <Text style={[styles.zipTitle, { color: colors.textPrimary }]}>
           {data.workouts.length} workout{data.workouts.length !== 1 ? 's' : ''} found
         </Text>
         {data.errors.length > 0 && (
-          <Text style={styles.zipErrors}>
+          <Text style={[styles.zipErrors, { color: colors.error }]}>
             {data.errors.length} file{data.errors.length !== 1 ? 's' : ''} failed to parse
           </Text>
         )}
@@ -172,25 +175,25 @@ function ZipFileList({
         keyExtractor={(_, i) => String(i)}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
         renderItem={({ item }) => (
-          <Pressable style={styles.zipRow} onPress={() => onSelect(item)}>
-            <View style={styles.zipRowIcon}>
-              <Ionicons name="document-outline" size={22} color={Colors.primary} />
+          <Pressable style={[styles.zipRow, { backgroundColor: colors.surface }]} onPress={() => onSelect(item)}>
+            <View style={[styles.zipRowIcon, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name="document-outline" size={22} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.zipRowName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.zipRowMeta}>
+              <Text style={[styles.zipRowName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
+              <Text style={[styles.zipRowMeta, { color: colors.textSecondary }]}>
                 {item.sourceFormat.toUpperCase()}
                 {item.totalDistanceM > 0 ? ` · ${formatDistanceKm(item.totalDistanceM)} km` : ''}
                 {item.durationSec > 0 ? ` · ${formatTime(Math.round(item.durationSec))}` : ''}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
           </Pressable>
         )}
       />
 
       <Pressable style={styles.discardBtn} onPress={onGoBack}>
-        <Text style={styles.discardBtnText}>Cancel</Text>
+        <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Cancel</Text>
       </Pressable>
     </View>
   );
@@ -216,6 +219,7 @@ function WorkoutPreview({
   onBackToList?: () => void;
 }) {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const maxHR = user?.max_heart_rate ?? 185;
   const [activityType, setActivityType] = useState(
     preselectedType ?? detectActivityType(workout),
@@ -298,11 +302,11 @@ function WorkoutPreview({
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
       {/* Source format badge */}
       <View style={styles.formatBadgeRow}>
-        <View style={styles.formatBadge}>
-          <Text style={styles.formatBadgeText}>{workout.sourceFormat.toUpperCase()}</Text>
+        <View style={[styles.formatBadge, { backgroundColor: colors.primary + '20' }]}>
+          <Text style={[styles.formatBadgeText, { color: colors.primary }]}>{workout.sourceFormat.toUpperCase()}</Text>
         </View>
       </View>
 
@@ -310,16 +314,16 @@ function WorkoutPreview({
       {routeData ? (
         <RouteMapPreview gpsRoute={routeData} style={styles.routeMap} />
       ) : (
-        <View style={styles.noMapPlaceholder}>
-          <Ionicons name="map-outline" size={40} color={Colors.textSecondary} />
-          <Text style={styles.noMapText}>No route to display</Text>
+        <View style={[styles.noMapPlaceholder, { backgroundColor: colors.surface }]}>
+          <Ionicons name="map-outline" size={40} color={colors.textSecondary} />
+          <Text style={[styles.noMapText, { color: colors.textSecondary }]}>No route to display</Text>
         </View>
       )}
 
       <View style={styles.body}>
-        <Text style={styles.activityTitle}>{workout.name}</Text>
+        <Text style={[styles.activityTitle, { color: colors.textPrimary }]}>{workout.name}</Text>
         {workout.startTime && (
-          <Text style={styles.dateText}>
+          <Text style={[styles.dateText, { color: colors.textSecondary }]}>
             {workout.startTime.toLocaleDateString(undefined, {
               weekday: 'long', month: 'long', day: 'numeric',
             })}
@@ -327,21 +331,21 @@ function WorkoutPreview({
         )}
 
         {/* Activity type selector */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Activity Type</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Activity Type</Text>
           <View style={styles.typePicker}>
             {IMPORT_ACTIVITY_TYPES.map(({ type, label }) => (
               <Pressable
                 key={type}
-                style={[styles.typeChip, activityType === type && styles.typeChipActive]}
+                style={[styles.typeChip, { backgroundColor: colors.surfaceAlt }, activityType === type && [styles.typeChipActive, { backgroundColor: colors.primary }]]}
                 onPress={() => setActivityType(type)}
               >
                 <Ionicons
                   name={getActivityIcon(type)}
                   size={14}
-                  color={activityType === type ? '#FFF' : Colors.textSecondary}
+                  color={activityType === type ? '#FFF' : colors.textSecondary}
                 />
-                <Text style={[styles.typeChipText, activityType === type && styles.typeChipTextActive]}>
+                <Text style={[styles.typeChipText, { color: colors.textSecondary }, activityType === type && styles.typeChipTextActive]}>
                   {label}
                 </Text>
               </Pressable>
@@ -353,62 +357,62 @@ function WorkoutPreview({
         <View style={styles.statsGrid}>
           {workout.totalDistanceM > 0 && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{formatDistanceKm(workout.totalDistanceM)} <Text style={styles.statUnit}>km</Text></Text>
-              <Text style={styles.statLabel}>Distance</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDistanceKm(workout.totalDistanceM)} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>km</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Distance</Text>
             </View>
           )}
           {workout.durationSec > 0 && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{formatTime(Math.round(workout.durationSec))}</Text>
-              <Text style={styles.statLabel}>Duration</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatTime(Math.round(workout.durationSec))}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Duration</Text>
             </View>
           )}
           {isRun && stats.pace > 0 && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{formatPaceSecPerKm(stats.pace)} <Text style={styles.statUnit}>/km</Text></Text>
-              <Text style={styles.statLabel}>Avg Pace</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatPaceSecPerKm(stats.pace)} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>/km</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg Pace</Text>
             </View>
           )}
           {!isRun && stats.speed > 0 && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{formatSpeedKph(stats.speed)} <Text style={styles.statUnit}>km/h</Text></Text>
-              <Text style={styles.statLabel}>Avg Speed</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatSpeedKph(stats.speed)} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>km/h</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg Speed</Text>
             </View>
           )}
           {workout.elevationGainM > 0 && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>+{workout.elevationGainM} <Text style={styles.statUnit}>m</Text></Text>
-              <Text style={styles.statLabel}>Elevation</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>+{workout.elevationGainM} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>m</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Elevation</Text>
             </View>
           )}
           {stats.avgHR != null && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{stats.avgHR} <Text style={styles.statUnit}>bpm</Text></Text>
-              <Text style={styles.statLabel}>Avg HR</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.avgHR} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>bpm</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg HR</Text>
             </View>
           )}
           {stats.maxHR != null && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{stats.maxHR} <Text style={styles.statUnit}>bpm</Text></Text>
-              <Text style={styles.statLabel}>Max HR</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.maxHR} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>bpm</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Max HR</Text>
             </View>
           )}
           {stats.avgCad != null && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{stats.avgCad} <Text style={styles.statUnit}>spm</Text></Text>
-              <Text style={styles.statLabel}>Cadence</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.avgCad} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>spm</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Cadence</Text>
             </View>
           )}
           {stats.avgPower != null && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{stats.avgPower} <Text style={styles.statUnit}>W</Text></Text>
-              <Text style={styles.statLabel}>Avg Power</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.avgPower} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>W</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg Power</Text>
             </View>
           )}
           {stats.maxPower != null && (
             <View style={styles.statTile}>
-              <Text style={styles.statValue}>{stats.maxPower} <Text style={styles.statUnit}>W</Text></Text>
-              <Text style={styles.statLabel}>Max Power</Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.maxPower} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>W</Text></Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Max Power</Text>
             </View>
           )}
         </View>
@@ -420,49 +424,49 @@ function WorkoutPreview({
 
         {/* Laps table */}
         {workout.laps.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Laps</Text>
-            <View style={styles.lapHeader}>
-              <Text style={[styles.lapCell, styles.lapCellSmall]}>#</Text>
-              <Text style={styles.lapCell}>Distance</Text>
-              <Text style={styles.lapCell}>Duration</Text>
-              <Text style={styles.lapCell}>{isRun ? 'Pace' : 'Speed'}</Text>
-              <Text style={styles.lapCell}>HR</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Laps</Text>
+            <View style={[styles.lapHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.lapCell, styles.lapCellSmall, { color: colors.textPrimary }]}>#</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>Distance</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>Duration</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{isRun ? 'Pace' : 'Speed'}</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>HR</Text>
             </View>
             {workout.laps.map((lap) => (
-              <View key={lap.lap_number} style={styles.lapRow}>
-                <Text style={[styles.lapCell, styles.lapCellSmall]}>{lap.lap_number}</Text>
-                <Text style={styles.lapCell}>{formatDistanceKm(lap.distance_m)}</Text>
-                <Text style={styles.lapCell}>{formatTime(Math.round(lap.duration_sec))}</Text>
-                <Text style={styles.lapCell}>
+              <View key={lap.lap_number} style={[styles.lapRow, { borderBottomColor: colors.surfaceAlt }]}>
+                <Text style={[styles.lapCell, styles.lapCellSmall, { color: colors.textPrimary }]}>{lap.lap_number}</Text>
+                <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{formatDistanceKm(lap.distance_m)}</Text>
+                <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{formatTime(Math.round(lap.duration_sec))}</Text>
+                <Text style={[styles.lapCell, { color: colors.textPrimary }]}>
                   {isRun
                     ? formatPaceSecPerKm(lap.avg_pace_sec_per_km)
                     : `${formatSpeedKph(lap.avg_speed_kph)}`
                   }
                 </Text>
-                <Text style={styles.lapCell}>{lap.avg_hr ?? '-'}</Text>
+                <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{lap.avg_hr ?? '-'}</Text>
               </View>
             ))}
           </View>
         )}
 
         {/* Notes */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Notes</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Notes</Text>
           <TextInput
-            style={styles.notesInput}
+            style={[styles.notesInput, { backgroundColor: colors.inputBackground, borderColor: colors.border, color: colors.textPrimary }]}
             value={notes}
             onChangeText={setNotes}
             multiline
             placeholder="Add notes about this workout..."
-            placeholderTextColor="#BBB"
+            placeholderTextColor={colors.textSecondary}
             textAlignVertical="top"
           />
         </View>
 
         {/* Save / Back actions */}
         <Pressable
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+          style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={saving}
         >
@@ -471,11 +475,11 @@ function WorkoutPreview({
 
         {onBackToList ? (
           <Pressable style={styles.discardBtn} onPress={onBackToList}>
-            <Text style={styles.discardBtnText}>Back to File List</Text>
+            <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Back to File List</Text>
           </Pressable>
         ) : (
           <Pressable style={styles.discardBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.discardBtnText}>Cancel</Text>
+            <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Cancel</Text>
           </Pressable>
         )}
       </View>
@@ -486,31 +490,26 @@ function WorkoutPreview({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
     padding: 24,
     gap: 12,
   },
   loadingText: {
     fontSize: 15,
-    color: Colors.textSecondary,
     marginTop: 8,
   },
   errorText: {
     fontSize: 15,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   retryButton: {
     marginTop: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   retryButtonText: {
@@ -523,7 +522,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   formatBadge: {
-    backgroundColor: Colors.primary + '20',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
@@ -531,7 +529,6 @@ const styles = StyleSheet.create({
   formatBadgeText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.primary,
     letterSpacing: 0.5,
   },
   routeMap: {
@@ -543,14 +540,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 14,
-    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   noMapText: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   body: {
     paddingHorizontal: 16,
@@ -559,29 +554,20 @@ const styles = StyleSheet.create({
   activityTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 2,
   },
   dateText: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginBottom: 16,
   },
   card: {
-    backgroundColor: Colors.surface,
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   cardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -598,15 +584,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
   },
-  typeChipActive: {
-    backgroundColor: Colors.primary,
-  },
+  typeChipActive: {},
   typeChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   typeChipTextActive: {
     color: '#FFF',
@@ -623,55 +605,45 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   statValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
     letterSpacing: -0.3,
   },
   statUnit: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   lapHeader: {
     flexDirection: 'row',
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
     marginBottom: 4,
   },
   lapRow: {
     flexDirection: 'row',
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F0F0',
   },
   lapCell: {
     flex: 1,
     fontSize: 13,
-    color: Colors.textPrimary,
     textAlign: 'center',
   },
   lapCellSmall: {
     flex: 0.4,
   },
   notesInput: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: Colors.textPrimary,
     minHeight: 80,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   saveBtn: {
-    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
@@ -693,7 +665,6 @@ const styles = StyleSheet.create({
   discardBtnText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   // ZIP list styles
   zipHeader: {
@@ -703,17 +674,15 @@ const styles = StyleSheet.create({
   zipTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   zipErrors: {
     fontSize: 13,
-    color: '#E57373',
+    // color applied inline via theme error
   },
   zipRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 14,
   },
@@ -721,18 +690,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   zipRowName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   zipRowMeta: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
 });

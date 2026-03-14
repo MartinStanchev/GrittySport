@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { updateProgramCriteria } from '../services/api';
 import type { CriterionResponse, CriterionInput } from '../services/api';
 
@@ -33,6 +33,7 @@ export function CriteriaEditorModal({
   onClose,
   onSaved,
 }: CriteriaEditorModalProps) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [editedCriteria, setEditedCriteria] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -92,21 +93,22 @@ export function CriteriaEditorModal({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <Pressable onPress={onClose} hitSlop={12}>
-            <Ionicons name="close" size={24} color={Colors.textPrimary} />
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
           </Pressable>
-          <Text style={styles.headerTitle}>Edit Program Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Edit Program Settings</Text>
           <Pressable onPress={handleSave} disabled={saving || !hasChanges}>
             {saving ? (
-              <ActivityIndicator size="small" color={Colors.primary} />
+              <ActivityIndicator size="small" color={colors.primary} />
             ) : (
               <Text
                 style={[
                   styles.saveText,
+                  { color: colors.primary },
                   !hasChanges && styles.saveTextDisabled,
                 ]}
               >
@@ -123,20 +125,20 @@ export function CriteriaEditorModal({
         >
           {criteria.map((c) => (
             <View key={c.key} style={styles.fieldContainer}>
-              <Text style={styles.fieldLabel}>{c.label}</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{c.label}</Text>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
                 value={editedCriteria[c.key] ?? c.value}
                 onChangeText={(text) => handleChange(c.key, text)}
                 keyboardType={getKeyboardType(c.value_type)}
                 placeholder={c.label}
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
               />
             </View>
           ))}
 
           {hasChanges && (
-            <Text style={styles.hint}>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
               After saving, Grit will review the changes and suggest adjustments to your program.
             </Text>
           )}
@@ -149,7 +151,6 @@ export function CriteriaEditorModal({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -157,19 +158,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.tabBarBorder,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   saveText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.primary,
   },
   saveTextDisabled: {
     opacity: 0.4,
@@ -186,24 +183,19 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   fieldInput: {
-    backgroundColor: Colors.surface,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   hint: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontStyle: 'italic',
     marginTop: 8,
     textAlign: 'center',

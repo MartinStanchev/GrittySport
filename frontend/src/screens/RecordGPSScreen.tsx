@@ -13,7 +13,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -52,6 +52,7 @@ const AUTO_LAP_DISTANCE_M = 1000;
 export default function RecordGPSScreen({ route, navigation }: Props) {
   const params = route.params as RecordGPSParams | undefined;
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout, workoutMode } = useWorkout();
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
@@ -391,7 +392,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 
   const hrZoneColor = workout?.currentHR
     ? getHRZoneColor(workout.currentHR, maxHR)
-    : Colors.textSecondary;
+    : colors.textSecondary;
 
   // Re-center map on user
   const handleRecenter = useCallback(() => {
@@ -448,7 +449,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   ];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
       {/* Map section — takes ~75% of screen */}
       <View style={styles.mapSection}>
         <MapView
@@ -474,7 +475,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           {polylineCoords.length > 1 && (
             <Polyline
               coordinates={polylineCoords}
-              strokeColor={Colors.primary}
+              strokeColor={colors.primary}
               strokeWidth={4}
             />
           )}
@@ -487,8 +488,11 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 
         {/* Re-center button */}
         {userMovedMap && recordingState === 'recording' && (
-          <Pressable style={styles.recenterBtn} onPress={handleRecenter}>
-            <Ionicons name="navigate" size={20} color={Colors.primary} />
+          <Pressable
+            style={[styles.recenterBtn, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 }]}
+            onPress={handleRecenter}
+          >
+            <Ionicons name="navigate" size={20} color={colors.primary} />
           </Pressable>
         )}
 
@@ -502,7 +506,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       </View>
 
       {/* Compact bottom panel */}
-      <View style={[styles.bottomPanel, { paddingBottom: insets.bottom + 8 }]}>
+      <View
+        style={[
+          styles.bottomPanel,
+          { paddingBottom: insets.bottom + 8, backgroundColor: colors.surface, borderTopColor: colors.border },
+        ]}
+      >
         {/* Horizontally scrollable metrics */}
         <ScrollView
           horizontal
@@ -510,13 +519,20 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           contentContainerStyle={styles.metricsScroll}
         >
           {metricItems.map((item, i) => (
-            <View key={item.label} style={[styles.compactMetric, i === 0 && { marginLeft: 0 }]}>
-              <Text style={styles.compactLabel}>{item.label}</Text>
+            <View
+              key={item.label}
+              style={[
+                styles.compactMetric,
+                { backgroundColor: colors.surfaceAlt },
+                i === 0 && { marginLeft: 0 },
+              ]}
+            >
+              <Text style={[styles.compactLabel, { color: colors.textSecondary }]}>{item.label}</Text>
               <View style={styles.compactValueRow}>
-                <Text style={[styles.compactValue, item.color ? { color: item.color } : undefined]}>
+                <Text style={[styles.compactValue, { color: item.color ?? colors.textPrimary }]}>
                   {item.value}
                 </Text>
-                {item.unit && <Text style={styles.compactUnit}>{item.unit}</Text>}
+                {item.unit && <Text style={[styles.compactUnit, { color: colors.textSecondary }]}>{item.unit}</Text>}
               </View>
             </View>
           ))}
@@ -532,23 +548,23 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           {recordingState === 'recording' && (
             <>
               <Pressable style={styles.controlBtn} onPress={handleManualLap}>
-                <Ionicons name="flag-outline" size={20} color={Colors.primary} />
-                <Text style={styles.controlBtnLabel}>Lap</Text>
+                <Ionicons name="flag-outline" size={20} color={colors.primary} />
+                <Text style={[styles.controlBtnLabel, { color: colors.textSecondary }]}>Lap</Text>
               </Pressable>
-              <Pressable style={[styles.bigBtn, styles.pauseBtn]} onPress={handlePause}>
+              <Pressable style={[styles.bigBtn, { backgroundColor: colors.primary }]} onPress={handlePause}>
                 <Ionicons name="pause" size={24} color="#FFF" />
               </Pressable>
               <Pressable style={styles.controlBtn} onPress={handleStop}>
-                <Ionicons name="stop" size={20} color={Colors.primary} />
-                <Text style={styles.controlBtnLabel}>Stop</Text>
+                <Ionicons name="stop" size={20} color={colors.primary} />
+                <Text style={[styles.controlBtnLabel, { color: colors.textSecondary }]}>Stop</Text>
               </Pressable>
             </>
           )}
           {recordingState === 'paused' && (
             <>
               <Pressable style={styles.controlBtn} onPress={handleStop}>
-                <Ionicons name="stop" size={20} color={Colors.primary} />
-                <Text style={styles.controlBtnLabel}>Stop</Text>
+                <Ionicons name="stop" size={20} color={colors.primary} />
+                <Text style={[styles.controlBtnLabel, { color: colors.textSecondary }]}>Stop</Text>
               </Pressable>
               <Pressable style={[styles.bigBtn, styles.resumeBtn]} onPress={handleResume}>
                 <Ionicons name="play" size={24} color="#FFF" />
@@ -563,9 +579,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           <Ionicons
             name={bleService.isConnected() ? 'heart' : 'heart-outline'}
             size={14}
-            color={bleService.isConnected() ? Colors.primary : Colors.textSecondary}
+            color={bleService.isConnected() ? colors.primary : colors.textSecondary}
           />
-          <Text style={styles.hrRowText}>
+          <Text style={[styles.hrRowText, { color: colors.textSecondary }]}>
             {bleService.isConnected()
               ? `Connected: ${bleService.getDeviceName()}`
               : 'Connect HR Monitor'}
@@ -584,7 +600,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1 },
   mapSection: { flex: 3, position: 'relative' },
   mapCloseBtn: {
     position: 'absolute',
@@ -601,17 +617,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 16,
     bottom: 16,
-    backgroundColor: '#FFF',
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   autoPauseBanner: {
     position: 'absolute',
@@ -628,30 +638,24 @@ const styles = StyleSheet.create({
   autoPauseText: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   bottomPanel: {
     flex: 1,
-    backgroundColor: Colors.surface,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
+    borderTopWidth: 1,
     paddingTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 8,
     marginTop: -16,
   },
   metricsScroll: { paddingHorizontal: 12, gap: 8 },
   compactMetric: {
-    backgroundColor: Colors.background,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 6,
     alignItems: 'center',
     minWidth: 72,
   },
-  compactLabel: { fontSize: 10, color: Colors.textSecondary, marginBottom: 1 },
+  compactLabel: { fontSize: 10, marginBottom: 1 },
   compactValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
-  compactValue: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  compactUnit: { fontSize: 10, color: Colors.textSecondary },
+  compactValue: { fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  compactUnit: { fontSize: 10 },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -668,11 +672,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startBtn: { backgroundColor: '#4CAF50', width: 110, height: 48, borderRadius: 24 },
-  pauseBtn: { backgroundColor: Colors.primary },
   resumeBtn: { backgroundColor: '#4CAF50' },
   bigBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   controlBtn: { width: 48, alignItems: 'center', gap: 2 },
-  controlBtnLabel: { fontSize: 10, color: Colors.textSecondary },
+  controlBtnLabel: { fontSize: 10 },
   hrRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -680,5 +683,5 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingTop: 2,
   },
-  hrRowText: { fontSize: 11, color: Colors.textSecondary },
+  hrRowText: { fontSize: 11 },
 });

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { downsample, getHRZoneColor, HR_ZONE_COLORS } from '../services/gpsUtils';
 import type { HRReading } from '../types/gps';
 
@@ -22,6 +22,7 @@ export default function LiveHRChart({
   width,
   height = 160,
 }: LiveHRChartProps) {
+  const { colors } = useTheme();
   const chartData = useMemo(() => {
     if (hrReadings.length < 2) return [];
     const downsampled = downsample(hrReadings, 80);
@@ -41,7 +42,7 @@ export default function LiveHRChart({
   if (chartData.length < 2) {
     return (
       <View style={[styles.container, { width, height }]}>
-        <Text style={styles.emptyText}>Connect an HR monitor to see your heart rate graph</Text>
+        <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Connect an HR monitor to see your heart rate graph</Text>
       </View>
     );
   }
@@ -75,11 +76,11 @@ export default function LiveHRChart({
         width={chartWidth}
         height={height - 40}
         spacing={Math.max(1, chartWidth / chartData.length)}
-        color={Colors.primary}
+        color={colors.primary}
         thickness={2}
         hideDataPoints
         hideRules
-        yAxisTextStyle={{ fontSize: 9, color: Colors.textSecondary }}
+        yAxisTextStyle={{ fontSize: 9, color: colors.textSecondary }}
         yAxisOffset={minBpm}
         maxValue={maxBpm - minBpm}
         noOfSections={4}
@@ -87,8 +88,8 @@ export default function LiveHRChart({
         hideXAxisText
         curved
         areaChart
-        startFillColor={`${Colors.primary}30`}
-        endFillColor={`${Colors.primary}05`}
+        startFillColor={`${colors.primary}30`}
+        endFillColor={`${colors.primary}05`}
         isAnimated={false}
       />
 
@@ -111,7 +112,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   emptyText: {
-    color: Colors.textSecondary,
     fontSize: 13,
     textAlign: 'center',
     paddingHorizontal: 20,
@@ -131,12 +131,10 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
   statLabel: {
     fontSize: 10,
-    color: Colors.textSecondary,
   },
   zoneRow: {
     flexDirection: 'row',

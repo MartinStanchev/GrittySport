@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatPaceSecPerKm } from '../services/gpsUtils';
 import type { SplitsAnalysis } from '../types/gps';
 
@@ -9,24 +9,26 @@ interface SplitsCardProps {
 }
 
 export function SplitsCard({ data }: SplitsCardProps) {
+  const { colors } = useTheme();
+
   if (data.splits.length === 0) return null;
 
   const maxPace = Math.max(...data.splits.map((s) => s.paceSecPerKm));
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Per-KM Splits</Text>
+    <View>
+      <Text style={[styles.title, { color: colors.textPrimary }]}>Per-KM Splits</Text>
 
       {data.splits.map((split) => {
         const isFastest = split.km === data.fastestSplitKm;
         const isSlowest = split.km === data.slowestSplitKm;
         const barWidth = maxPace > 0 ? (split.paceSecPerKm / maxPace) * 100 : 0;
-        const barColor = isFastest ? '#4CAF50' : isSlowest ? '#F44336' : Colors.primary;
+        const barColor = isFastest ? colors.success : isSlowest ? colors.error : colors.primary;
 
         return (
           <View key={split.km} style={styles.splitRow}>
-            <Text style={styles.kmLabel}>{split.km}</Text>
-            <View style={styles.barTrack}>
+            <Text style={[styles.kmLabel, { color: colors.textSecondary }]}>{split.km}</Text>
+            <View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt }]}>
               <View style={[styles.barFill, { width: `${barWidth}%`, backgroundColor: barColor }]} />
             </View>
             <Text style={[styles.paceText, { color: barColor }]}>
@@ -39,13 +41,13 @@ export function SplitsCard({ data }: SplitsCardProps) {
       <View style={styles.summaryRow}>
         {data.isNegativeSplit ? (
           <>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={[styles.summaryText, { color: '#4CAF50' }]}>Negative split</Text>
+            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+            <Text style={[styles.summaryText, { color: colors.success }]}>Negative split</Text>
           </>
         ) : (
           <>
-            <Ionicons name="trending-up" size={16} color="#FF9800" />
-            <Text style={[styles.summaryText, { color: '#FF9800' }]}>
+            <Ionicons name="trending-up" size={16} color={colors.warning} />
+            <Text style={[styles.summaryText, { color: colors.warning }]}>
               Positive split — faded {Math.abs(data.fadePct).toFixed(1)}%
             </Text>
           </>
@@ -56,12 +58,9 @@ export function SplitsCard({ data }: SplitsCardProps) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-  },
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
     marginBottom: 10,
   },
   splitRow: {
@@ -74,13 +73,11 @@ const styles = StyleSheet.create({
     width: 22,
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
     textAlign: 'right',
   },
   barTrack: {
     flex: 1,
     height: 16,
-    backgroundColor: '#F0F0F0',
     borderRadius: 4,
     overflow: 'hidden',
   },

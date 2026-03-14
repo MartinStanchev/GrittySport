@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
@@ -28,6 +28,7 @@ import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
 import { FABActionSheet } from '../components/FABActionSheet';
 import { ClearChatModal } from '../components/ClearChatModal';
 import { pickWorkoutFile } from '../services/workoutFileParser';
+import type { ThemeColors } from '../constants/colors';
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -52,7 +53,70 @@ function useKeyboardHeight() {
   return height;
 }
 
+function getMarkdownStyles(colors: ThemeColors) {
+  return {
+    body: {
+      fontSize: 15,
+      lineHeight: 21,
+      color: colors.textPrimary,
+    },
+    heading1: {
+      fontSize: 20,
+      fontWeight: '700' as const,
+      color: colors.textPrimary,
+      marginBottom: 4,
+      marginTop: 8,
+    },
+    heading2: {
+      fontSize: 17,
+      fontWeight: '700' as const,
+      color: colors.textPrimary,
+      marginBottom: 4,
+      marginTop: 6,
+    },
+    heading3: {
+      fontSize: 15,
+      fontWeight: '700' as const,
+      color: colors.textPrimary,
+      marginBottom: 2,
+      marginTop: 4,
+    },
+    strong: {
+      fontWeight: '700' as const,
+    },
+    bullet_list: {
+      marginVertical: 4,
+    },
+    ordered_list: {
+      marginVertical: 4,
+    },
+    list_item: {
+      marginVertical: 2,
+    },
+    code_inline: {
+      backgroundColor: colors.background,
+      borderRadius: 4,
+      paddingHorizontal: 4,
+      fontSize: 13,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    fence: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 12,
+      marginVertical: 8,
+      fontSize: 13,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    paragraph: {
+      marginTop: 0,
+      marginBottom: 6,
+    },
+  };
+}
+
 export default function HomeScreen() {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const keyboardHeight = useKeyboardHeight();
@@ -71,6 +135,8 @@ export default function HomeScreen() {
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const didInitialScrollRef = useRef(false);
+
+  const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
 
   const handleProgramCreated = useCallback(() => {
     notifyProgramDataChanged();
@@ -216,12 +282,14 @@ export default function HomeScreen() {
         <View
           style={[
             styles.messageBubble,
-            isUser ? styles.userBubble : styles.gritBubble,
+            isUser
+              ? [styles.userBubble, { backgroundColor: colors.primary }]
+              : [styles.gritBubble, { backgroundColor: colors.surface }],
           ]}
         >
-          {!isUser && <Text style={styles.gritLabel}>Grit</Text>}
+          {!isUser && <Text style={[styles.gritLabel, { color: colors.primary }]}>Grit</Text>}
           {isUser ? (
-            <Text style={[styles.messageText, styles.userText]}>
+            <Text style={[styles.messageText, { color: colors.surface }]}>
               {item.content}
             </Text>
           ) : (
@@ -230,7 +298,7 @@ export default function HomeScreen() {
         </View>
       );
     },
-    [handleProposalResponse, respondedProposals],
+    [handleProposalResponse, respondedProposals, colors, markdownStyles],
   );
 
   const confirmClearChat = useCallback(() => {
@@ -275,8 +343,8 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Scrollable Content — padded so it scrolls past the floating bottom bar */}
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+      {/* Scrollable Content -- padded so it scrolls past the floating bottom bar */}
       <ScrollView
         style={styles.scrollContent}
         contentContainerStyle={styles.scrollContentContainer}
@@ -284,46 +352,46 @@ export default function HomeScreen() {
       >
         {/* Top Zone */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>GRITTY FITNESS</Text>
+          <Text style={[styles.headerTitle, { color: colors.primary }]}>GRITTY FITNESS</Text>
 
           {activeProgram ? (
-            <View style={styles.programCard}>
-              <Text style={styles.activeProgramName}>{activeProgram.name}</Text>
+            <View style={[styles.programCard, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.activeProgramName, { color: colors.textPrimary }]}>{activeProgram.name}</Text>
               {activeProgram.sport && (
-                <Text style={styles.activeProgramSport}>{activeProgram.sport}</Text>
+                <Text style={[styles.activeProgramSport, { color: colors.primary }]}>{activeProgram.sport}</Text>
               )}
               {progressText && (
-                <Text style={styles.activeProgramWeek}>{progressText}</Text>
+                <Text style={[styles.activeProgramWeek, { color: colors.textSecondary }]}>{progressText}</Text>
               )}
               {activeProgram.end_date && (
-                <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarContainer, { backgroundColor: colors.surfaceAlt }]}>
                   <View
-                    style={[styles.progressBarFill, { width: `${progressPercent * 100}%` }]}
+                    style={[styles.progressBarFill, { width: `${progressPercent * 100}%`, backgroundColor: colors.primary }]}
                   />
                 </View>
               )}
               <Pressable
-                style={styles.logWorkoutBtn}
+                style={[styles.logWorkoutBtn, { borderColor: colors.primary }]}
                 onPress={() => navigation.navigate('RecordManual')}
               >
-                <Ionicons name="play-circle-outline" size={16} color={Colors.primary} />
-                <Text style={styles.logWorkoutBtnText}>Log Workout</Text>
+                <Ionicons name="play-circle-outline" size={16} color={colors.primary} />
+                <Text style={[styles.logWorkoutBtnText, { color: colors.primary }]}>Log Workout</Text>
               </Pressable>
             </View>
           ) : (
-            <View style={styles.programCard}>
+            <View style={[styles.programCard, { borderBottomColor: colors.border }]}>
               <Ionicons
                 name="barbell-outline"
                 size={32}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
                 style={styles.programIcon}
               />
-              <Text style={styles.programText}>No active program</Text>
-              <Text style={styles.programSubtext}>
+              <Text style={[styles.programText, { color: colors.textPrimary }]}>No active program</Text>
+              <Text style={[styles.programSubtext, { color: colors.textSecondary }]}>
                 Let Grit build your personalized training program
               </Text>
-              <Pressable style={styles.createButton} onPress={openProgramCreation}>
-                <Text style={styles.createButtonText}>Create Your Program</Text>
+              <Pressable style={[styles.createButton, { backgroundColor: colors.primary }]} onPress={openProgramCreation}>
+                <Text style={[styles.createButtonText, { color: colors.surface }]}>Create Your Program</Text>
               </Pressable>
             </View>
           )}
@@ -331,7 +399,7 @@ export default function HomeScreen() {
 
         {/* Middle Zone */}
         <View style={styles.comingUp}>
-          <Text style={styles.sectionTitle}>Coming up</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Coming up</Text>
           {upcomingActivities.length > 0 ? (
             upcomingActivities.map((activity) => (
               <UpcomingActivityCard
@@ -343,47 +411,47 @@ export default function HomeScreen() {
               />
             ))
           ) : (
-            <View style={styles.emptyCard}>
+            <View style={[styles.emptyCard, { borderBottomColor: colors.border }]}>
               <Ionicons
                 name="calendar-outline"
                 size={24}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
               />
-              <Text style={styles.emptyText}>No upcoming activities</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No upcoming activities</Text>
             </View>
           )}
         </View>
       </ScrollView>
 
-      {/* Floating bottom — FAB + chat bar overlaid on scroll content */}
+      {/* Floating bottom -- FAB + chat bar overlaid on scroll content */}
       <View style={[styles.floatingBottom, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        {/* FAB Row — Log Workout */}
+        {/* FAB Row -- Log Workout */}
         <View style={styles.fabRow}>
           <Pressable
-            style={styles.fab}
+            style={[styles.fab, { backgroundColor: colors.primary }]}
             onPress={() => setFabSheetVisible(true)}
             hitSlop={8}
           >
-            <Ionicons name="add" size={28} color="#FFF" />
+            <Ionicons name="add" size={28} color={colors.surface} />
           </Pressable>
         </View>
 
         {/* Chat Bar */}
-        <View style={styles.chatBar}>
-          <Pressable style={styles.chatBarInner} onPress={() => openChat()}>
-            <View style={styles.chatBarAvatar}>
-              <Text style={styles.chatBarAvatarText}>G</Text>
+        <View style={[styles.chatBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
+          <Pressable style={[styles.chatBarInner, { backgroundColor: colors.surface }]} onPress={() => openChat()}>
+            <View style={[styles.chatBarAvatar, { backgroundColor: colors.primary }]}>
+              <Text style={[styles.chatBarAvatarText, { color: colors.surface }]}>G</Text>
               {unreadCount > 0 && (
                 <View style={styles.unreadBadge}>
                   <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</Text>
                 </View>
               )}
             </View>
-            <Text style={styles.chatBarPlaceholder}>
+            <Text style={[styles.chatBarPlaceholder, { color: colors.textSecondary }]}>
               {unreadCount > 0 ? 'Grit replied...' : 'Message Grit...'}
             </Text>
-            <View style={[styles.sendButton, styles.sendButtonDisabled]}>
-              <Ionicons name="arrow-up" size={18} color={Colors.textSecondary} />
+            <View style={[styles.sendButton, { backgroundColor: colors.surfaceAlt }]}>
+              <Ionicons name="arrow-up" size={18} color={colors.textSecondary} />
             </View>
           </Pressable>
         </View>
@@ -408,38 +476,38 @@ export default function HomeScreen() {
         onRequestClose={closeChat}
       >
         <KeyboardAvoidingView
-          style={styles.chatScreen}
+          style={[styles.chatScreen, { backgroundColor: colors.background }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Chat Header */}
-          <View style={[styles.chatHeader, { paddingTop: insets.top + 8 }]}>
+          <View style={[styles.chatHeader, { paddingTop: insets.top + 8, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
             <Pressable
               onPress={closeChat}
-              style={styles.closeButton}
+              style={[styles.closeButton, { backgroundColor: colors.background }]}
               hitSlop={12}
             >
               <Ionicons
                 name="chevron-down"
                 size={24}
-                color={Colors.textPrimary}
+                color={colors.textPrimary}
               />
             </Pressable>
             <View style={styles.chatHeaderCenter}>
-              <View style={styles.headerAvatar}>
-                <Text style={styles.headerAvatarText}>G</Text>
+              <View style={[styles.headerAvatar, { backgroundColor: colors.primary }]}>
+                <Text style={[styles.headerAvatarText, { color: colors.surface }]}>G</Text>
               </View>
               <View>
-                <Text style={styles.chatHeaderTitle}>Grit</Text>
+                <Text style={[styles.chatHeaderTitle, { color: colors.textPrimary }]}>Grit</Text>
                 <View style={styles.statusRow}>
                   <View
                     style={[
                       styles.dot,
                       {
-                        backgroundColor: isConnected ? '#4CAF50' : '#FF5722',
+                        backgroundColor: isConnected ? colors.success : colors.error,
                       },
                     ]}
                   />
-                  <Text style={styles.statusText}>
+                  <Text style={[styles.statusText, { color: colors.textSecondary }]}>
                     {isConnected ? 'Online' : 'Reconnecting...'}
                   </Text>
                 </View>
@@ -447,10 +515,10 @@ export default function HomeScreen() {
             </View>
             <Pressable
               onPress={() => setClearChatVisible(true)}
-              style={styles.clearButton}
+              style={[styles.clearButton, { backgroundColor: colors.background }]}
               hitSlop={12}
             >
-              <Ionicons name="trash-outline" size={20} color={Colors.textSecondary} />
+              <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -473,8 +541,8 @@ export default function HomeScreen() {
             messages[messages.length - 1]?.isStreaming !== true && (
               <View style={styles.typingContainer}>
                 <View style={styles.toolActionRow}>
-                  <ActivityIndicator size="small" color={Colors.textSecondary} />
-                  <Text style={styles.toolActionLabel}>
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                  <Text style={[styles.toolActionLabel, { color: colors.textSecondary }]}>
                     {activeToolAction ?? 'Thinking...'}
                   </Text>
                 </View>
@@ -487,10 +555,10 @@ export default function HomeScreen() {
               {quickReplies.map((reply) => (
                 <Pressable
                   key={reply}
-                  style={styles.quickReplyButton}
+                  style={[styles.quickReplyButton, { borderColor: colors.primary, backgroundColor: colors.surface }]}
                   onPress={() => sendMessage(reply)}
                 >
-                  <Text style={styles.quickReplyText}>{reply}</Text>
+                  <Text style={[styles.quickReplyText, { color: colors.primary }]}>{reply}</Text>
                 </Pressable>
               ))}
             </View>
@@ -498,8 +566,8 @@ export default function HomeScreen() {
 
           {/* Usage counter */}
           {!isRateLimited && usageRemaining != null && usageLimit != null && usageRemaining <= 15 && usageRemaining > 0 && (
-            <View style={styles.usageCounterContainer}>
-              <Text style={styles.usageCounterText}>
+            <View style={[styles.usageCounterContainer, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.usageCounterText, { color: colors.textSecondary }]}>
                 {usageRemaining} message{usageRemaining !== 1 ? 's' : ''} left this week
               </Text>
             </View>
@@ -507,34 +575,34 @@ export default function HomeScreen() {
 
           {/* Chat Input or Rate Limit Banner */}
           {isRateLimited ? (
-            <View style={[styles.rateLimitBanner, { paddingBottom: inputBottomPadding }]}>
-              <Ionicons name="lock-closed" size={20} color={Colors.textSecondary} />
-              <Text style={styles.rateLimitText}>
-                You've used your free messages this week. Resets Monday.
+            <View style={[styles.rateLimitBanner, { paddingBottom: inputBottomPadding, borderTopColor: colors.border, backgroundColor: colors.surface }]}>
+              <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
+              <Text style={[styles.rateLimitText, { color: colors.textSecondary }]}>
+                You&apos;ve used your free messages this week. Resets Monday.
               </Text>
               <Pressable
-                style={styles.upgradeButton}
+                style={[styles.upgradeButton, { backgroundColor: colors.primary }]}
                 onPress={() => Alert.alert('Coming Soon', 'Premium subscriptions will be available soon!')}
               >
-                <Text style={styles.upgradeButtonText}>Upgrade</Text>
+                <Text style={[styles.upgradeButtonText, { color: colors.surface }]}>Upgrade</Text>
               </Pressable>
             </View>
           ) : (
-            <View style={[styles.chatInputContainer, { paddingBottom: inputBottomPadding }]}>
+            <View style={[styles.chatInputContainer, { paddingBottom: inputBottomPadding, borderTopColor: colors.border, backgroundColor: colors.surface }]}>
               {keyboardHeight > 0 && (
                 <Pressable
                   onPress={() => Keyboard.dismiss()}
                   style={styles.keyboardDismissButton}
                   hitSlop={8}
                 >
-                  <Ionicons name="chevron-down" size={20} color={Colors.textSecondary} />
+                  <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
                 </Pressable>
               )}
               <TextInput
                 ref={inputRef}
-                style={styles.chatInput}
+                style={[styles.chatInput, { color: colors.textPrimary, backgroundColor: colors.background }]}
                 placeholder="Message Grit..."
-                placeholderTextColor={Colors.textSecondary}
+                placeholderTextColor={colors.textSecondary}
                 value={inputText}
                 onChangeText={setInputText}
                 onSubmitEditing={handleSend}
@@ -548,7 +616,8 @@ export default function HomeScreen() {
               <Pressable
                 style={[
                   styles.sendButton,
-                  !inputText.trim() && styles.sendButtonDisabled,
+                  { backgroundColor: colors.primary },
+                  !inputText.trim() && { backgroundColor: colors.surfaceAlt },
                 ]}
                 onPress={handleSend}
                 disabled={!inputText.trim()}
@@ -556,7 +625,7 @@ export default function HomeScreen() {
                 <Ionicons
                   name="arrow-up"
                   size={18}
-                  color={inputText.trim() ? '#FFFFFF' : Colors.textSecondary}
+                  color={inputText.trim() ? colors.surface : colors.textSecondary}
                 />
               </Pressable>
             </View>
@@ -576,7 +645,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -585,20 +653,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.primary,
     letterSpacing: 1,
   },
   programCard: {
     marginTop: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
+    paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   programIcon: {
     marginBottom: 8,
@@ -606,53 +667,44 @@ const styles = StyleSheet.create({
   programText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
     marginBottom: 4,
   },
   programSubtext: {
     fontSize: 13,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
   createButton: {
-    backgroundColor: Colors.primary,
     borderRadius: 10,
     paddingHorizontal: 24,
     paddingVertical: 12,
   },
   createButtonText: {
-    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 14,
   },
   activeProgramName: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 2,
   },
   activeProgramSport: {
     fontSize: 14,
-    color: Colors.primary,
     fontWeight: '600',
     marginBottom: 4,
   },
   activeProgramWeek: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginBottom: 8,
   },
   progressBarContainer: {
     width: '100%',
     height: 6,
-    backgroundColor: '#E8E8E8',
     borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
     borderRadius: 3,
   },
   logWorkoutBtn: {
@@ -664,12 +716,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
   },
   logWorkoutBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.primary,
   },
   scrollContent: {
     flex: 1,
@@ -692,7 +742,6 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -708,58 +757,40 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 10,
   },
   emptyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
     padding: 16,
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   emptyText: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   chatBar: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    backgroundColor: Colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.tabBarBorder,
   },
   chatBarInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: 24,
     paddingLeft: 6,
     paddingRight: 6,
     paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
   },
   chatBarAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   chatBarAvatarText: {
-    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -770,7 +801,7 @@ const styles = StyleSheet.create({
     minWidth: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#FF3B30', // system red badge — intentionally static
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
@@ -783,44 +814,30 @@ const styles = StyleSheet.create({
   chatBarPlaceholder: {
     flex: 1,
     fontSize: 15,
-    color: Colors.textSecondary,
     paddingVertical: Platform.OS === 'ios' ? 6 : 4,
   },
   sendButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 6,
   },
-  sendButtonDisabled: {
-    backgroundColor: '#E8E8E8',
-  },
   chatScreen: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
-    backgroundColor: Colors.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.tabBarBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
   },
   closeButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -835,19 +852,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerAvatarText: {
-    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
   },
   chatHeaderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   statusRow: {
     flexDirection: 'row',
@@ -862,7 +876,6 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    color: Colors.textSecondary,
   },
   messageList: {
     flex: 1,
@@ -882,31 +895,20 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     alignSelf: 'flex-end',
-    backgroundColor: Colors.primary,
     borderBottomRightRadius: 4,
   },
   gritBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.surface,
     borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
   },
   gritLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.primary,
     marginBottom: 3,
   },
   messageText: {
     fontSize: 15,
     lineHeight: 21,
-  },
-  userText: {
-    color: '#FFFFFF',
   },
   typingContainer: {
     paddingHorizontal: 16,
@@ -915,16 +917,13 @@ const styles = StyleSheet.create({
   toolActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     alignSelf: 'flex-start',
-    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
     gap: 8,
   },
   toolActionLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
     fontStyle: 'italic',
   },
   chatInputContainer: {
@@ -934,14 +933,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.tabBarBorder,
-    backgroundColor: Colors.surface,
   },
   chatInput: {
     flex: 1,
     fontSize: 15,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.background,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 10 : 8,
@@ -953,7 +948,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -970,13 +964,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surface,
   },
   quickReplyText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
   },
   keyboardDismissButton: {
     width: 32,
@@ -988,11 +979,9 @@ const styles = StyleSheet.create({
   usageCounterContainer: {
     alignItems: 'center',
     paddingVertical: 4,
-    backgroundColor: Colors.surface,
   },
   usageCounterText: {
     fontSize: 12,
-    color: Colors.textSecondary,
   },
   rateLimitBanner: {
     alignItems: 'center',
@@ -1000,84 +989,19 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.tabBarBorder,
-    backgroundColor: Colors.surface,
     gap: 8,
   },
   rateLimitText: {
     fontSize: 14,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   upgradeButton: {
-    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingHorizontal: 24,
     paddingVertical: 10,
   },
   upgradeButtonText: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
-  },
-});
-
-const markdownStyles = StyleSheet.create({
-  body: {
-    fontSize: 15,
-    lineHeight: 21,
-    color: Colors.textPrimary,
-  },
-  heading1: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-    marginTop: 8,
-  },
-  heading2: {
-    fontSize: 17,
-    fontWeight: '700' as const,
-    color: Colors.textPrimary,
-    marginBottom: 4,
-    marginTop: 6,
-  },
-  heading3: {
-    fontSize: 15,
-    fontWeight: '700' as const,
-    color: Colors.textPrimary,
-    marginBottom: 2,
-    marginTop: 4,
-  },
-  strong: {
-    fontWeight: '700' as const,
-  },
-  bullet_list: {
-    marginVertical: 4,
-  },
-  ordered_list: {
-    marginVertical: 4,
-  },
-  list_item: {
-    marginVertical: 2,
-  },
-  code_inline: {
-    backgroundColor: Colors.background,
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  fence: {
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    padding: 12,
-    marginVertical: 8,
-    fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-  },
-  paragraph: {
-    marginTop: 0,
-    marginBottom: 6,
   },
 });

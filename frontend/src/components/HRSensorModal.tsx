@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { bleService } from '../services/bleService';
 
 interface BLEDevice {
@@ -21,9 +21,7 @@ interface BLEDevice {
 interface HRSensorModalProps {
   visible: boolean;
   onClose: () => void;
-  /** Called after successful BLE connection with device name */
   onConnected: (deviceName: string) => void;
-  /** If provided, HR readings are streamed to this callback while connected */
   onReading?: (bpm: number) => void;
 }
 
@@ -33,6 +31,7 @@ export default function HRSensorModal({
   onConnected,
   onReading,
 }: HRSensorModalProps) {
+  const { colors } = useTheme();
   const [discoveredDevices, setDiscoveredDevices] = useState<BLEDevice[]>([]);
   const [connectingDeviceId, setConnectingDeviceId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -56,7 +55,6 @@ export default function HRSensorModal({
     setScanning(false);
   }, []);
 
-  // Auto-start scan when modal opens
   useEffect(() => {
     if (visible) {
       startScan();
@@ -101,41 +99,37 @@ export default function HRSensorModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          {/* Drag handle */}
-          <View style={styles.dragHandle} />
+      <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
+          <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
 
-          <Text style={styles.title}>Heart Rate Monitors</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Heart Rate Monitors</Text>
 
-          {/* Current connection status */}
           {isConnected && (
-            <View style={styles.connectedRow}>
-              <Ionicons name="heart" size={18} color={Colors.primary} />
-              <Text style={styles.connectedText}>
+            <View style={[styles.connectedRow, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="heart" size={18} color={colors.primary} />
+              <Text style={[styles.connectedText, { color: colors.textPrimary }]}>
                 Connected: {bleService.getDeviceName()}
               </Text>
-              <Pressable style={styles.disconnectBtn} onPress={handleDisconnect}>
-                <Text style={styles.disconnectText}>Disconnect</Text>
+              <Pressable style={[styles.disconnectBtn, { borderColor: colors.primary }]} onPress={handleDisconnect}>
+                <Text style={[styles.disconnectText, { color: colors.primary }]}>Disconnect</Text>
               </Pressable>
             </View>
           )}
 
-          {/* Scanning status */}
           {scanning && (
             <View style={styles.scanningRow}>
-              <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.scanningText}>Scanning for nearby devices...</Text>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[styles.scanningText, { color: colors.textSecondary }]}>Scanning for nearby devices...</Text>
             </View>
           )}
 
-          {/* Device list */}
           {discoveredDevices.length === 0 && !scanning ? (
             <View style={styles.emptyState}>
-              <Ionicons name="bluetooth-outline" size={40} color={Colors.textSecondary} />
-              <Text style={styles.emptyText}>No devices found</Text>
+              <Ionicons name="bluetooth-outline" size={40} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No devices found</Text>
               <Pressable style={styles.rescanBtn} onPress={startScan}>
-                <Text style={styles.rescanText}>Scan Again</Text>
+                <Text style={[styles.rescanText, { color: colors.primary }]}>Scan Again</Text>
               </Pressable>
             </View>
           ) : (
@@ -143,32 +137,30 @@ export default function HRSensorModal({
               {discoveredDevices.map((device) => (
                 <Pressable
                   key={device.id}
-                  style={styles.deviceRow}
+                  style={[styles.deviceRow, { borderBottomColor: colors.border }]}
                   onPress={() => handleConnect(device.id)}
                   disabled={connectingDeviceId !== null}
                 >
-                  <Ionicons name="heart-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.deviceName}>{device.name}</Text>
+                  <Ionicons name="heart-outline" size={20} color={colors.primary} />
+                  <Text style={[styles.deviceName, { color: colors.textPrimary }]}>{device.name}</Text>
                   {connectingDeviceId === device.id ? (
-                    <ActivityIndicator size="small" color={Colors.primary} />
+                    <ActivityIndicator size="small" color={colors.primary} />
                   ) : (
-                    <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                   )}
                 </Pressable>
               ))}
             </ScrollView>
           )}
 
-          {/* Rescan button (when devices exist but scan finished) */}
           {discoveredDevices.length > 0 && !scanning && (
             <Pressable style={styles.rescanBtn} onPress={startScan}>
-              <Text style={styles.rescanText}>Scan Again</Text>
+              <Text style={[styles.rescanText, { color: colors.primary }]}>Scan Again</Text>
             </Pressable>
           )}
 
-          {/* Close */}
-          <Pressable style={styles.closeBtn} onPress={handleClose}>
-            <Text style={styles.closeText}>Close</Text>
+          <Pressable style={[styles.closeBtn, { backgroundColor: colors.surfaceAlt }]} onPress={handleClose}>
+            <Text style={[styles.closeText, { color: colors.textPrimary }]}>Close</Text>
           </Pressable>
         </View>
       </View>
@@ -177,9 +169,8 @@ export default function HRSensorModal({
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  overlay: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: Colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -189,38 +180,35 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#D0D0D0',
     alignSelf: 'center',
     marginBottom: 16,
   },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary, marginBottom: 12 },
+  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   connectedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FEF0F1',
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
   },
-  connectedText: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  connectedText: { flex: 1, fontSize: 14, fontWeight: '600' },
   disconnectBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary,
   },
-  disconnectText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
+  disconnectText: { fontSize: 12, fontWeight: '600' },
   scanningRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
   },
-  scanningText: { fontSize: 13, color: Colors.textSecondary },
+  scanningText: { fontSize: 13 },
   emptyState: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  emptyText: { color: Colors.textSecondary, fontSize: 14 },
+  emptyText: { fontSize: 14 },
   deviceList: { maxHeight: 220 },
   deviceRow: {
     flexDirection: 'row',
@@ -228,21 +216,19 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
   },
-  deviceName: { flex: 1, fontSize: 15, color: Colors.textPrimary },
+  deviceName: { flex: 1, fontSize: 15 },
   rescanBtn: {
     alignItems: 'center',
     paddingVertical: 10,
     marginTop: 8,
   },
-  rescanText: { color: Colors.primary, fontWeight: '600', fontSize: 14 },
+  rescanText: { fontWeight: '600', fontSize: 14 },
   closeBtn: {
     marginTop: 12,
     alignItems: 'center',
     paddingVertical: 12,
-    backgroundColor: '#F0F0F0',
     borderRadius: 12,
   },
-  closeText: { color: Colors.textPrimary, fontWeight: '600' },
+  closeText: { fontWeight: '600' },
 });

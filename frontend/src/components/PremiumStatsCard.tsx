@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface PremiumStatsCardProps {
   isPremium: boolean;
@@ -10,24 +10,26 @@ interface PremiumStatsCardProps {
 }
 
 export function PremiumStatsCard({ isPremium, title, children }: PremiumStatsCardProps) {
+  const { colors } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
       <View style={styles.header}>
-        <Ionicons name="analytics-outline" size={18} color={Colors.primary} />
-        <Text style={styles.title}>{title}</Text>
+        <Ionicons name="analytics-outline" size={18} color={colors.primary} />
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
       </View>
       {isPremium ? (
         children
       ) : (
         <View style={styles.lockedContainer}>
           <View style={styles.blurredContent}>
-            <View style={styles.blurredLine} />
-            <View style={[styles.blurredLine, { width: '60%' }]} />
-            <View style={[styles.blurredLine, { width: '80%' }]} />
+            <View style={[styles.blurredLine, { backgroundColor: colors.surfaceAlt }]} />
+            <View style={[styles.blurredLine, { width: '60%', backgroundColor: colors.surfaceAlt }]} />
+            <View style={[styles.blurredLine, { width: '80%', backgroundColor: colors.surfaceAlt }]} />
           </View>
           <View style={styles.ctaRow}>
-            <Ionicons name="lock-closed-outline" size={14} color={Colors.primary} />
-            <Text style={styles.ctaText}>Unlock with Premium</Text>
+            <Ionicons name="lock-closed-outline" size={14} color={colors.primary} />
+            <Text style={[styles.ctaText, { color: colors.primary }]}>Unlock with Premium</Text>
           </View>
         </View>
       )}
@@ -37,15 +39,8 @@ export function PremiumStatsCard({ isPremium, title, children }: PremiumStatsCar
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
+    paddingTop: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   header: {
     flexDirection: 'row',
@@ -56,7 +51,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   lockedContainer: {
     gap: 12,
@@ -67,7 +61,6 @@ const styles = StyleSheet.create({
   },
   blurredLine: {
     height: 14,
-    backgroundColor: '#CCC',
     borderRadius: 4,
     width: '100%',
   },
@@ -81,6 +74,5 @@ const styles = StyleSheet.create({
   ctaText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
   },
 });

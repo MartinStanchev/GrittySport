@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../constants/colors';
 import { formatTime } from '../constants/workoutUtils';
 import { getActivity, saveWorkout } from '../services/api';
 import { isGPSActivity } from '../constants/activityIcons';
@@ -90,40 +91,52 @@ const INDOOR_OPTIONS: TypeOption[] = [
 function TypeSelector({
   onSelectManual,
   onSelectGPS,
+  colors,
 }: {
   onSelectManual: (activityType: string) => void;
   onSelectGPS: (activityType: string) => void;
+  colors: ThemeColors;
 }) {
   return (
     <View style={styles.typeSelectorContainer}>
-      <Text style={styles.typeSectionHeader}>Outdoor</Text>
+      <Text style={[styles.typeSectionHeader, { color: colors.textSecondary }]}>Outdoor</Text>
       {GPS_OPTIONS.map((opt) => (
-        <Pressable key={opt.activityType} style={styles.typeOption} onPress={() => onSelectGPS(opt.activityType)}>
-          <View style={[styles.typeIconCircle, styles.typeIconGPS]}>
-            <Ionicons name={opt.icon} size={24} color={Colors.primary} />
+        <Pressable
+          key={opt.activityType}
+          style={[styles.typeOption, { backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
+          onPress={() => onSelectGPS(opt.activityType)}
+        >
+          <View style={[styles.typeIconCircle, { backgroundColor: colors.primary + '14' }]}>
+            <Ionicons name={opt.icon} size={24} color={colors.primary} />
           </View>
           <View style={styles.typeOptionText}>
             <View style={styles.typeOptionTitleRow}>
-              <Text style={styles.typeOptionLabel}>{opt.label}</Text>
-              <View style={styles.gpsBadge}><Text style={styles.gpsBadgeText}>GPS</Text></View>
+              <Text style={[styles.typeOptionLabel, { color: colors.textPrimary }]}>{opt.label}</Text>
+              <View style={[styles.gpsBadge, { backgroundColor: colors.primary + '18' }]}>
+                <Text style={[styles.gpsBadgeText, { color: colors.primary }]}>GPS</Text>
+              </View>
             </View>
-            <Text style={styles.typeOptionDesc}>{opt.desc}</Text>
+            <Text style={[styles.typeOptionDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </Pressable>
       ))}
 
-      <Text style={[styles.typeSectionHeader, { marginTop: 16 }]}>Indoor & Gym</Text>
+      <Text style={[styles.typeSectionHeader, { marginTop: 16, color: colors.textSecondary }]}>Indoor & Gym</Text>
       {INDOOR_OPTIONS.map((opt) => (
-        <Pressable key={opt.activityType} style={styles.typeOption} onPress={() => onSelectManual(opt.activityType)}>
-          <View style={styles.typeIconCircle}>
-            <Ionicons name={opt.icon} size={24} color={Colors.primary} />
+        <Pressable
+          key={opt.activityType}
+          style={[styles.typeOption, { backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
+          onPress={() => onSelectManual(opt.activityType)}
+        >
+          <View style={[styles.typeIconCircle, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name={opt.icon} size={24} color={colors.primary} />
           </View>
           <View style={styles.typeOptionText}>
-            <Text style={styles.typeOptionLabel}>{opt.label}</Text>
-            <Text style={styles.typeOptionDesc}>{opt.desc}</Text>
+            <Text style={[styles.typeOptionLabel, { color: colors.textPrimary }]}>{opt.label}</Text>
+            <Text style={[styles.typeOptionDesc, { color: colors.textSecondary }]}>{opt.desc}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
         </Pressable>
       ))}
     </View>
@@ -138,10 +151,12 @@ function StrengthLogger({
   exercises,
   onChange,
   onRest,
+  colors,
 }: {
   exercises: ExerciseLog[];
   onChange: (exercises: ExerciseLog[]) => void;
   onRest: (restSeconds: number) => void;
+  colors: ThemeColors;
 }) {
   function updateExercise(idx: number, updated: ExerciseLog) {
     onChange(exercises.map((e, i) => (i === idx ? updated : e)));
@@ -167,24 +182,24 @@ function StrengthLogger({
   return (
     <View>
       {exercises.map((ex, exIdx) => (
-        <View key={exIdx} style={styles.exerciseBlock}>
+        <View key={exIdx} style={[styles.exerciseBlock, { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
           <View style={styles.exerciseHeader}>
             <TextInput
-              style={styles.exerciseNameInput}
+              style={[styles.exerciseNameInput, { color: colors.textPrimary, borderBottomColor: colors.border }]}
               value={ex.name}
               onChangeText={(t) => updateExercise(exIdx, { ...ex, name: t })}
               placeholder="Exercise name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
             />
             {exercises.length > 1 && (
               <Pressable onPress={() => onChange(exercises.filter((_, i) => i !== exIdx))} style={styles.removeBtn}>
-                <Ionicons name="trash-outline" size={16} color="#999" />
+                <Ionicons name="trash-outline" size={16} color={colors.textSecondary} />
               </Pressable>
             )}
           </View>
 
           {(ex.targetSets || ex.targetReps || ex.targetWeight) && (
-            <Text style={styles.targetLabel}>
+            <Text style={[styles.targetLabel, { color: colors.textSecondary }]}>
               Target: {ex.targetSets} sets × {ex.targetReps}
               {ex.targetWeight ? ` @ ${ex.targetWeight}` : ''}
               {ex.targetRpe ? ` RPE ${ex.targetRpe}` : ''}
@@ -192,39 +207,39 @@ function StrengthLogger({
           )}
 
           <View style={styles.setTableHeader}>
-            <Text style={[styles.setCell, styles.setHeaderText, { flex: 0.4 }]}>Set</Text>
-            <Text style={[styles.setCell, styles.setHeaderText]}>Reps</Text>
-            <Text style={[styles.setCell, styles.setHeaderText]}>Weight</Text>
-            <Text style={[styles.setCell, styles.setHeaderText, { flex: 0.6 }]}>RPE</Text>
+            <Text style={[styles.setCell, styles.setHeaderText, { flex: 0.4, color: colors.textSecondary }]}>Set</Text>
+            <Text style={[styles.setCell, styles.setHeaderText, { color: colors.textSecondary }]}>Reps</Text>
+            <Text style={[styles.setCell, styles.setHeaderText, { color: colors.textSecondary }]}>Weight</Text>
+            <Text style={[styles.setCell, styles.setHeaderText, { flex: 0.6, color: colors.textSecondary }]}>RPE</Text>
             <View style={{ width: 52 }} />
           </View>
 
           {ex.sets.map((set, setIdx) => (
-            <View key={setIdx} style={[styles.setRow, set.completed && styles.setRowDone]}>
-              <Text style={[styles.setCell, { flex: 0.4, color: Colors.textSecondary }]}>{setIdx + 1}</Text>
+            <View key={setIdx} style={[styles.setRow, { borderBottomColor: colors.surfaceAlt }, set.completed && { backgroundColor: colors.surfaceAlt }]}>
+              <Text style={[styles.setCell, { flex: 0.4, color: colors.textSecondary }]}>{setIdx + 1}</Text>
               <TextInput
-                style={[styles.setCell, styles.setInput]}
+                style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
                 value={set.reps}
                 onChangeText={(t) => updateSet(exIdx, setIdx, 'reps', t)}
                 keyboardType="number-pad"
                 placeholder={ex.targetReps || '-'}
-                placeholderTextColor="#CCC"
+                placeholderTextColor={colors.border}
               />
               <TextInput
-                style={[styles.setCell, styles.setInput]}
+                style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
                 value={set.weight}
                 onChangeText={(t) => updateSet(exIdx, setIdx, 'weight', t)}
                 keyboardType="decimal-pad"
                 placeholder={ex.targetWeight || 'kg'}
-                placeholderTextColor="#CCC"
+                placeholderTextColor={colors.border}
               />
               <TextInput
-                style={[styles.setCell, styles.setInput, { flex: 0.6 }]}
+                style={[styles.setCell, styles.setInput, { flex: 0.6, borderColor: colors.border, color: colors.textPrimary }]}
                 value={set.rpe}
                 onChangeText={(t) => updateSet(exIdx, setIdx, 'rpe', t)}
                 keyboardType="number-pad"
                 placeholder="-"
-                placeholderTextColor="#CCC"
+                placeholderTextColor={colors.border}
                 maxLength={2}
               />
               <View style={styles.setActions}>
@@ -235,32 +250,32 @@ function StrengthLogger({
                   <Ionicons
                     name={set.completed ? 'checkmark-circle' : 'ellipse-outline'}
                     size={22}
-                    color={set.completed ? Colors.primary : '#CCC'}
+                    color={set.completed ? colors.primary : colors.border}
                   />
                 </Pressable>
                 <Pressable onPress={() => removeSet(exIdx, setIdx)} style={styles.removeMiniBtn}>
-                  <Ionicons name="close" size={14} color="#CCC" />
+                  <Ionicons name="close" size={14} color={colors.border} />
                 </Pressable>
               </View>
             </View>
           ))}
 
           <View style={styles.exerciseFooter}>
-            <Pressable style={styles.addSetBtn} onPress={() => addSet(exIdx)}>
-              <Ionicons name="add" size={14} color={Colors.primary} />
-              <Text style={styles.addSetText}>Add Set</Text>
+            <Pressable style={[styles.addSetBtn, { backgroundColor: colors.primaryLight }]} onPress={() => addSet(exIdx)}>
+              <Ionicons name="add" size={14} color={colors.primary} />
+              <Text style={[styles.addSetText, { color: colors.primary }]}>Add Set</Text>
             </Pressable>
-            <Pressable style={styles.restBtn} onPress={() => onRest(ex.restSeconds ?? 90)}>
-              <Ionicons name="timer-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.restBtnText}>Rest</Text>
+            <Pressable style={[styles.restBtn, { backgroundColor: colors.surfaceAlt }]} onPress={() => onRest(ex.restSeconds ?? 90)}>
+              <Ionicons name="timer-outline" size={14} color={colors.textSecondary} />
+              <Text style={[styles.restBtnText, { color: colors.textSecondary }]}>Rest</Text>
             </Pressable>
           </View>
         </View>
       ))}
 
-      <Pressable style={styles.addExerciseBtn} onPress={() => onChange([...exercises, { name: '', sets: [{ reps: '', weight: '', rpe: '', completed: false }] }])}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addExerciseText}>Add Exercise</Text>
+      <Pressable style={[styles.addExerciseBtn, { borderColor: colors.primary }]} onPress={() => onChange([...exercises, { name: '', sets: [{ reps: '', weight: '', rpe: '', completed: false }] }])}>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addExerciseText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
     </View>
   );
@@ -273,9 +288,11 @@ function StrengthLogger({
 function MobilityLogger({
   exercises,
   onChange,
+  colors,
 }: {
   exercises: MobilityExerciseLog[];
   onChange: (exercises: MobilityExerciseLog[]) => void;
+  colors: ThemeColors;
 }) {
   function toggleTimer(idx: number) {
     onChange(exercises.map((ex, i) => {
@@ -293,22 +310,22 @@ function MobilityLogger({
   return (
     <View>
       {exercises.map((ex, idx) => (
-        <View key={idx} style={[styles.exerciseBlock, ex.completed && styles.exerciseBlockDone]}>
+        <View key={idx} style={[styles.exerciseBlock, { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }, ex.completed && styles.exerciseBlockDone]}>
           <TextInput
-            style={styles.exerciseNameInput}
+            style={[styles.exerciseNameInput, { color: colors.textPrimary, borderBottomColor: colors.border }]}
             value={ex.name}
             onChangeText={(t) => onChange(exercises.map((e, i) => (i === idx ? { ...e, name: t } : e)))}
             placeholder="Exercise name"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             editable={!ex.completed}
           />
           {ex.targetDurationSeconds > 0 && (
-            <Text style={styles.targetLabel}>Target: {formatTime(ex.targetDurationSeconds)}</Text>
+            <Text style={[styles.targetLabel, { color: colors.textSecondary }]}>Target: {formatTime(ex.targetDurationSeconds)}</Text>
           )}
           <View style={styles.mobilityTimerRow}>
-            <Text style={styles.mobilityTimerText}>{formatTime(ex.remainingSeconds)}</Text>
+            <Text style={[styles.mobilityTimerText, { color: colors.textPrimary }]}>{formatTime(ex.remainingSeconds)}</Text>
             <Pressable
-              style={[styles.startTimerBtn, ex.timerActive && styles.startTimerBtnActive]}
+              style={[styles.startTimerBtn, { backgroundColor: colors.textSecondary }, ex.timerActive && { backgroundColor: colors.primary }]}
               onPress={() => toggleTimer(idx)}
               disabled={ex.completed}
             >
@@ -319,7 +336,7 @@ function MobilityLogger({
               <Ionicons
                 name={ex.completed ? 'checkmark-circle' : 'ellipse-outline'}
                 size={26}
-                color={ex.completed ? Colors.primary : '#CCC'}
+                color={ex.completed ? colors.primary : colors.border}
               />
             </Pressable>
           </View>
@@ -327,11 +344,11 @@ function MobilityLogger({
       ))}
 
       <Pressable
-        style={styles.addExerciseBtn}
+        style={[styles.addExerciseBtn, { borderColor: colors.primary }]}
         onPress={() => onChange([...exercises, { name: '', targetDurationSeconds: 60, remainingSeconds: 60, timerActive: false, completed: false }])}
       >
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addExerciseText}>Add Exercise</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addExerciseText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
     </View>
   );
@@ -346,27 +363,29 @@ function DrillLogger({
   drillDescription,
   notes,
   onNotesChange,
+  colors,
 }: {
   drillName: string;
   drillDescription: string;
   notes: string;
   onNotesChange: (t: string) => void;
+  colors: ThemeColors;
 }) {
   return (
     <View>
       {drillName ? (
-        <View style={styles.drillCard}>
-          <Text style={styles.drillName}>{drillName}</Text>
-          {drillDescription ? <Text style={styles.drillDesc}>{drillDescription}</Text> : null}
+        <View style={[styles.drillCard, { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+          <Text style={[styles.drillName, { color: colors.textPrimary }]}>{drillName}</Text>
+          {drillDescription ? <Text style={[styles.drillDesc, { color: colors.textSecondary }]}>{drillDescription}</Text> : null}
         </View>
       ) : null}
-      <Text style={styles.sectionLabel}>Notes</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Notes</Text>
       <TextInput
-        style={styles.notesInput}
+        style={[styles.notesInput, { backgroundColor: colors.surface, color: colors.textPrimary, borderColor: colors.border }]}
         value={notes}
         onChangeText={onNotesChange}
         placeholder="What did you do? Any observations?"
-        placeholderTextColor={Colors.textSecondary}
+        placeholderTextColor={colors.textSecondary}
         multiline
         textAlignVertical="top"
       />
@@ -379,6 +398,7 @@ function DrillLogger({
 // ─────────────────────────────────────────────
 
 function RestTimerModal({ visible, seconds, onClose }: { visible: boolean; seconds: number; onClose: () => void }) {
+  const { colors } = useTheme();
   const [remaining, setRemaining] = useState(seconds);
   const [active, setActive] = useState(true);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -400,14 +420,14 @@ function RestTimerModal({ visible, seconds, onClose }: { visible: boolean; secon
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.restModalOverlay}>
-        <View style={styles.restModalBox}>
-          <Text style={styles.restModalTitle}>Rest</Text>
-          <Text style={styles.restModalTimer}>{formatTime(remaining)}</Text>
+        <View style={[styles.restModalBox, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.restModalTitle, { color: colors.textSecondary }]}>Rest</Text>
+          <Text style={[styles.restModalTimer, { color: colors.textPrimary }]}>{formatTime(remaining)}</Text>
           <View style={styles.restModalActions}>
-            <Pressable style={styles.restModalPause} onPress={() => setActive(!active)}>
-              <Text style={styles.restModalPauseText}>{active ? 'Pause' : 'Resume'}</Text>
+            <Pressable style={[styles.restModalPause, { backgroundColor: colors.surfaceAlt }]} onPress={() => setActive(!active)}>
+              <Text style={[styles.restModalPauseText, { color: colors.textPrimary }]}>{active ? 'Pause' : 'Resume'}</Text>
             </Pressable>
-            <Pressable style={styles.restModalSkip} onPress={onClose}>
+            <Pressable style={[styles.restModalSkip, { backgroundColor: colors.primary }]} onPress={onClose}>
               <Text style={styles.restModalSkipText}>Skip Rest</Text>
             </Pressable>
           </View>
@@ -432,6 +452,7 @@ function WorkoutSummary({
   onSave,
   onDiscard,
   isSaving,
+  colors,
 }: {
   workoutType: WorkoutType;
   elapsedSeconds: number;
@@ -443,23 +464,24 @@ function WorkoutSummary({
   onSave: () => void;
   onDiscard: () => void;
   isSaving: boolean;
+  colors: ThemeColors;
 }) {
   return (
     <View>
       <View style={styles.summaryHeader}>
-        <Ionicons name="checkmark-circle" size={48} color={Colors.primary} />
-        <Text style={styles.summaryTitle}>Workout Complete!</Text>
-        <Text style={styles.summaryTime}>{formatTime(elapsedSeconds)}</Text>
-        <Text style={styles.summaryTimeLabel}>Total Time</Text>
+        <Ionicons name="checkmark-circle" size={48} color={colors.primary} />
+        <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>Workout Complete!</Text>
+        <Text style={[styles.summaryTime, { color: colors.primary }]}>{formatTime(elapsedSeconds)}</Text>
+        <Text style={[styles.summaryTimeLabel, { color: colors.textSecondary }]}>Total Time</Text>
       </View>
 
       {workoutType === 'strength' && (
-        <View style={styles.summarySection}>
-          <Text style={styles.summarySectionTitle}>Exercises Logged</Text>
+        <View style={[styles.summarySection, { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+          <Text style={[styles.summarySectionTitle, { color: colors.textSecondary }]}>Exercises Logged</Text>
           {strengthExercises.map((ex, i) => (
-            <View key={i} style={styles.summaryExRow}>
-              <Text style={styles.summaryExName}>{ex.name || `Exercise ${i + 1}`}</Text>
-              <Text style={styles.summaryExDetail}>
+            <View key={i} style={[styles.summaryExRow, { borderBottomColor: colors.surfaceAlt }]}>
+              <Text style={[styles.summaryExName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
+              <Text style={[styles.summaryExDetail, { color: colors.textSecondary }]}>
                 {ex.sets.filter((s) => s.completed).length}/{ex.sets.length} sets
               </Text>
             </View>
@@ -468,15 +490,15 @@ function WorkoutSummary({
       )}
 
       {workoutType === 'mobility' && (
-        <View style={styles.summarySection}>
-          <Text style={styles.summarySectionTitle}>Exercises Completed</Text>
+        <View style={[styles.summarySection, { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+          <Text style={[styles.summarySectionTitle, { color: colors.textSecondary }]}>Exercises Completed</Text>
           {mobilityExercises.map((ex, i) => (
-            <View key={i} style={styles.summaryExRow}>
-              <Text style={styles.summaryExName}>{ex.name || `Exercise ${i + 1}`}</Text>
+            <View key={i} style={[styles.summaryExRow, { borderBottomColor: colors.surfaceAlt }]}>
+              <Text style={[styles.summaryExName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
               <Ionicons
                 name={ex.completed ? 'checkmark-circle' : 'ellipse-outline'}
                 size={18}
-                color={ex.completed ? Colors.primary : '#CCC'}
+                color={ex.completed ? colors.primary : colors.border}
               />
             </View>
           ))}
@@ -484,28 +506,28 @@ function WorkoutSummary({
       )}
 
       {workoutType === 'drill' && drillNotes ? (
-        <View style={styles.summarySection}>
-          <Text style={styles.summarySectionTitle}>Your Notes</Text>
-          <Text style={styles.summaryNotePreview}>{drillNotes}</Text>
+        <View style={[styles.summarySection, { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+          <Text style={[styles.summarySectionTitle, { color: colors.textSecondary }]}>Your Notes</Text>
+          <Text style={[styles.summaryNotePreview, { color: colors.textPrimary }]}>{drillNotes}</Text>
         </View>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Additional Notes</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Additional Notes</Text>
       <TextInput
-        style={styles.notesInput}
+        style={[styles.notesInput, { backgroundColor: colors.surface, color: colors.textPrimary, borderColor: colors.border }]}
         value={notes}
         onChangeText={onNotesChange}
         placeholder="Any additional notes about this workout?"
-        placeholderTextColor={Colors.textSecondary}
+        placeholderTextColor={colors.textSecondary}
         multiline
         textAlignVertical="top"
       />
 
       <View style={styles.summaryBtns}>
-        <Pressable style={styles.discardBtn} onPress={onDiscard} disabled={isSaving}>
-          <Text style={styles.discardBtnText}>Discard</Text>
+        <Pressable style={[styles.discardBtn, { borderColor: colors.border }]} onPress={onDiscard} disabled={isSaving}>
+          <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Discard</Text>
         </Pressable>
-        <Pressable style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]} onPress={onSave} disabled={isSaving}>
+        <Pressable style={[styles.saveBtn, { backgroundColor: colors.primary }, isSaving && styles.saveBtnDisabled]} onPress={onSave} disabled={isSaving}>
           {isSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save Workout</Text>}
         </Pressable>
       </View>
@@ -520,6 +542,7 @@ function WorkoutSummary({
 export default function RecordManualScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const { colors } = useTheme();
   const { scheduledActivityId, activityType: paramActivityType } = route.params ?? {};
 
   const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode } = useWorkout();
@@ -723,9 +746,9 @@ export default function RecordManualScreen() {
 
   if (isLoadingActivity) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading activity...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading activity...</Text>
       </View>
     );
   }
@@ -739,22 +762,22 @@ export default function RecordManualScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {/* Timer bar — only shown while recording */}
       {phase === 'recording' && (
-        <View style={styles.timerBar}>
+        <View style={[styles.timerBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <View>
-            <Text style={styles.timerLabel}>ELAPSED</Text>
-            <Text style={styles.timerValue}>{formatTime(elapsedSeconds)}</Text>
+            <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>ELAPSED</Text>
+            <Text style={[styles.timerValue, { color: colors.textPrimary }]}>{formatTime(elapsedSeconds)}</Text>
           </View>
-          <Pressable style={styles.finishBtn} onPress={handleFinishWorkout}>
+          <Pressable style={[styles.finishBtn, { backgroundColor: colors.primary }]} onPress={handleFinishWorkout}>
             <Text style={styles.finishBtnText}>Finish Workout</Text>
           </Pressable>
         </View>
       )}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={[styles.scroll, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {activeWorkout?.scheduledActivityId && phase === 'recording' && (
-          <View style={styles.activityBanner}>
-            <Text style={styles.activityBannerLabel}>Logging against</Text>
-            <Text style={styles.activityBannerName}>{activeWorkout.activityDisplayType}</Text>
+          <View style={[styles.activityBanner, { backgroundColor: colors.primaryLight, borderLeftColor: colors.primary }]}>
+            <Text style={[styles.activityBannerLabel, { color: colors.primary }]}>Logging against</Text>
+            <Text style={[styles.activityBannerName, { color: colors.textPrimary }]}>{activeWorkout.activityDisplayType}</Text>
           </View>
         )}
 
@@ -762,6 +785,7 @@ export default function RecordManualScreen() {
           <TypeSelector
             onSelectManual={handleManualTypeSelect}
             onSelectGPS={(activityType) => navigation.navigate('RecordGPS', { activityType })}
+            colors={colors}
           />
         )}
 
@@ -770,6 +794,7 @@ export default function RecordManualScreen() {
             exercises={activeWorkout.strengthExercises}
             onChange={(ex) => updateWorkout({ strengthExercises: ex })}
             onRest={(secs) => { setRestTimerSeconds(secs); setRestTimerVisible(true); }}
+            colors={colors}
           />
         )}
 
@@ -777,6 +802,7 @@ export default function RecordManualScreen() {
           <MobilityLogger
             exercises={activeWorkout.mobilityExercises}
             onChange={(ex) => updateWorkout({ mobilityExercises: ex })}
+            colors={colors}
           />
         )}
 
@@ -786,6 +812,7 @@ export default function RecordManualScreen() {
             drillDescription={activeWorkout.drillDescription}
             notes={activeWorkout.drillNotes}
             onNotesChange={(t) => updateWorkout({ drillNotes: t })}
+            colors={colors}
           />
         )}
 
@@ -801,6 +828,7 @@ export default function RecordManualScreen() {
             onSave={handleSave}
             onDiscard={handleDiscard}
             isSaving={isSaving}
+            colors={colors}
           />
         )}
       </ScrollView>
@@ -815,122 +843,116 @@ export default function RecordManualScreen() {
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  loadingText: { marginTop: 12, color: Colors.textSecondary, fontSize: 14 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14 },
   timerBar: {
-    backgroundColor: Colors.surface,
     paddingHorizontal: 20,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
   },
-  timerLabel: { fontSize: 10, color: Colors.textSecondary, fontWeight: '700', letterSpacing: 1 },
-  timerValue: { fontSize: 28, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  finishBtn: { backgroundColor: Colors.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
+  timerLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  timerValue: { fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  finishBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
   finishBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  scroll: { flex: 1, backgroundColor: Colors.background },
+  scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   activityBanner: {
-    backgroundColor: '#FEF0F0',
     borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
     borderRadius: 8,
     padding: 12,
     marginBottom: 16,
   },
-  activityBannerLabel: { fontSize: 11, color: Colors.primary, fontWeight: '700', letterSpacing: 0.5 },
-  activityBannerName: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600', marginTop: 2 },
+  activityBannerLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  activityBannerName: { fontSize: 14, fontWeight: '600', marginTop: 2 },
 
   typeSelectorContainer: { paddingTop: 4 },
-  typeSectionHeader: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  typeSectionHeader: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
   typeOption: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14,
-    padding: 16, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', borderRadius: 0,
+    padding: 16, marginBottom: 0,
   },
-  typeIconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FEF0F0', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  typeIconGPS: { backgroundColor: Colors.primary + '14' },
+  typeIconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   typeOptionText: { flex: 1 },
   typeOptionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typeOptionLabel: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary },
-  typeOptionDesc: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  gpsBadge: { backgroundColor: Colors.primary + '18', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  gpsBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.primary, letterSpacing: 0.5 },
+  typeOptionLabel: { fontSize: 16, fontWeight: '600' },
+  typeOptionDesc: { fontSize: 13, marginTop: 2 },
+  gpsBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  gpsBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
 
   exerciseBlock: {
-    backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 1,
+    borderRadius: 0, padding: 14, marginBottom: 0,
   },
   exerciseBlockDone: { opacity: 0.6 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   exerciseNameInput: {
-    flex: 1, fontSize: 16, fontWeight: '600', color: Colors.textPrimary,
-    borderBottomWidth: 1, borderBottomColor: '#E0E0E0', paddingBottom: 4,
+    flex: 1, fontSize: 16, fontWeight: '600',
+    borderBottomWidth: 1, paddingBottom: 4,
   },
   removeBtn: { padding: 6, marginLeft: 8 },
-  targetLabel: { fontSize: 12, color: Colors.textSecondary, marginBottom: 8, fontStyle: 'italic' },
+  targetLabel: { fontSize: 12, marginBottom: 8, fontStyle: 'italic' },
 
   setTableHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  setHeaderText: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase' },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
-  setRowDone: { backgroundColor: '#F8FFF8' },
-  setCell: { flex: 1, fontSize: 14, color: Colors.textPrimary },
+  setHeaderText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
+  setCell: { flex: 1, fontSize: 14 },
   setInput: {
-    borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4,
-    marginHorizontal: 2, fontSize: 14, color: Colors.textPrimary, textAlign: 'center', minHeight: 32,
+    borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 4,
+    marginHorizontal: 2, fontSize: 14, textAlign: 'center', minHeight: 32,
   },
   setActions: { flexDirection: 'row', alignItems: 'center', width: 52, justifyContent: 'flex-end' },
   doneBtn: { padding: 2 },
   removeMiniBtn: { padding: 4, marginLeft: 2 },
   exerciseFooter: { flexDirection: 'row', marginTop: 10, gap: 8 },
-  addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#FEF0F0' },
-  addSetText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  restBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: '#F5F5F5' },
-  restBtnText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' },
-  addExerciseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: Colors.primary, marginTop: 4 },
-  addExerciseText: { fontSize: 15, color: Colors.primary, fontWeight: '600' },
+  addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  addSetText: { fontSize: 13, fontWeight: '600' },
+  restBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  restBtnText: { fontSize: 13, fontWeight: '600' },
+  addExerciseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', marginTop: 4 },
+  addExerciseText: { fontSize: 15, fontWeight: '600' },
 
   mobilityTimerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 12 },
-  mobilityTimerText: { fontSize: 24, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'], minWidth: 70 },
-  startTimerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.textSecondary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  startTimerBtnActive: { backgroundColor: Colors.primary },
+  mobilityTimerText: { fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 70 },
+  startTimerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   startTimerBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
   doneExBtn: { marginLeft: 'auto' },
 
-  drillCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 16 },
-  drillName: { fontSize: 18, fontWeight: '700', color: Colors.textPrimary },
-  drillDesc: { fontSize: 14, color: Colors.textSecondary, marginTop: 6, lineHeight: 20 },
+  drillCard: { borderRadius: 0, padding: 14, marginBottom: 16 },
+  drillName: { fontSize: 18, fontWeight: '700' },
+  drillDesc: { fontSize: 14, marginTop: 6, lineHeight: 20 },
 
-  sectionLabel: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 },
-  notesInput: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, fontSize: 15, color: Colors.textPrimary, minHeight: 100, borderWidth: 1, borderColor: '#E0E0E0' },
+  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 },
+  notesInput: { borderRadius: 12, padding: 14, fontSize: 15, minHeight: 100, borderWidth: 1 },
 
   restModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  restModalBox: { backgroundColor: Colors.surface, borderRadius: 20, padding: 32, alignItems: 'center', width: 260 },
-  restModalTitle: { fontSize: 14, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
-  restModalTimer: { fontSize: 56, fontWeight: '700', color: Colors.textPrimary, fontVariant: ['tabular-nums'], marginBottom: 24 },
+  restModalBox: {
+    borderRadius: 20, padding: 32, alignItems: 'center', width: 260,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+  },
+  restModalTitle: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
+  restModalTimer: { fontSize: 56, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 24 },
   restModalActions: { gap: 10, width: '100%' },
-  restModalPause: { backgroundColor: '#F0F0F0', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  restModalPauseText: { fontSize: 15, fontWeight: '600', color: Colors.textPrimary },
-  restModalSkip: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  restModalPause: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
+  restModalPauseText: { fontSize: 15, fontWeight: '600' },
+  restModalSkip: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   restModalSkipText: { fontSize: 15, fontWeight: '600', color: '#FFF' },
 
   summaryHeader: { alignItems: 'center', paddingVertical: 24 },
-  summaryTitle: { fontSize: 24, fontWeight: '700', color: Colors.textPrimary, marginTop: 12 },
-  summaryTime: { fontSize: 40, fontWeight: '700', color: Colors.primary, marginTop: 8, fontVariant: ['tabular-nums'] },
-  summaryTimeLabel: { fontSize: 13, color: Colors.textSecondary, marginTop: 4 },
-  summarySection: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 16 },
-  summarySectionTitle: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
-  summaryExRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#F0F0F0' },
-  summaryExName: { fontSize: 15, color: Colors.textPrimary, fontWeight: '500' },
-  summaryExDetail: { fontSize: 14, color: Colors.textSecondary },
-  summaryNotePreview: { fontSize: 14, color: Colors.textPrimary, lineHeight: 20 },
+  summaryTitle: { fontSize: 24, fontWeight: '700', marginTop: 12 },
+  summaryTime: { fontSize: 40, fontWeight: '700', marginTop: 8, fontVariant: ['tabular-nums'] },
+  summaryTimeLabel: { fontSize: 13, marginTop: 4 },
+  summarySection: { borderRadius: 0, padding: 16, marginBottom: 16 },
+  summarySectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  summaryExRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  summaryExName: { fontSize: 15, fontWeight: '500' },
+  summaryExDetail: { fontSize: 14 },
+  summaryNotePreview: { fontSize: 14, lineHeight: 20 },
   summaryBtns: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 16 },
-  discardBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#E0E0E0', alignItems: 'center' },
-  discardBtnText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
-  saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center' },
+  discardBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, alignItems: 'center' },
+  discardBtnText: { fontSize: 15, fontWeight: '600' },
+  saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 });

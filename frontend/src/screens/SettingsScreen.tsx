@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { clearChatMemory } from '../services/api';
 import { bleService } from '../services/bleService';
@@ -31,6 +31,7 @@ function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): stri
 
 export default function SettingsScreen() {
   const { user, signOut, updateUser } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
 
   const [name, setName] = useState(user?.name ?? '');
   const [units, setUnits] = useState<'metric' | 'imperial'>(
@@ -98,80 +99,80 @@ export default function SettingsScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        style={styles.flex}
+        style={[styles.flex, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.sectionHeader}>Account</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Email</Text>
-          <Text style={styles.readOnly}>{user?.email}</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Account</Text>
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+          <Text style={[styles.readOnly, { color: colors.textPrimary }]}>{user?.email}</Text>
 
-          <Text style={styles.label}>Name</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Name</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             value={name}
             onChangeText={setName}
             placeholder="Your name"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
           />
         </View>
 
-        <Text style={styles.sectionHeader}>Preferences</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Units</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Preferences</Text>
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Units</Text>
           <View style={styles.toggleRow}>
             <TouchableOpacity
-              style={[styles.toggleButton, units === 'metric' && styles.toggleActive]}
+              style={[styles.toggleButton, { borderColor: colors.border }, units === 'metric' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
               onPress={() => setUnits('metric')}
             >
-              <Text style={[styles.toggleText, units === 'metric' && styles.toggleTextActive]}>
+              <Text style={[styles.toggleText, { color: colors.textPrimary }, units === 'metric' && { color: colors.surface }]}>
                 Metric
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.toggleButton, units === 'imperial' && styles.toggleActive]}
+              style={[styles.toggleButton, { borderColor: colors.border }, units === 'imperial' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
               onPress={() => setUnits('imperial')}
             >
-              <Text style={[styles.toggleText, units === 'imperial' && styles.toggleTextActive]}>
+              <Text style={[styles.toggleText, { color: colors.textPrimary }, units === 'imperial' && { color: colors.surface }]}>
                 Imperial
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Timezone</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Timezone</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             value={timezone}
             onChangeText={setTimezone}
             placeholder="e.g. America/New_York"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
           />
         </View>
 
-        <Text style={styles.sectionHeader}>Heart Rate</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Max Heart Rate</Text>
-          <Text style={styles.helpText}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Heart Rate</Text>
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Max Heart Rate</Text>
+          <Text style={[styles.helpText, { color: colors.textSecondary }]}>
             Used to calculate your heart rate zones during workouts.
           </Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
             value={maxHR}
             onChangeText={setMaxHR}
             placeholder="185"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             keyboardType="number-pad"
             maxLength={3}
           />
 
-          <Text style={[styles.label, { marginTop: 16 }]}>HR Monitor</Text>
+          <Text style={[styles.label, { marginTop: 16, color: colors.textSecondary }]}>HR Monitor</Text>
           <TouchableOpacity
-            style={styles.hrDeviceRow}
+            style={[styles.hrDeviceRow, { borderColor: colors.border }]}
             onPress={() => {
               if (bleService.isConnected()) {
                 Alert.alert('Disconnect?', `Disconnect from ${connectedDevice}?`, [
@@ -193,28 +194,28 @@ export default function SettingsScreen() {
             <Ionicons
               name={connectedDevice ? 'heart' : 'heart-outline'}
               size={20}
-              color={connectedDevice ? Colors.primary : Colors.textSecondary}
+              color={connectedDevice ? colors.primary : colors.textSecondary}
             />
-            <Text style={styles.hrDeviceText}>
+            <Text style={[styles.hrDeviceText, { color: colors.textPrimary }]}>
               {connectedDevice ? `Connected: ${connectedDevice}` : 'Connect HR Monitor'}
             </Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.textSecondary} />
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionHeader}>Connected Devices</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Connected Devices</Text>
+        <View style={styles.section}>
           <View style={styles.deviceRow}>
             <Ionicons name="heart" size={20} color="#FF2D55" />
             <View style={styles.deviceInfo}>
-              <Text style={styles.deviceName}>Apple Health</Text>
-              <Text style={styles.deviceStatus}>
+              <Text style={[styles.deviceName, { color: colors.textPrimary }]}>Apple Health</Text>
+              <Text style={[styles.deviceStatus, { color: colors.textSecondary }]}>
                 {appleHealthStatusLabel(appleHealthStatus, appleHealthEnabled)}
               </Text>
             </View>
             {appleHealthStatus === 'available' && (
               <TouchableOpacity
-                style={[styles.deviceActionButton, appleHealthEnabled && styles.deviceActionDanger]}
+                style={[styles.deviceActionButton, { borderColor: colors.primary }, appleHealthEnabled && { borderColor: colors.border }]}
                 disabled={appleHealthLoading}
                 onPress={async () => {
                   setAppleHealthLoading(true);
@@ -236,9 +237,9 @@ export default function SettingsScreen() {
                 }}
               >
                 {appleHealthLoading ? (
-                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <ActivityIndicator size="small" color={colors.primary} />
                 ) : (
-                  <Text style={[styles.deviceActionText, appleHealthEnabled && styles.deviceActionTextDanger]}>
+                  <Text style={[styles.deviceActionText, { color: colors.primary }, appleHealthEnabled && { color: colors.textSecondary }]}>
                     {appleHealthEnabled ? 'Disable' : 'Enable'}
                   </Text>
                 )}
@@ -248,19 +249,41 @@ export default function SettingsScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.saveButton, (!hasChanges || isSaving) && styles.saveButtonDisabled]}
+          style={[styles.saveButton, { backgroundColor: colors.primary }, (!hasChanges || isSaving) && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={!hasChanges || isSaving}
         >
-          <Text style={styles.saveText}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
+          <Text style={[styles.saveText, { color: colors.surface }]}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionHeader}>Subscription</Text>
-        <View style={styles.card}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>
+        <View style={styles.section}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>
+                Switch between light and dark themes
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.themeToggle, isDark && { backgroundColor: colors.primary }]}
+              onPress={toggleTheme}
+            >
+              <View style={[
+                styles.themeToggleKnob,
+                { backgroundColor: colors.surface },
+                isDark && styles.themeToggleKnobOn,
+              ]} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Subscription</Text>
+        <View style={styles.section}>
           <View style={styles.tierRow}>
-            <Text style={styles.tierLabel}>Current Plan</Text>
-            <View style={[styles.tierBadge, usage?.tier === 'premium' && styles.tierBadgePremium]}>
-              <Text style={[styles.tierBadgeText, usage?.tier === 'premium' && styles.tierBadgeTextPremium]}>
+            <Text style={[styles.tierLabel, { color: colors.textPrimary }]}>Current Plan</Text>
+            <View style={[styles.tierBadge, { backgroundColor: colors.background }, usage?.tier === 'premium' && { backgroundColor: colors.primary }]}>
+              <Text style={[styles.tierBadgeText, { color: colors.textSecondary }, usage?.tier === 'premium' && styles.tierBadgeTextPremium]}>
                 {usage?.tier === 'premium' ? 'Premium' : 'Free'}
               </Text>
             </View>
@@ -268,26 +291,26 @@ export default function SettingsScreen() {
 
           {usage && usage.tier === 'free' && (
             <>
-              <View style={styles.usageRow}>
-                <Text style={styles.usageLabel}>Chat messages</Text>
-                <Text style={styles.usageValue}>{usage.chat_messages.used} / {usage.chat_messages.limit} this week</Text>
+              <View style={[styles.usageRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.usageLabel, { color: colors.textPrimary }]}>Chat messages</Text>
+                <Text style={[styles.usageValue, { color: colors.textSecondary }]}>{usage.chat_messages.used} / {usage.chat_messages.limit} this week</Text>
               </View>
-              <View style={styles.usageRow}>
-                <Text style={styles.usageLabel}>Programs</Text>
-                <Text style={styles.usageValue}>{usage.programs.current_count} / {usage.programs.limit}</Text>
+              <View style={[styles.usageRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.usageLabel, { color: colors.textPrimary }]}>Programs</Text>
+                <Text style={[styles.usageValue, { color: colors.textSecondary }]}>{usage.programs.current_count} / {usage.programs.limit}</Text>
               </View>
-              <View style={styles.usageRow}>
-                <Text style={styles.usageLabel}>Post-workout reviews</Text>
-                <Text style={styles.usageValue}>{usage.post_workout_reviews.used} / {usage.post_workout_reviews.limit} this month</Text>
+              <View style={[styles.usageRow, { borderTopColor: colors.border }]}>
+                <Text style={[styles.usageLabel, { color: colors.textPrimary }]}>Post-workout reviews</Text>
+                <Text style={[styles.usageValue, { color: colors.textSecondary }]}>{usage.post_workout_reviews.used} / {usage.post_workout_reviews.limit} this month</Text>
               </View>
             </>
           )}
 
           <TouchableOpacity
-            style={styles.upgradeSettingsButton}
+            style={[styles.upgradeSettingsButton, { borderColor: colors.primary }]}
             onPress={() => Alert.alert('Coming Soon', 'Premium subscriptions will be available soon!')}
           >
-            <Text style={styles.upgradeSettingsText}>
+            <Text style={[styles.upgradeSettingsText, { color: colors.primary }]}>
               {usage?.tier === 'premium' ? 'Manage Subscription' : 'Upgrade to Premium'}
             </Text>
           </TouchableOpacity>
@@ -295,14 +318,14 @@ export default function SettingsScreen() {
 
         {/* Task 14: Notification toggles will go here */}
 
-        <Text style={styles.sectionHeader}>Grit AI</Text>
-        <View style={styles.card}>
-          <Text style={styles.label}>Coaching Memory</Text>
-          <Text style={styles.helpText}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Grit AI</Text>
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Coaching Memory</Text>
+          <Text style={[styles.helpText, { color: colors.textSecondary }]}>
             Grit remembers key details from past conversations to personalise coaching. Clearing memory resets this.
           </Text>
           <TouchableOpacity
-            style={styles.clearMemoryButton}
+            style={[styles.clearMemoryButton, { borderColor: colors.primary }]}
             onPress={() =>
               Alert.alert(
                 "Clear Grit's Memory",
@@ -325,12 +348,12 @@ export default function SettingsScreen() {
               )
             }
           >
-            <Text style={styles.clearMemoryText}>Clear Grit&apos;s Memory</Text>
+            <Text style={[styles.clearMemoryText, { color: colors.primary }]}>Clear Grit&apos;s Memory</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
-          <Text style={styles.logoutText}>Log Out</Text>
+        <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
+          <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -346,7 +369,6 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   container: {
     padding: 20,
@@ -355,35 +377,28 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
     marginTop: 24,
     marginLeft: 4,
   },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 16,
+  section: {
+    marginBottom: 8,
   },
   label: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.textSecondary,
     marginBottom: 6,
     marginTop: 12,
   },
   readOnly: {
     fontSize: 16,
-    color: Colors.textPrimary,
     paddingVertical: 4,
   },
   input: {
     fontSize: 16,
-    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: Colors.tabBarBorder,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -397,23 +412,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.tabBarBorder,
     alignItems: 'center',
-  },
-  toggleActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   toggleText: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  toggleTextActive: {
-    color: Colors.surface,
   },
   saveButton: {
-    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
@@ -423,13 +428,11 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   saveText: {
-    color: Colors.surface,
     fontSize: 16,
     fontWeight: '600',
   },
   helpText: {
     fontSize: 13,
-    color: Colors.textSecondary,
     lineHeight: 18,
     marginTop: 4,
     marginBottom: 12,
@@ -439,10 +442,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.primary,
   },
   clearMemoryText: {
-    color: Colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -452,10 +453,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
     borderWidth: 1,
-    borderColor: Colors.tabBarBorder,
   },
   logoutText: {
-    color: Colors.primary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -465,14 +464,12 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.tabBarBorder,
     borderRadius: 8,
     paddingHorizontal: 12,
   },
   hrDeviceText: {
     flex: 1,
     fontSize: 15,
-    color: Colors.textPrimary,
   },
   deviceRow: {
     flexDirection: 'row',
@@ -486,32 +483,22 @@ const styles = StyleSheet.create({
   deviceName: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.textPrimary,
   },
   deviceStatus: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   deviceActionButton: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     minWidth: 80,
     alignItems: 'center',
   },
-  deviceActionDanger: {
-    borderColor: Colors.tabBarBorder,
-  },
   deviceActionText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
-  },
-  deviceActionTextDanger: {
-    color: Colors.textSecondary,
   },
   tierRow: {
     flexDirection: 'row',
@@ -522,21 +509,15 @@ const styles = StyleSheet.create({
   tierLabel: {
     fontSize: 15,
     fontWeight: '500',
-    color: Colors.textPrimary,
   },
   tierBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: Colors.background,
-  },
-  tierBadgePremium: {
-    backgroundColor: Colors.primary,
   },
   tierBadgeText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   tierBadgeTextPremium: {
     color: '#FFFFFF',
@@ -547,27 +528,52 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.tabBarBorder,
   },
   usageLabel: {
     fontSize: 14,
-    color: Colors.textPrimary,
   },
   usageValue: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   upgradeSettingsButton: {
     borderRadius: 8,
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.primary,
     marginTop: 12,
   },
   upgradeSettingsText: {
-    color: Colors.primary,
     fontSize: 15,
     fontWeight: '600',
+  },
+  themeToggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#CCC', // overridden inline when active
+    padding: 2,
+    justifyContent: 'center',
+  },
+  themeToggleKnob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  themeToggleKnobOn: {
+    alignSelf: 'flex-end',
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 16,
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontWeight: '500',
   },
 });

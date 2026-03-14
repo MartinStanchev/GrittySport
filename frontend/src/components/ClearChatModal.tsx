@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ClearChatModalProps {
   visible: boolean;
@@ -9,6 +9,8 @@ interface ClearChatModalProps {
 }
 
 export function ClearChatModal({ visible, onCancel, onConfirm }: ClearChatModalProps) {
+  const { colors } = useTheme();
+
   return (
     <Modal
       visible={visible}
@@ -16,27 +18,27 @@ export function ClearChatModal({ visible, onCancel, onConfirm }: ClearChatModalP
       animationType="fade"
       onRequestClose={onCancel}
     >
-      <Pressable style={styles.backdrop} onPress={onCancel}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="chatbubble-ellipses-outline" size={28} color={Colors.primary} />
+      <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={onCancel}>
+        <Pressable style={[styles.card, { backgroundColor: colors.surface }]} onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>
+            <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.primary} />
           </View>
 
-          <Text style={styles.title}>Clear conversation?</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Clear conversation?</Text>
 
-          <Text style={styles.body}>
+          <Text style={[styles.body, { color: colors.textSecondary }]}>
             This will clear the chat, but Grit will remember some details about
             the conversation. If you want to delete all of Grit&apos;s memories, you
             can delete them in{' '}
-            <Text style={styles.settingsLink}>Settings</Text>.
+            <Text style={[styles.settingsLink, { color: colors.primary }]}>Settings</Text>.
           </Text>
 
           <View style={styles.actions}>
-            <Pressable style={styles.cancelBtn} onPress={onCancel}>
-              <Text style={styles.cancelText}>Cancel</Text>
+            <Pressable style={[styles.cancelBtn, { backgroundColor: colors.background }]} onPress={onCancel}>
+              <Text style={[styles.cancelText, { color: colors.textSecondary }]}>Cancel</Text>
             </Pressable>
-            <Pressable style={styles.confirmBtn} onPress={onConfirm}>
-              <Text style={styles.confirmText}>Clear chat</Text>
+            <Pressable style={[styles.confirmBtn, { backgroundColor: colors.primary }]} onPress={onConfirm}>
+              <Text style={[styles.confirmText, { color: colors.surface }]}>Clear chat</Text>
             </Pressable>
           </View>
         </Pressable>
@@ -48,7 +50,7 @@ export function ClearChatModal({ visible, onCancel, onConfirm }: ClearChatModalP
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    // backgroundColor applied inline via theme overlay
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
@@ -56,7 +58,6 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: Colors.surface,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
@@ -70,7 +71,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#FDE8EA',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -78,19 +78,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 10,
     textAlign: 'center',
   },
   body: {
     fontSize: 14,
     lineHeight: 21,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
   },
   settingsLink: {
-    color: Colors.primary,
     fontWeight: '600',
   },
   actions: {
@@ -102,24 +99,21 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 13,
     borderRadius: 12,
-    backgroundColor: Colors.background,
     alignItems: 'center',
   },
   cancelText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   confirmBtn: {
     flex: 1,
     paddingVertical: 13,
     borderRadius: 12,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
   },
   confirmText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    // color applied inline via theme
   },
 });

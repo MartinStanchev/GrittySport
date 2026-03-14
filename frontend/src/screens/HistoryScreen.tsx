@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../constants/colors';
 import { getWorkouts } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { getActivityIcon } from '../constants/activityIcons';
@@ -106,20 +107,20 @@ function completionIcon(status?: string): { name: string; color: string } | null
 
 // ── WorkoutRow ──────────────────────────────────────────────────────────────
 
-function WorkoutRow({ workout }: { workout: WorkoutResponse }) {
+function WorkoutRow({ workout, colors }: { workout: WorkoutResponse; colors: ThemeColors }) {
   const icon = getActivityIcon(workout.activity_type);
   const stat = keyStat(workout);
   const badge = sourceBadge(workout.source);
   const statusIcon = completionIcon(workout.completion_status);
 
   return (
-    <View style={styles.row}>
-      <View style={styles.rowIcon}>
-        <Ionicons name={icon} size={20} color={Colors.primary} />
+    <View style={[styles.row, { borderBottomColor: colors.border }]}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.primaryLight }]}>
+        <Ionicons name={icon} size={20} color={colors.primary} />
       </View>
       <View style={styles.rowContent}>
         <View style={styles.rowTypeRow}>
-          <Text style={styles.rowType}>{workout.activity_type}</Text>
+          <Text style={[styles.rowType, { color: colors.textPrimary }]}>{workout.activity_type}</Text>
           {badge && (
             <Ionicons name={badge.icon as any} size={14} color={badge.color} style={{ marginLeft: 6 }} />
           )}
@@ -127,11 +128,11 @@ function WorkoutRow({ workout }: { workout: WorkoutResponse }) {
             <Ionicons name={statusIcon.name as any} size={16} color={statusIcon.color} style={{ marginLeft: 4 }} />
           )}
         </View>
-        <Text style={styles.rowDate}>{formatShortDate(workout.started_at)}</Text>
+        <Text style={[styles.rowDate, { color: colors.textSecondary }]}>{formatShortDate(workout.started_at)}</Text>
       </View>
       <View style={styles.rowRight}>
-        <Text style={styles.rowDuration}>{formatDuration(workout.started_at, workout.finished_at)}</Text>
-        {stat ? <Text style={styles.rowStat}>{stat}</Text> : null}
+        <Text style={[styles.rowDuration, { color: colors.textPrimary }]}>{formatDuration(workout.started_at, workout.finished_at)}</Text>
+        {stat ? <Text style={[styles.rowStat, { color: colors.textSecondary }]}>{stat}</Text> : null}
       </View>
     </View>
   );
@@ -143,6 +144,7 @@ type Props = NativeStackScreenProps<any, 'HistoryMain'>;
 
 export default function HistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const [workouts, setWorkouts] = useState<WorkoutResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -230,11 +232,11 @@ export default function HistoryScreen({ navigation }: Props) {
   const dateLabel = DATE_PRESETS.find((p) => p.key === datePreset)?.label ?? 'All Time';
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>HISTORY</Text>
+        <Text style={[styles.headerTitle, { color: colors.primary }]}>HISTORY</Text>
         <Pressable onPress={() => navigation.navigate('Import')} style={styles.addBtn}>
-          <Ionicons name="download-outline" size={22} color={Colors.primary} />
+          <Ionicons name="download-outline" size={22} color={colors.primary} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -243,10 +245,10 @@ export default function HistoryScreen({ navigation }: Props) {
           }}
           style={styles.addBtn}
         >
-          <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
+          <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
         </Pressable>
         <Pressable onPress={() => navigation.navigate('LogActivity')} style={styles.addBtn}>
-          <Ionicons name="add" size={24} color={Colors.primary} />
+          <Ionicons name="add" size={24} color={colors.primary} />
         </Pressable>
       </View>
 
@@ -256,22 +258,26 @@ export default function HistoryScreen({ navigation }: Props) {
           {ACTIVITY_FILTERS.map((f) => (
             <Pressable
               key={f.key}
-              style={[styles.chip, activeFilter === f.key && styles.chipActive]}
+              style={[
+                styles.chip,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                activeFilter === f.key && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
               onPress={() => handleFilterChange(f.key)}
             >
-              <Text style={[styles.chipText, activeFilter === f.key && styles.chipTextActive]}>{f.label}</Text>
+              <Text style={[styles.chipText, { color: colors.textSecondary }, activeFilter === f.key && styles.chipTextActive]}>{f.label}</Text>
             </Pressable>
           ))}
         </ScrollView>
-        <Pressable style={styles.dateBtn} onPress={() => setDateModalVisible(true)}>
-          <Ionicons name="calendar-outline" size={16} color={datePreset === 'all' ? Colors.textSecondary : Colors.primary} />
-          <Text style={[styles.dateBtnText, datePreset !== 'all' && { color: Colors.primary }]}>{dateLabel}</Text>
+        <Pressable style={[styles.dateBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setDateModalVisible(true)}>
+          <Ionicons name="calendar-outline" size={16} color={datePreset === 'all' ? colors.textSecondary : colors.primary} />
+          <Text style={[styles.dateBtnText, { color: colors.textSecondary }, datePreset !== 'all' && { color: colors.primary }]}>{dateLabel}</Text>
         </Pressable>
       </View>
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -279,25 +285,25 @@ export default function HistoryScreen({ navigation }: Props) {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <Pressable onPress={() => navigation.navigate('WorkoutDetail', { workoutId: item.id })}>
-              <WorkoutRow workout={item} />
+              <WorkoutRow workout={item} colors={colors} />
             </Pressable>
           )}
           contentContainerStyle={workouts.length === 0 ? styles.emptyContainer : styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={Colors.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />}
           onEndReached={loadMore}
           onEndReachedThreshold={0.3}
           ListFooterComponent={
             loadingMore ? (
               <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               </View>
             ) : null
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="fitness-outline" size={48} color={Colors.textSecondary} />
-              <Text style={styles.emptyTitle}>No workouts yet</Text>
-              <Text style={styles.emptySubtext}>Tap the + button to log your first workout</Text>
+              <Ionicons name="fitness-outline" size={48} color={colors.textSecondary} />
+              <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No workouts yet</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap the + button to log your first workout</Text>
             </View>
           }
         />
@@ -306,19 +312,19 @@ export default function HistoryScreen({ navigation }: Props) {
       {/* Date range modal */}
       <Modal visible={dateModalVisible} transparent animationType="fade" onRequestClose={() => setDateModalVisible(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setDateModalVisible(false)}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Date Range</Text>
+          <View style={[styles.modalSheet, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Date Range</Text>
             {DATE_PRESETS.map((p) => (
               <Pressable
                 key={p.key}
-                style={[styles.modalOption, datePreset === p.key && styles.modalOptionActive]}
+                style={[styles.modalOption, datePreset === p.key && { backgroundColor: colors.primary + '12' }]}
                 onPress={() => handleDatePresetChange(p.key)}
               >
-                <Text style={[styles.modalOptionText, datePreset === p.key && styles.modalOptionTextActive]}>
+                <Text style={[styles.modalOptionText, { color: colors.textPrimary }, datePreset === p.key && { fontWeight: '600', color: colors.primary }]}>
                   {p.label}
                 </Text>
                 {datePreset === p.key && (
-                  <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                  <Ionicons name="checkmark" size={18} color={colors.primary} />
                 )}
               </Pressable>
             ))}
@@ -332,7 +338,6 @@ export default function HistoryScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -345,7 +350,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 22,
     fontWeight: '800',
-    color: Colors.primary,
     letterSpacing: 1,
   },
   addBtn: {
@@ -365,18 +369,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  chipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   chipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   chipTextActive: {
     color: '#FFF',
@@ -389,14 +386,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     marginRight: 16,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   dateBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   center: {
     flex: 1,
@@ -421,11 +415,9 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   emptySubtext: {
     fontSize: 14,
-    color: Colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 24,
     lineHeight: 20,
@@ -437,21 +429,14 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FEE2E5',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -466,11 +451,9 @@ const styles = StyleSheet.create({
   rowType: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   rowDate: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   rowRight: {
@@ -479,11 +462,9 @@ const styles = StyleSheet.create({
   rowDuration: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   rowStat: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   modalBackdrop: {
@@ -493,7 +474,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalSheet: {
-    backgroundColor: '#FFF',
     borderRadius: 16,
     padding: 20,
     width: '80%',
@@ -502,7 +482,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 16,
   },
   modalOption: {
@@ -513,15 +492,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 8,
   },
-  modalOptionActive: {
-    backgroundColor: Colors.primary + '12',
-  },
   modalOptionText: {
     fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  modalOptionTextActive: {
-    fontWeight: '600',
-    color: Colors.primary,
   },
 });

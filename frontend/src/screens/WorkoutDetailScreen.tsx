@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Animated, Modal, Pressable, ScrollView, Style
 import { Ionicons } from '@expo/vector-icons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatFullDate } from '../utils/dates';
 import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
@@ -68,6 +68,7 @@ interface StatItem {
 }
 
 function StatGrid({ stats }: { stats: StatItem[] }) {
+  const { colors } = useTheme();
   const filtered = stats.filter((s) => s.value && s.value !== '—');
   if (filtered.length === 0) return null;
   return (
@@ -75,10 +76,10 @@ function StatGrid({ stats }: { stats: StatItem[] }) {
       {filtered.map((stat) => (
         <View key={stat.label} style={styles.statTile}>
           <View style={styles.statTileValueRow}>
-            <Text style={styles.statTileValue}>{stat.value}</Text>
-            {stat.unit && <Text style={styles.statTileUnit}>{stat.unit}</Text>}
+            <Text style={[styles.statTileValue, { color: colors.textPrimary }]}>{stat.value}</Text>
+            {stat.unit && <Text style={[styles.statTileUnit, { color: colors.textSecondary }]}>{stat.unit}</Text>}
           </View>
-          <Text style={styles.statTileLabel}>{stat.label}</Text>
+          <Text style={[styles.statTileLabel, { color: colors.textSecondary }]}>{stat.label}</Text>
         </View>
       ))}
     </View>
@@ -112,28 +113,29 @@ function SwimDetail({ data }: { data: Record<string, any> }) {
 }
 
 function StrengthDetail({ data }: { data: Record<string, any> }) {
+  const { colors } = useTheme();
   const exercises: any[] = data.exercises ?? [];
   if (exercises.length === 0) return null;
   return (
     <View style={styles.detailSection}>
-      <Text style={styles.sectionLabel}>Exercises</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Exercises</Text>
       {exercises.map((ex: any, i: number) => (
         <View key={i} style={styles.exerciseBlock}>
-          <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
+          <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
           {(ex.sets ?? []).length > 0 && (
             <View style={styles.setsTable}>
               <View style={styles.setHeaderRow}>
-                <Text style={[styles.setColLabel, { flex: 1 }]}>Set</Text>
-                <Text style={[styles.setColLabel, { flex: 2 }]}>Reps</Text>
-                <Text style={[styles.setColLabel, { flex: 2 }]}>Weight</Text>
-                <Text style={[styles.setColLabel, { flex: 1 }]}>RPE</Text>
+                <Text style={[styles.setColLabel, { flex: 1, color: colors.textSecondary }]}>Set</Text>
+                <Text style={[styles.setColLabel, { flex: 2, color: colors.textSecondary }]}>Reps</Text>
+                <Text style={[styles.setColLabel, { flex: 2, color: colors.textSecondary }]}>Weight</Text>
+                <Text style={[styles.setColLabel, { flex: 1, color: colors.textSecondary }]}>RPE</Text>
               </View>
               {(ex.sets ?? []).map((s: any, si: number) => (
-                <View key={si} style={styles.setRow}>
-                  <Text style={[styles.setCell, { flex: 1 }]}>{si + 1}</Text>
-                  <Text style={[styles.setCell, { flex: 2 }]}>{s.reps ?? '—'}</Text>
-                  <Text style={[styles.setCell, { flex: 2 }]}>{s.weight ? `${s.weight} kg` : '—'}</Text>
-                  <Text style={[styles.setCell, { flex: 1 }]}>{s.rpe ?? '—'}</Text>
+                <View key={si} style={[styles.setRow, { backgroundColor: colors.surfaceAlt }]}>
+                  <Text style={[styles.setCell, { flex: 1, color: colors.textPrimary }]}>{si + 1}</Text>
+                  <Text style={[styles.setCell, { flex: 2, color: colors.textPrimary }]}>{s.reps ?? '—'}</Text>
+                  <Text style={[styles.setCell, { flex: 2, color: colors.textPrimary }]}>{s.weight ? `${s.weight} kg` : '—'}</Text>
+                  <Text style={[styles.setCell, { flex: 1, color: colors.textPrimary }]}>{s.rpe ?? '—'}</Text>
                 </View>
               ))}
             </View>
@@ -145,24 +147,25 @@ function StrengthDetail({ data }: { data: Record<string, any> }) {
 }
 
 function MobilityDetail({ data }: { data: Record<string, any> }) {
+  const { colors } = useTheme();
   const exercises: any[] = data.exercises ?? [];
   if (exercises.length === 0) return null;
   return (
     <View style={styles.detailSection}>
-      <Text style={styles.sectionLabel}>Exercises</Text>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Exercises</Text>
       {exercises.map((ex: any, i: number) => {
         const durSec = ex.duration_seconds ?? 0;
         const durLabel = durSec > 0 ? `${Math.floor(durSec / 60)}m ${durSec % 60}s` : '—';
         return (
-          <View key={i} style={styles.mobilityRow}>
+          <View key={i} style={[styles.mobilityRow, { borderBottomColor: colors.border }]}>
             <Ionicons
               name={ex.completed ? 'checkmark-circle' : 'ellipse-outline'}
               size={20}
-              color={ex.completed ? Colors.primary : Colors.textSecondary}
+              color={ex.completed ? colors.primary : colors.textSecondary}
             />
             <View style={styles.mobilityInfo}>
-              <Text style={styles.exerciseName}>{ex.name || `Exercise ${i + 1}`}</Text>
-              <Text style={styles.mobilityDuration}>{durLabel}</Text>
+              <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
+              <Text style={[styles.mobilityDuration, { color: colors.textSecondary }]}>{durLabel}</Text>
             </View>
           </View>
         );
@@ -172,6 +175,7 @@ function MobilityDetail({ data }: { data: Record<string, any> }) {
 }
 
 function GPSDetail({ workout }: { workout: WorkoutResponse }) {
+  const { colors } = useTheme();
   const route = workout.gps_route ?? {};
   const summary = workout.recorded_data ?? {};
   const hrData = workout.heart_rate_data;
@@ -244,19 +248,19 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
 
       {laps.length > 0 && (
         <View style={styles.detailSection}>
-          <Text style={styles.sectionLabel}>Lap Splits</Text>
-          <View style={styles.lapHeader}>
-            <Text style={[styles.lapCell, styles.lapCellLabel]}>Lap</Text>
-            <Text style={[styles.lapCell, styles.lapCellLabel]}>Dist</Text>
-            <Text style={[styles.lapCell, styles.lapCellLabel]}>Time</Text>
-            <Text style={[styles.lapCell, styles.lapCellLabel]}>{isRun ? 'Pace' : 'Speed'}</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Lap Splits</Text>
+          <View style={[styles.lapHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Lap</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Dist</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Time</Text>
+            <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>{isRun ? 'Pace' : 'Speed'}</Text>
           </View>
           {laps.map((lap: any) => (
-            <View key={lap.lap_number} style={styles.lapRow}>
-              <Text style={styles.lapCell}>{lap.lap_number}</Text>
-              <Text style={styles.lapCell}>{(lap.distance_m / 1000).toFixed(2)} km</Text>
-              <Text style={styles.lapCell}>{formatTime(Math.round(lap.duration_sec))}</Text>
-              <Text style={styles.lapCell}>
+            <View key={lap.lap_number} style={[styles.lapRow, { borderBottomColor: colors.surfaceAlt }]}>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{lap.lap_number}</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{(lap.distance_m / 1000).toFixed(2)} km</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{formatTime(Math.round(lap.duration_sec))}</Text>
+              <Text style={[styles.lapCell, { color: colors.textPrimary }]}>
                 {isRun
                   ? formatPaceSecPerKm(lap.avg_pace_sec_per_km)
                   : `${formatSpeedKph(lap.avg_speed_kph)} km/h`}
@@ -344,6 +348,7 @@ type Props = NativeStackScreenProps<any, 'WorkoutDetail'>;
 export default function WorkoutDetailScreen({ route }: Props) {
   const { workoutId } = route.params as { workoutId: string };
   const { user } = useAuth();
+  const { colors } = useTheme();
   const userIsPremium = isPremium(user);
   const [workout, setWorkout] = useState<WorkoutResponse | null>(null);
   const [analytics, setAnalytics] = useState<WorkoutAnalytics | null>(null);
@@ -421,16 +426,16 @@ export default function WorkoutDetailScreen({ route }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (error || !workout) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>Failed to load workout.</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.errorText, { color: colors.textSecondary }]}>Failed to load workout.</Text>
       </View>
     );
   }
@@ -453,30 +458,30 @@ export default function WorkoutDetailScreen({ route }: Props) {
 
   return (
     <>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.headerSection}>
         <View style={styles.headerRow}>
-          <View style={styles.iconCircle}>
-            <Ionicons name={icon} size={28} color={Colors.primary} />
+          <View style={[styles.iconCircle, { backgroundColor: colors.primary + '12' }]}>
+            <Ionicons name={icon} size={28} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.headerTopRow}>
-              <Text style={styles.activityLabel}>{label}</Text>
+              <Text style={[styles.activityLabel, { color: colors.textPrimary }]}>{label}</Text>
               {badge && (
-                <View style={styles.sourceBadge}>
+                <View style={[styles.sourceBadge, { backgroundColor: colors.surfaceAlt }]}>
                   <Ionicons name={badge.icon as any} size={12} color={badge.color} />
-                  <Text style={styles.sourceBadgeText}>{badge.label}</Text>
+                  <Text style={[styles.sourceBadgeText, { color: colors.textSecondary }]}>{badge.label}</Text>
                 </View>
               )}
             </View>
-            <Text style={styles.dateLabel}>{date}</Text>
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>{date}</Text>
           </View>
         </View>
-        <Text style={styles.durationLabel}>{duration}</Text>
+        <Text style={[styles.durationLabel, { color: colors.textPrimary }]}>{duration}</Text>
       </View>
 
-      <View style={styles.separator} />
+      <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
       {/* Type-specific data */}
       <TypeSpecificDetail workout={workout} />
@@ -494,17 +499,17 @@ export default function WorkoutDetailScreen({ route }: Props) {
               )}
               {analytics.personal_records && analytics.personal_records.length > 0 && (
                 <View style={{ gap: 6, marginTop: 8 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: Colors.textPrimary }}>Personal Records</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>Personal Records</Text>
                   {analytics.personal_records.map((pr) => (
                     <View key={pr.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <PRBadge />
-                      <Text style={{ fontSize: 13, color: Colors.textPrimary }}>{pr.category}</Text>
+                      <Text style={{ fontSize: 13, color: colors.textPrimary }}>{pr.category}</Text>
                     </View>
                   ))}
                 </View>
               )}
               {analytics.trend && (
-                <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 8 }}>
+                <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8 }}>
                   {analytics.trend.comparison_text}
                 </Text>
               )}
@@ -516,16 +521,16 @@ export default function WorkoutDetailScreen({ route }: Props) {
       {/* Notes */}
       {workout.notes ? (
         <View style={styles.detailSection}>
-          <Text style={styles.sectionLabel}>Notes</Text>
-          <Text style={styles.notesText}>{workout.notes}</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Notes</Text>
+          <Text style={[styles.notesText, { color: colors.textPrimary }]}>{workout.notes}</Text>
         </View>
       ) : null}
 
       {/* Link to Program */}
       {!workout.scheduled_activity_id && (
-        <Pressable style={styles.linkBtn} onPress={handleLinkToProgram}>
-          <Ionicons name="link-outline" size={16} color={Colors.primary} />
-          <Text style={styles.linkBtnText}>Link to Program Activity</Text>
+        <Pressable style={[styles.linkBtn, { borderColor: colors.primary }]} onPress={handleLinkToProgram}>
+          <Ionicons name="link-outline" size={16} color={colors.primary} />
+          <Text style={[styles.linkBtnText, { color: colors.primary }]}>Link to Program Activity</Text>
         </Pressable>
       )}
     </ScrollView>
@@ -533,30 +538,30 @@ export default function WorkoutDetailScreen({ route }: Props) {
     <Modal visible={linkSheetVisible} transparent animationType="none" onRequestClose={closeLinkSheet}>
       <Animated.View style={[styles.sheetBackdrop, { opacity: opacityAnim }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeLinkSheet} />
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Link to Program Activity</Text>
-            <Text style={styles.sheetSubtitle}>Select the scheduled activity for this workout</Text>
+            <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Link to Program Activity</Text>
+            <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>Select the scheduled activity for this workout</Text>
           </View>
-          <View style={styles.sheetSeparator} />
+          <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
           {linkOptions.map((opt, i) => (
             <View key={opt.id}>
-              {i > 0 && <View style={styles.sheetSeparator} />}
+              {i > 0 && <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />}
               <Pressable style={styles.sheetRow} onPress={() => handleLink(opt.id)}>
-                <View style={[styles.sheetRowIcon, { backgroundColor: Colors.primary + '18' }]}>
-                  <Ionicons name={getActivityIcon(opt.activityType)} size={22} color={Colors.primary} />
+                <View style={[styles.sheetRowIcon, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name={getActivityIcon(opt.activityType)} size={22} color={colors.primary} />
                 </View>
                 <View style={styles.sheetRowText}>
-                  <Text style={styles.sheetRowTitle}>{activityTypeLabel(opt.activityType)}</Text>
-                  <Text style={styles.sheetRowSubtitle}>{opt.dateLabel}</Text>
+                  <Text style={[styles.sheetRowTitle, { color: colors.textPrimary }]}>{activityTypeLabel(opt.activityType)}</Text>
+                  <Text style={[styles.sheetRowSubtitle, { color: colors.textSecondary }]}>{opt.dateLabel}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
               </Pressable>
             </View>
           ))}
-          <View style={styles.sheetSeparator} />
+          <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
           <Pressable style={[styles.sheetRow, styles.sheetCancelRow]} onPress={closeLinkSheet}>
-            <Text style={styles.sheetCancelText}>Cancel</Text>
+            <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>Cancel</Text>
           </Pressable>
         </Animated.View>
       </Animated.View>
@@ -570,7 +575,6 @@ export default function WorkoutDetailScreen({ route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   content: {
     padding: 20,
@@ -580,10 +584,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
   },
   errorText: {
-    color: Colors.textSecondary,
     fontSize: 15,
   },
 
@@ -605,24 +607,20 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
   },
   activityLabel: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   dateLabel: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   durationLabel: {
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginTop: 16,
     letterSpacing: -0.5,
   },
@@ -630,7 +628,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F0F0F0',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -638,11 +635,9 @@ const styles = StyleSheet.create({
   sourceBadgeText: {
     fontSize: 11,
     fontWeight: '500',
-    color: Colors.textSecondary,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#E0E0E0',
     marginBottom: 20,
   },
 
@@ -665,17 +660,14 @@ const styles = StyleSheet.create({
   statTileValue: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
     letterSpacing: -0.3,
   },
   statTileUnit: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   statTileLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
 
@@ -686,7 +678,6 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#999',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -699,7 +690,6 @@ const styles = StyleSheet.create({
   exerciseName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
     marginBottom: 8,
   },
   setsTable: {
@@ -713,20 +703,17 @@ const styles = StyleSheet.create({
   setColLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
   setRow: {
     flexDirection: 'row',
-    backgroundColor: '#F5F5F5',
     borderRadius: 6,
     padding: 8,
     paddingHorizontal: 4,
   },
   setCell: {
     fontSize: 14,
-    color: Colors.textPrimary,
   },
   mobilityRow: {
     flexDirection: 'row',
@@ -734,19 +721,16 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EBEBEB',
   },
   mobilityInfo: {
     flex: 1,
   },
   mobilityDuration: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   notesText: {
     fontSize: 15,
-    color: Colors.textPrimary,
     lineHeight: 22,
   },
   gpsMap: {
@@ -761,23 +745,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
     marginBottom: 4,
   },
   lapRow: {
     flexDirection: 'row',
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F0F0',
   },
   lapCell: {
     flex: 1,
     fontSize: 13,
-    color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
   lapCellLabel: {
-    color: Colors.textSecondary,
     fontSize: 11,
     fontWeight: '600',
   },
@@ -790,12 +770,10 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primary,
     paddingVertical: 14,
     marginTop: 4,
   },
   linkBtnText: {
-    color: Colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -809,7 +787,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     paddingVertical: 6,
     shadowColor: '#000',
@@ -826,16 +803,13 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   sheetSubtitle: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 3,
   },
   sheetSeparator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EBEBEB',
     marginHorizontal: 18,
   },
   sheetRow: {
@@ -853,13 +827,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sheetRowText: { flex: 1 },
-  sheetRowTitle: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary },
-  sheetRowSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  sheetRowTitle: { fontSize: 16, fontWeight: '600' },
+  sheetRowSubtitle: { fontSize: 13, marginTop: 1 },
   sheetCancelRow: { justifyContent: 'center' },
   sheetCancelText: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.textSecondary,
     textAlign: 'center',
     flex: 1,
   },

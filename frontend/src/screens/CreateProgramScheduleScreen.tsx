@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
 
@@ -60,6 +60,7 @@ const DEFAULT_PHASE: Phase = {
 };
 
 export default function CreateProgramScheduleScreen({ navigation, route }: Props) {
+  const { colors } = useTheme();
   const { name, sport, goal, startDate, phases: initialPhases } = route.params;
   const insets = useSafeAreaInsets();
 
@@ -228,16 +229,16 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
   };
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent}>
         <StepIndicator current={2} total={3} />
 
         {/* Phase tabs */}
-        <View style={styles.phaseSection}>
+        <View style={[styles.phaseSection, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
           <View style={styles.phaseHeader}>
-            <Text style={styles.sectionLabel}>Phases</Text>
-            <Pressable style={styles.presetButton} onPress={applyPreset}>
-              <Text style={styles.presetButtonText}>Base / Build / Peak</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Phases</Text>
+            <Pressable style={[styles.presetButton, { backgroundColor: colors.primaryLight }]} onPress={applyPreset}>
+              <Text style={[styles.presetButtonText, { color: colors.primary }]}>Base / Build / Peak</Text>
             </Pressable>
           </View>
 
@@ -245,31 +246,31 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
             {phases.map((phase, i) => (
               <Pressable
                 key={i}
-                style={[styles.phaseTab, i === selectedPhaseIdx && styles.phaseTabActive]}
+                style={[styles.phaseTab, { backgroundColor: colors.surfaceAlt }, i === selectedPhaseIdx && { backgroundColor: colors.primary }]}
                 onPress={() => setSelectedPhaseIdx(i)}
                 onLongPress={() => deletePhase(i)}
               >
                 <Pressable onPress={() => startRename(i)}>
-                  <Text style={[styles.phaseTabText, i === selectedPhaseIdx && styles.phaseTabTextActive]}>
+                  <Text style={[styles.phaseTabText, { color: colors.textSecondary }, i === selectedPhaseIdx && styles.phaseTabTextActive]}>
                     {phase.name}
                   </Text>
                 </Pressable>
-                <Text style={[styles.phaseTabWeeks, i === selectedPhaseIdx && styles.phaseTabWeeksActive]}>
+                <Text style={[styles.phaseTabWeeks, { color: colors.textSecondary }, i === selectedPhaseIdx && styles.phaseTabWeeksActive]}>
                   {phase.duration_weeks}w
                 </Text>
               </Pressable>
             ))}
-            <Pressable style={styles.addPhaseButton} onPress={addPhase}>
-              <Ionicons name="add" size={20} color={Colors.primary} />
+            <Pressable style={[styles.addPhaseButton, { backgroundColor: colors.surfaceAlt }]} onPress={addPhase}>
+              <Ionicons name="add" size={20} color={colors.primary} />
             </Pressable>
           </ScrollView>
 
           {/* Duration stepper */}
-          <View style={styles.durationRow}>
-            <Text style={styles.durationLabel}>Duration</Text>
+          <View style={[styles.durationRow, { borderTopColor: colors.border }]}>
+            <Text style={[styles.durationLabel, { color: colors.textPrimary }]}>Duration</Text>
             <View style={styles.stepper}>
               <Pressable
-                style={styles.stepperButton}
+                style={[styles.stepperButton, { backgroundColor: colors.surfaceAlt }]}
                 onPress={() =>
                   updatePhase(selectedPhaseIdx, p => ({
                     ...p,
@@ -277,11 +278,11 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                   }))
                 }
               >
-                <Ionicons name="remove" size={18} color={Colors.textPrimary} />
+                <Ionicons name="remove" size={18} color={colors.textPrimary} />
               </Pressable>
-              <Text style={styles.stepperValue}>{selectedPhase.duration_weeks} weeks</Text>
+              <Text style={[styles.stepperValue, { color: colors.textPrimary }]}>{selectedPhase.duration_weeks} weeks</Text>
               <Pressable
-                style={styles.stepperButton}
+                style={[styles.stepperButton, { backgroundColor: colors.surfaceAlt }]}
                 onPress={() =>
                   updatePhase(selectedPhaseIdx, p => ({
                     ...p,
@@ -289,23 +290,23 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                   }))
                 }
               >
-                <Ionicons name="add" size={18} color={Colors.textPrimary} />
+                <Ionicons name="add" size={18} color={colors.textPrimary} />
               </Pressable>
             </View>
           </View>
         </View>
 
         {/* Weekly template grid */}
-        <Text style={styles.sectionLabel}>Weekly Template</Text>
-        <Text style={styles.sectionHint}>This pattern repeats for {selectedPhase.duration_weeks} weeks</Text>
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Weekly Template</Text>
+        <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>This pattern repeats for {selectedPhase.duration_weeks} weeks</Text>
 
         {DAY_LABELS.map((dayLabel, i) => {
           const dayValue = DAY_VALUES[i];
           const dayActivities = getActivitiesForDay(dayValue);
           return (
-            <View key={dayLabel} style={styles.dayRow}>
-              <View style={styles.dayLabelContainer}>
-                <Text style={styles.dayLabel}>{dayLabel}</Text>
+            <View key={dayLabel} style={[styles.dayRow, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+              <View style={[styles.dayLabelContainer, { backgroundColor: colors.surfaceAlt }]}>
+                <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>{dayLabel}</Text>
               </View>
               <View style={styles.dayContent}>
                 {dayActivities.map((act, actIdx) => {
@@ -313,19 +314,19 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                   return (
                     <Pressable
                       key={actIdx}
-                      style={styles.activityChip}
+                      style={[styles.activityChip, { backgroundColor: colors.primaryLight }]}
                       onPress={() => openEditActivity(globalIdx, act)}
                     >
-                      <Text style={styles.activityChipText} numberOfLines={1}>
+                      <Text style={[styles.activityChipText, { color: colors.primary }]} numberOfLines={1}>
                         {act.activity_type}
                       </Text>
-                      <Ionicons name="chevron-forward" size={14} color={Colors.textSecondary} />
+                      <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
                     </Pressable>
                   );
                 })}
                 <Pressable style={styles.addActivityButton} onPress={() => openNewActivity(dayValue)}>
-                  <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-                  <Text style={styles.addActivityText}>Add</Text>
+                  <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.addActivityText, { color: colors.primary }]}>Add</Text>
                 </Pressable>
               </View>
             </View>
@@ -334,10 +335,10 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerInfo}>{totalWeeks} weeks total</Text>
+      <View style={[styles.footer, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
+        <Text style={[styles.footerInfo, { color: colors.textSecondary }]}>{totalWeeks} weeks total</Text>
         <Pressable
-          style={[styles.reviewButton, !hasActivities && styles.reviewButtonDisabled]}
+          style={[styles.reviewButton, { backgroundColor: colors.primary }, !hasActivities && styles.reviewButtonDisabled]}
           onPress={handleReview}
           disabled={!hasActivities}
         >
@@ -348,18 +349,18 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
 
       {/* Rename phase modal */}
       <Modal visible={renamingPhase !== null} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={confirmRename}>
-          <View style={styles.renameModal}>
-            <Text style={styles.renameTitle}>Rename Phase</Text>
+        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={confirmRename}>
+          <View style={[styles.renameModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.renameTitle, { color: colors.textPrimary }]}>Rename Phase</Text>
             <TextInput
-              style={styles.renameInput}
+              style={[styles.renameInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
               value={renameText}
               onChangeText={setRenameText}
               autoFocus
               onSubmitEditing={confirmRename}
               selectTextOnFocus
             />
-            <Pressable style={styles.renameButton} onPress={confirmRename}>
+            <Pressable style={[styles.renameButton, { backgroundColor: colors.primary }]} onPress={confirmRename}>
               <Text style={styles.renameButtonText}>Done</Text>
             </Pressable>
           </View>
@@ -372,26 +373,26 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
           style={styles.flex}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <Pressable style={styles.modalOverlay} onPress={() => setEditing(null)}>
-            <Pressable style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
-              <View style={styles.sheetHandle} />
+          <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setEditing(null)}>
+            <Pressable style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
+              <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>
+              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
                 {editing?.activityIndex !== null ? 'Edit Activity' : 'Add Activity'}
               </Text>
-              <Text style={styles.sheetDay}>
+              <Text style={[styles.sheetDay, { color: colors.textSecondary }]}>
                 {editing ? DAY_LABELS[DAY_VALUES.indexOf(editing.dayOfWeek)] : ''}
               </Text>
 
-              <Text style={styles.sheetLabel}>Activity Type</Text>
+              <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Activity Type</Text>
               <View style={styles.typeChipsWrap}>
                 {ACTIVITY_TYPES.map(item => (
                   <Pressable
                     key={item}
-                    style={[styles.typeChip, editing?.activity_type === item && styles.typeChipActive]}
+                    style={[styles.typeChip, { backgroundColor: colors.surfaceAlt }, editing?.activity_type === item && { backgroundColor: colors.primary }]}
                     onPress={() => setEditing(prev => prev ? { ...prev, activity_type: item } : null)}
                   >
-                    <Text style={[styles.typeChipText, editing?.activity_type === item && styles.typeChipTextActive]}>
+                    <Text style={[styles.typeChipText, { color: colors.textSecondary }, editing?.activity_type === item && styles.typeChipTextActive]}>
                       {item}
                     </Text>
                   </Pressable>
@@ -400,18 +401,18 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
 
               {editing?.activity_type ? (
                 <>
-                  <Text style={styles.sheetLabel}>Prescription</Text>
+                  <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Prescription</Text>
                   <PrescriptionEditor
                     activityType={editing.activity_type}
                     prescription={editing.prescription}
                     onChange={p => setEditing(prev => prev ? { ...prev, prescription: p } : null)}
                   />
 
-                  <Text style={styles.sheetLabel}>Notes (optional)</Text>
+                  <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Notes (optional)</Text>
                   <TextInput
-                    style={styles.notesInput}
+                    style={[styles.notesInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
                     placeholder="Any additional notes..."
-                    placeholderTextColor="#BBB"
+                    placeholderTextColor={colors.textSecondary}
                     value={editing.notes}
                     onChangeText={t => setEditing(prev => prev ? { ...prev, notes: t } : null)}
                     multiline
@@ -421,13 +422,13 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
 
               <View style={styles.sheetActions}>
                 {editing?.activityIndex !== null && (
-                  <Pressable style={styles.deleteButton} onPress={deleteActivity}>
-                    <Ionicons name="trash-outline" size={18} color={Colors.primary} />
-                    <Text style={styles.deleteButtonText}>Delete</Text>
+                  <Pressable style={[styles.deleteButton, { borderColor: colors.primary }]} onPress={deleteActivity}>
+                    <Ionicons name="trash-outline" size={18} color={colors.primary} />
+                    <Text style={[styles.deleteButtonText, { color: colors.primary }]}>Delete</Text>
                   </Pressable>
                 )}
                 <Pressable
-                  style={[styles.saveButton, !editing?.activity_type && styles.saveButtonDisabled]}
+                  style={[styles.saveButton, { backgroundColor: colors.primary }, !editing?.activity_type && styles.saveButtonDisabled]}
                   onPress={saveActivity}
                   disabled={!editing?.activity_type}
                 >
@@ -446,28 +447,25 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 100 },
 
   sectionLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
   },
   sectionHint: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginBottom: 12,
     marginTop: -4,
   },
 
   // Phase section
   phaseSection: {
-    backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
@@ -482,12 +480,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: '#FEE8EA',
   },
   presetButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
   },
   phaseTabs: {
     flexDirection: 'row',
@@ -498,25 +494,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#F0F0F0',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  phaseTabActive: {
-    backgroundColor: Colors.primary,
-  },
   phaseTabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   phaseTabTextActive: {
     color: '#FFF',
   },
   phaseTabWeeks: {
     fontSize: 12,
-    color: Colors.textSecondary,
     opacity: 0.7,
   },
   phaseTabWeeksActive: {
@@ -527,7 +517,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -539,12 +528,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   durationLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   stepper: {
     flexDirection: 'row',
@@ -555,14 +542,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepperValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.textPrimary,
     minWidth: 70,
     textAlign: 'center',
   },
@@ -570,7 +555,6 @@ const styles = StyleSheet.create({
   // Day rows
   dayRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     marginBottom: 6,
     overflow: 'hidden',
@@ -580,12 +564,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8F8F8',
   },
   dayLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
   },
   dayContent: {
     flex: 1,
@@ -598,7 +580,6 @@ const styles = StyleSheet.create({
   activityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEE8EA',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -607,7 +588,6 @@ const styles = StyleSheet.create({
   activityChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
   },
   addActivityButton: {
     flexDirection: 'row',
@@ -619,7 +599,6 @@ const styles = StyleSheet.create({
   addActivityText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.primary,
   },
 
   // Footer
@@ -630,19 +609,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: Colors.surface,
   },
   footerInfo: {
     fontSize: 14,
-    color: Colors.textSecondary,
     fontWeight: '600',
   },
   reviewButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 24,
@@ -659,40 +634,40 @@ const styles = StyleSheet.create({
   // Modal / bottom sheet
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    // backgroundColor applied inline via theme overlay
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    backgroundColor: Colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 12,
     maxHeight: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   sheetHandle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#DDD',
     alignSelf: 'center',
     marginBottom: 16,
   },
   sheetTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 4,
   },
   sheetDay: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginBottom: 20,
   },
   sheetLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -707,28 +682,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: '#F0F0F0',
-  },
-  typeChipActive: {
-    backgroundColor: Colors.primary,
   },
   typeChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   typeChipTextActive: {
     color: '#FFF',
   },
   notesInput: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
     minHeight: 50,
     textAlignVertical: 'top',
   },
@@ -747,12 +714,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primary,
   },
   deleteButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.primary,
   },
   saveButton: {
     flex: 1,
@@ -760,7 +725,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
   },
   saveButtonDisabled: {
     opacity: 0.4,
@@ -773,35 +737,34 @@ const styles = StyleSheet.create({
 
   // Rename modal
   renameModal: {
-    backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 24,
     marginHorizontal: 40,
     marginBottom: 'auto',
     marginTop: 'auto',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
   renameTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 16,
   },
   renameInput: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
     marginBottom: 16,
   },
   renameButton: {
     alignItems: 'center',
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: Colors.primary,
   },
   renameButtonText: {
     fontSize: 16,

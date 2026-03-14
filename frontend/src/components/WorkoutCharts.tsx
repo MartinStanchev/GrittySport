@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   downsample,
   HR_ZONE_COLORS,
@@ -15,13 +15,6 @@ const CHART_MAX_POINTS = 150;
 const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'] as const;
 const ZONE_COUNT = 5;
 
-// --- HR Over Time Chart ---
-
-interface HROverTimeChartProps {
-  readings: HRReading[];
-  maxHR: number;
-}
-
 // Bright zone colors for chart background bands (~60% opacity)
 const SECTION_COLORS = [
   '#F8717199', // Z5 — red
@@ -31,8 +24,16 @@ const SECTION_COLORS = [
   '#60A5FA99', // Z1 — blue
 ];
 
+// --- HR Over Time Chart ---
+
+interface HROverTimeChartProps {
+  readings: HRReading[];
+  maxHR: number;
+}
+
 export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const { colors } = useTheme();
   const chartWidth = screenWidth - 80;
 
   const { chartData, avgHR, peakHR } = useMemo(() => {
@@ -58,7 +59,6 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
   const chartMin = Math.round(maxHR * 0.5);
   const chartRange = maxHR - chartMin;
 
-  // Show labels at zone boundaries (interior positions 1-4), hide top/bottom edges
   const formatHRLabel = useCallback((label: string) => {
     const bpm = Math.round(parseFloat(label));
     if (bpm <= chartMin + 2 || bpm >= maxHR - 2) return '';
@@ -70,15 +70,15 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
   return (
     <View style={styles.chartSection}>
       <View style={styles.chartHeader}>
-        <Text style={styles.chartTitle}>Heart Rate</Text>
+        <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Heart Rate</Text>
         <View style={styles.chartStatsInline}>
-          <Text style={styles.chartStatLabel}>Avg </Text>
-          <Text style={styles.chartStatValue}>{avgHR}</Text>
-          <Text style={styles.chartStatUnit}> bpm</Text>
+          <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Avg </Text>
+          <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{avgHR}</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> bpm</Text>
           <Text style={styles.chartStatSep}>  </Text>
-          <Text style={styles.chartStatLabel}>Peak </Text>
-          <Text style={styles.chartStatValue}>{peakHR}</Text>
-          <Text style={styles.chartStatUnit}> bpm</Text>
+          <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Peak </Text>
+          <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{peakHR}</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> bpm</Text>
         </View>
       </View>
       <View style={styles.chartClip}>
@@ -93,7 +93,7 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
           thickness={2}
           hideDataPoints
           hideRules
-          yAxisTextStyle={{ fontSize: 10, color: '#999' }}
+          yAxisTextStyle={{ fontSize: 10, color: colors.textSecondary }}
           formatYLabel={formatHRLabel}
           yAxisOffset={chartMin}
           maxValue={chartRange}
@@ -109,7 +109,7 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
         {ZONE_LABELS.map((label, i) => (
           <View key={label} style={styles.zoneItem}>
             <View style={[styles.zoneColorDot, { backgroundColor: HR_ZONE_COLORS[(i + 1) as HRZone] }]} />
-            <Text style={styles.zoneText}>{label}</Text>
+            <Text style={[styles.zoneText, { color: colors.textSecondary }]}>{label}</Text>
           </View>
         ))}
       </View>
@@ -125,6 +125,7 @@ interface PaceOverTimeChartProps {
 
 export function PaceOverTimeChart({ points }: PaceOverTimeChartProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const { colors } = useTheme();
   const chartWidth = screenWidth - 80;
 
   const { chartData, minPace, maxPace } = useMemo(() => {
@@ -149,7 +150,7 @@ export function PaceOverTimeChart({ points }: PaceOverTimeChartProps) {
 
   return (
     <View style={styles.chartSection}>
-      <Text style={styles.chartTitle}>Pace</Text>
+      <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Pace</Text>
       <View style={styles.chartClip}>
         <LineChart
           data={chartData}
@@ -162,7 +163,7 @@ export function PaceOverTimeChart({ points }: PaceOverTimeChartProps) {
           thickness={2}
           hideDataPoints
           hideRules
-          yAxisTextStyle={{ fontSize: 10, color: '#999' }}
+          yAxisTextStyle={{ fontSize: 10, color: colors.textSecondary }}
           formatYLabel={(label) => formatPaceSecPerKm(parseInt(label, 10))}
           yAxisOffset={minPace}
           maxValue={maxPace - minPace}
@@ -189,6 +190,7 @@ interface SpeedOverTimeChartProps {
 
 export function SpeedOverTimeChart({ points }: SpeedOverTimeChartProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const { colors } = useTheme();
   const chartWidth = screenWidth - 80;
 
   const { chartData, maxSpeed } = useMemo(() => {
@@ -208,7 +210,7 @@ export function SpeedOverTimeChart({ points }: SpeedOverTimeChartProps) {
 
   return (
     <View style={styles.chartSection}>
-      <Text style={styles.chartTitle}>Speed</Text>
+      <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Speed</Text>
       <View style={styles.chartClip}>
         <LineChart
           data={chartData}
@@ -221,7 +223,7 @@ export function SpeedOverTimeChart({ points }: SpeedOverTimeChartProps) {
           thickness={2}
           hideDataPoints
           hideRules
-          yAxisTextStyle={{ fontSize: 10, color: '#999' }}
+          yAxisTextStyle={{ fontSize: 10, color: colors.textSecondary }}
           maxValue={maxSpeed}
           noOfSections={4}
           xAxisLabelsHeight={0}
@@ -245,6 +247,7 @@ interface CadenceChartProps {
 
 export function CadenceChart({ readings }: CadenceChartProps) {
   const { width: screenWidth } = useWindowDimensions();
+  const { colors } = useTheme();
   const chartWidth = screenWidth - 80;
 
   const { chartData, avgCad, maxCad } = useMemo(() => {
@@ -269,15 +272,15 @@ export function CadenceChart({ readings }: CadenceChartProps) {
   return (
     <View style={styles.chartSection}>
       <View style={styles.chartHeader}>
-        <Text style={styles.chartTitle}>Cadence</Text>
+        <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Cadence</Text>
         <View style={styles.chartStatsInline}>
-          <Text style={styles.chartStatLabel}>Avg </Text>
-          <Text style={styles.chartStatValue}>{avgCad}</Text>
-          <Text style={styles.chartStatUnit}> spm</Text>
+          <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Avg </Text>
+          <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{avgCad}</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> spm</Text>
           <Text style={styles.chartStatSep}>  </Text>
-          <Text style={styles.chartStatLabel}>Peak </Text>
-          <Text style={styles.chartStatValue}>{maxCad}</Text>
-          <Text style={styles.chartStatUnit}> spm</Text>
+          <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Peak </Text>
+          <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{maxCad}</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> spm</Text>
         </View>
       </View>
       <View style={styles.chartClip}>
@@ -292,7 +295,7 @@ export function CadenceChart({ readings }: CadenceChartProps) {
           thickness={2}
           hideDataPoints
           hideRules
-          yAxisTextStyle={{ fontSize: 10, color: '#999' }}
+          yAxisTextStyle={{ fontSize: 10, color: colors.textSecondary }}
           maxValue={chartMax}
           noOfSections={3}
           xAxisLabelsHeight={0}
@@ -321,7 +324,6 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#999',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -332,16 +334,13 @@ const styles = StyleSheet.create({
   },
   chartStatLabel: {
     fontSize: 11,
-    color: '#999',
   },
   chartStatValue: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   chartStatUnit: {
     fontSize: 11,
-    color: '#999',
   },
   chartStatSep: {
     fontSize: 11,
@@ -368,6 +367,5 @@ const styles = StyleSheet.create({
   },
   zoneText: {
     fontSize: 10,
-    color: '#999',
   },
 });

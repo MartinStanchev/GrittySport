@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
+import type { ThemeColors } from '../constants/colors';
 
 interface Props {
   activityType: string;
@@ -13,6 +14,7 @@ function FieldInput({
   label,
   value,
   onChangeText,
+  colors,
   keyboardType = 'default',
   placeholder,
   multiline,
@@ -20,20 +22,21 @@ function FieldInput({
   label: string;
   value: string;
   onChangeText: (v: string) => void;
+  colors: ThemeColors;
   keyboardType?: 'default' | 'numeric' | 'decimal-pad';
   placeholder?: string;
   multiline?: boolean;
 }) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
-        style={[styles.fieldInput, multiline && styles.fieldInputMultiline]}
+        style={[styles.fieldInput, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: colors.border }, multiline && styles.fieldInputMultiline]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
         placeholder={placeholder || label}
-        placeholderTextColor="#BBB"
+        placeholderTextColor={colors.textSecondary}
         multiline={multiline}
       />
     </View>
@@ -49,11 +52,13 @@ function SetsEditor({
   onChange,
   fields,
   emptySet,
+  colors,
 }: {
   prescription: Record<string, any>;
   onChange: Props['onChange'];
   fields: { key: string; label: string; keyboard?: 'default' | 'numeric' }[];
   emptySet: Record<string, string>;
+  colors: ThemeColors;
 }) {
   const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
 
@@ -73,39 +78,39 @@ function SetsEditor({
 
   return (
     <View>
-      <FieldInput label="Warmup" value={prescription.warmup || ''} onChangeText={v => updateField(prescription, 'warmup', v, onChange)} />
-      <Text style={styles.sectionTitle}>Sets</Text>
+      <FieldInput label="Warmup" value={prescription.warmup || ''} onChangeText={v => updateField(prescription, 'warmup', v, onChange)} colors={colors} />
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
       {sets.map((set: any, i: number) => (
-        <View key={i} style={styles.setCard}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
           <View style={styles.setHeader}>
-            <Text style={styles.setLabel}>Set {i + 1}</Text>
+            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Set {i + 1}</Text>
             <Pressable onPress={() => removeSet(i)} hitSlop={8}>
-              <Ionicons name="close-circle" size={20} color={Colors.primary} />
+              <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
           <View style={styles.rowFields}>
             <View style={styles.smallField}>
-              <FieldInput label="Reps" value={String(set.reps || '')} onChangeText={v => updateSet(i, 'reps', v)} keyboardType="numeric" />
+              <FieldInput label="Reps" value={String(set.reps || '')} onChangeText={v => updateSet(i, 'reps', v)} keyboardType="numeric" colors={colors} />
             </View>
             {fields.map(({ key, label, keyboard }) => (
               <View key={key} style={styles.flexField}>
-                <FieldInput label={label} value={set[key] || ''} onChangeText={v => updateSet(i, key, v)} keyboardType={keyboard || 'default'} />
+                <FieldInput label={label} value={set[key] || ''} onChangeText={v => updateSet(i, key, v)} keyboardType={keyboard || 'default'} colors={colors} />
               </View>
             ))}
           </View>
-          <FieldInput label="Rest" value={set.rest || ''} onChangeText={v => updateSet(i, 'rest', v)} />
+          <FieldInput label="Rest" value={set.rest || ''} onChangeText={v => updateSet(i, 'rest', v)} colors={colors} />
         </View>
       ))}
       <Pressable style={styles.addButton} onPress={addSet}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Set</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Set</Text>
       </Pressable>
-      <FieldInput label="Cooldown" value={prescription.cooldown || ''} onChangeText={v => updateField(prescription, 'cooldown', v, onChange)} />
+      <FieldInput label="Cooldown" value={prescription.cooldown || ''} onChangeText={v => updateField(prescription, 'cooldown', v, onChange)} colors={colors} />
     </View>
   );
 }
 
-function RunEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function RunEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   const hasSets = Array.isArray(prescription.sets) && prescription.sets.length > 0;
 
   if (hasSets) {
@@ -114,33 +119,34 @@ function RunEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
         <SetsEditor
           prescription={prescription}
           onChange={onChange}
+          colors={colors}
           fields={[
             { key: 'distance', label: 'Distance' },
             { key: 'pace', label: 'Pace' },
           ]}
           emptySet={{ reps: '', distance: '', pace: '', rest: '' }}
         />
-        <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} />
+        <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} colors={colors} />
       </View>
     );
   }
 
   return (
     <View>
-      <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} />
-      <FieldInput label="Pace" value={prescription.pace || ''} onChangeText={v => updateField(prescription, 'pace', v, onChange)} />
-      <FieldInput label="HR Zone" value={prescription.heart_rate_zone || ''} onChangeText={v => updateField(prescription, 'heart_rate_zone', v, onChange)} />
-      <FieldInput label="Terrain" value={prescription.terrain || ''} onChangeText={v => updateField(prescription, 'terrain', v, onChange)} />
-      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
+      <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} colors={colors} />
+      <FieldInput label="Pace" value={prescription.pace || ''} onChangeText={v => updateField(prescription, 'pace', v, onChange)} colors={colors} />
+      <FieldInput label="HR Zone" value={prescription.heart_rate_zone || ''} onChangeText={v => updateField(prescription, 'heart_rate_zone', v, onChange)} colors={colors} />
+      <FieldInput label="Terrain" value={prescription.terrain || ''} onChangeText={v => updateField(prescription, 'terrain', v, onChange)} colors={colors} />
+      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
       <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', distance: '', pace: '', rest: '' }] })}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Sets</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Sets</Text>
       </Pressable>
     </View>
   );
 }
 
-function StrengthEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function StrengthEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
 
   const updateExercise = (index: number, key: string, value: string) => {
@@ -160,48 +166,49 @@ function StrengthEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
   return (
     <View>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={styles.setCard}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
           <View style={styles.setHeader}>
-            <Text style={styles.setLabel}>Exercise {i + 1}</Text>
+            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
             <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
-              <Ionicons name="close-circle" size={20} color={Colors.primary} />
+              <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
-          <FieldInput label="Name" value={ex.name || ''} onChangeText={v => updateExercise(i, 'name', v)} />
+          <FieldInput label="Name" value={ex.name || ''} onChangeText={v => updateExercise(i, 'name', v)} colors={colors} />
           <View style={styles.rowFields}>
             <View style={styles.halfField}>
-              <FieldInput label="Sets" value={String(ex.sets || '')} onChangeText={v => updateExercise(i, 'sets', v)} keyboardType="numeric" />
+              <FieldInput label="Sets" value={String(ex.sets || '')} onChangeText={v => updateExercise(i, 'sets', v)} keyboardType="numeric" colors={colors} />
             </View>
             <View style={styles.halfField}>
-              <FieldInput label="Reps" value={String(ex.reps || '')} onChangeText={v => updateExercise(i, 'reps', v)} keyboardType="numeric" />
+              <FieldInput label="Reps" value={String(ex.reps || '')} onChangeText={v => updateExercise(i, 'reps', v)} keyboardType="numeric" colors={colors} />
             </View>
           </View>
           <View style={styles.rowFields}>
             <View style={styles.halfField}>
-              <FieldInput label="Weight" value={ex.weight || ''} onChangeText={v => updateExercise(i, 'weight', v)} />
+              <FieldInput label="Weight" value={ex.weight || ''} onChangeText={v => updateExercise(i, 'weight', v)} colors={colors} />
             </View>
             <View style={styles.halfField}>
-              <FieldInput label="RPE" value={String(ex.rpe || '')} onChangeText={v => updateExercise(i, 'rpe', v)} keyboardType="decimal-pad" />
+              <FieldInput label="RPE" value={String(ex.rpe || '')} onChangeText={v => updateExercise(i, 'rpe', v)} keyboardType="decimal-pad" colors={colors} />
             </View>
           </View>
-          <FieldInput label="Rest" value={ex.rest || ''} onChangeText={v => updateExercise(i, 'rest', v)} />
+          <FieldInput label="Rest" value={ex.rest || ''} onChangeText={v => updateExercise(i, 'rest', v)} colors={colors} />
         </View>
       ))}
       <Pressable style={styles.addButton} onPress={addExercise}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Exercise</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
-      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
+      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
     </View>
   );
 }
 
-function SwimEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function SwimEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   return (
     <View>
       <SetsEditor
         prescription={prescription}
         onChange={onChange}
+        colors={colors}
         fields={[
           { key: 'distance', label: 'Distance' },
           { key: 'type', label: 'Type' },
@@ -209,12 +216,12 @@ function SwimEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
         ]}
         emptySet={{ reps: '', distance: '', type: '', pace: '', rest: '', description: '' }}
       />
-      <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} />
+      <FieldInput label="Total Distance" value={prescription.total_distance || ''} onChangeText={v => updateField(prescription, 'total_distance', v, onChange)} colors={colors} />
     </View>
   );
 }
 
-function CyclingEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function CyclingEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   const hasSets = Array.isArray(prescription.sets) && prescription.sets.length > 0;
 
   if (hasSets) {
@@ -222,6 +229,7 @@ function CyclingEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
       <SetsEditor
         prescription={prescription}
         onChange={onChange}
+        colors={colors}
         fields={[
           { key: 'duration', label: 'Duration' },
           { key: 'intensity', label: 'Intensity' },
@@ -233,19 +241,19 @@ function CyclingEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
 
   return (
     <View>
-      <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} />
-      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
-      <FieldInput label="Intensity" value={prescription.intensity || ''} onChangeText={v => updateField(prescription, 'intensity', v, onChange)} />
-      <FieldInput label="Cadence" value={prescription.cadence || ''} onChangeText={v => updateField(prescription, 'cadence', v, onChange)} />
+      <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} colors={colors} />
+      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
+      <FieldInput label="Intensity" value={prescription.intensity || ''} onChangeText={v => updateField(prescription, 'intensity', v, onChange)} colors={colors} />
+      <FieldInput label="Cadence" value={prescription.cadence || ''} onChangeText={v => updateField(prescription, 'cadence', v, onChange)} colors={colors} />
       <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', duration: '', intensity: '', rest: '' }] })}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Sets</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Sets</Text>
       </Pressable>
     </View>
   );
 }
 
-function MobilityEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function MobilityEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
 
   const updateExercise = (index: number, key: string, value: string) => {
@@ -264,41 +272,41 @@ function MobilityEditor({ prescription, onChange }: Omit<Props, 'activityType'>)
 
   return (
     <View>
-      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} />
-      <FieldInput label="Style" value={prescription.style || ''} onChangeText={v => updateField(prescription, 'style', v, onChange)} />
-      <FieldInput label="Focus" value={prescription.focus || ''} onChangeText={v => updateField(prescription, 'focus', v, onChange)} />
-      <FieldInput label="Instructions" value={prescription.instructions || ''} onChangeText={v => updateField(prescription, 'instructions', v, onChange)} multiline />
-      <Text style={styles.sectionTitle}>Exercises</Text>
+      <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
+      <FieldInput label="Style" value={prescription.style || ''} onChangeText={v => updateField(prescription, 'style', v, onChange)} colors={colors} />
+      <FieldInput label="Focus" value={prescription.focus || ''} onChangeText={v => updateField(prescription, 'focus', v, onChange)} colors={colors} />
+      <FieldInput label="Instructions" value={prescription.instructions || ''} onChangeText={v => updateField(prescription, 'instructions', v, onChange)} multiline colors={colors} />
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Exercises</Text>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={styles.setCard}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
           <View style={styles.setHeader}>
-            <Text style={styles.setLabel}>Exercise {i + 1}</Text>
+            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
             <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
-              <Ionicons name="close-circle" size={20} color={Colors.primary} />
+              <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
-          <FieldInput label="Name" value={ex.name || ''} onChangeText={v => updateExercise(i, 'name', v)} />
+          <FieldInput label="Name" value={ex.name || ''} onChangeText={v => updateExercise(i, 'name', v)} colors={colors} />
           <View style={styles.rowFields}>
             <View style={styles.halfField}>
-              <FieldInput label="Duration" value={ex.duration || ''} onChangeText={v => updateExercise(i, 'duration', v)} />
+              <FieldInput label="Duration" value={ex.duration || ''} onChangeText={v => updateExercise(i, 'duration', v)} colors={colors} />
             </View>
             <View style={styles.halfField}>
-              <FieldInput label="Sets" value={String(ex.sets || '')} onChangeText={v => updateExercise(i, 'sets', v)} keyboardType="numeric" />
+              <FieldInput label="Sets" value={String(ex.sets || '')} onChangeText={v => updateExercise(i, 'sets', v)} keyboardType="numeric" colors={colors} />
             </View>
           </View>
-          <FieldInput label="Notes" value={ex.notes || ''} onChangeText={v => updateExercise(i, 'notes', v)} />
-          <FieldInput label="Description" value={ex.description || ''} onChangeText={v => updateExercise(i, 'description', v)} multiline />
+          <FieldInput label="Notes" value={ex.notes || ''} onChangeText={v => updateExercise(i, 'notes', v)} colors={colors} />
+          <FieldInput label="Description" value={ex.description || ''} onChangeText={v => updateExercise(i, 'description', v)} multiline colors={colors} />
         </View>
       ))}
       <Pressable style={styles.addButton} onPress={addExercise}>
-        <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
-        <Text style={styles.addButtonText}>Add Exercise</Text>
+        <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+        <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
     </View>
   );
 }
 
-function GenericEditor({ prescription, onChange }: Omit<Props, 'activityType'>) {
+function GenericEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   return (
     <View>
       {Object.entries(prescription).map(([key, value]) => {
@@ -309,6 +317,7 @@ function GenericEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
             label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
             value={String(value ?? '')}
             onChangeText={v => updateField(prescription, key, v, onChange)}
+            colors={colors}
           />
         );
       })}
@@ -317,16 +326,17 @@ function GenericEditor({ prescription, onChange }: Omit<Props, 'activityType'>) 
 }
 
 export function PrescriptionEditor({ activityType, prescription, onChange }: Props) {
+  const { colors } = useTheme();
   const type = activityType.toLowerCase().replace(/\s+/g, '_');
 
-  if (type.includes('run') || type.includes('jog')) return <RunEditor prescription={prescription} onChange={onChange} />;
-  if (type.includes('strength') || type.includes('weight')) return <StrengthEditor prescription={prescription} onChange={onChange} />;
-  if (type.includes('swim')) return <SwimEditor prescription={prescription} onChange={onChange} />;
-  if (type.includes('cycl') || type.includes('bike')) return <CyclingEditor prescription={prescription} onChange={onChange} />;
+  if (type.includes('run') || type.includes('jog')) return <RunEditor prescription={prescription} onChange={onChange} colors={colors} />;
+  if (type.includes('strength') || type.includes('weight')) return <StrengthEditor prescription={prescription} onChange={onChange} colors={colors} />;
+  if (type.includes('swim')) return <SwimEditor prescription={prescription} onChange={onChange} colors={colors} />;
+  if (type.includes('cycl') || type.includes('bike')) return <CyclingEditor prescription={prescription} onChange={onChange} colors={colors} />;
   if (type.includes('mobility') || type.includes('recovery') || type.includes('yoga') || type.includes('stretch'))
-    return <MobilityEditor prescription={prescription} onChange={onChange} />;
+    return <MobilityEditor prescription={prescription} onChange={onChange} colors={colors} />;
 
-  return <GenericEditor prescription={prescription} onChange={onChange} />;
+  return <GenericEditor prescription={prescription} onChange={onChange} colors={colors} />;
 }
 
 const styles = StyleSheet.create({
@@ -336,20 +346,16 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   fieldInput: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 15,
-    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   fieldInputMultiline: {
     minHeight: 60,
@@ -358,19 +364,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 8,
     marginBottom: 8,
   },
   setCard: {
-    backgroundColor: '#FAFAFA',
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E8E8E8',
   },
   setHeader: {
     flexDirection: 'row',
@@ -381,7 +384,6 @@ const styles = StyleSheet.create({
   setLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   rowFields: {
     flexDirection: 'row',
@@ -407,6 +409,5 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
   },
 });

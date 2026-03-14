@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { dayAbbrev } from '../constants/activityIcons';
 
 interface ActivityProposal {
@@ -40,6 +40,7 @@ interface ProgramProposalCardProps {
 }
 
 export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: ProgramProposalCardProps) {
+  const { colors } = useTheme();
   const [expandedPhase, setExpandedPhase] = useState<number | null>(null);
 
   const totalWeeks = data.phases.reduce((sum, p) => sum + p.duration_weeks, 0);
@@ -52,39 +53,39 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.header}>
-        <Ionicons name="barbell-outline" size={20} color={Colors.primary} />
-        <Text style={styles.title}>{data.name}</Text>
+        <Ionicons name="barbell-outline" size={20} color={colors.primary} />
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{data.name}</Text>
       </View>
 
-      {data.sport && <Text style={styles.subtitle}>{data.sport}</Text>}
+      {data.sport && <Text style={[styles.subtitle, { color: colors.primary }]}>{data.sport}</Text>}
       {data.goal_description && (
-        <Text style={styles.goal} numberOfLines={2}>{data.goal_description}</Text>
+        <Text style={[styles.goal, { color: colors.textSecondary }]} numberOfLines={2}>{data.goal_description}</Text>
       )}
 
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Duration</Text>
-          <Text style={styles.metaValue}>{totalWeeks} weeks</Text>
+          <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Duration</Text>
+          <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{totalWeeks} weeks</Text>
         </View>
         <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Phases</Text>
-          <Text style={styles.metaValue}>{data.phases.length}</Text>
+          <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Phases</Text>
+          <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{data.phases.length}</Text>
         </View>
         <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Days/Week</Text>
-          <Text style={styles.metaValue}>{activitiesPerWeek}</Text>
+          <Text style={[styles.metaLabel, { color: colors.textSecondary }]}>Days/Week</Text>
+          <Text style={[styles.metaValue, { color: colors.textPrimary }]}>{activitiesPerWeek}</Text>
         </View>
       </View>
 
       {data.start_date && (
-        <Text style={styles.dates}>
+        <Text style={[styles.dates, { color: colors.textSecondary }]}>
           {formatDate(data.start_date)} — {formatDate(data.end_date)}
         </Text>
       )}
 
-      <View style={styles.phasesContainer}>
+      <View style={[styles.phasesContainer, { borderTopColor: colors.border }]}>
         {data.phases.map((phase, idx) => (
           <View key={idx}>
             <TouchableOpacity
@@ -94,20 +95,20 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
               <Ionicons
                 name={expandedPhase === idx ? 'chevron-down' : 'chevron-forward'}
                 size={16}
-                color={Colors.textSecondary}
+                color={colors.textSecondary}
               />
-              <Text style={styles.phaseName}>{phase.name}</Text>
-              <Text style={styles.phaseWeeks}>{phase.duration_weeks}w</Text>
+              <Text style={[styles.phaseName, { color: colors.textPrimary }]}>{phase.name}</Text>
+              <Text style={[styles.phaseWeeks, { color: colors.textSecondary }]}>{phase.duration_weeks}w</Text>
             </TouchableOpacity>
 
             {expandedPhase === idx && phase.template_week && (
               <View style={styles.weeksList}>
-                <Text style={styles.templateLabel}>
+                <Text style={[styles.templateLabel, { color: colors.textSecondary }]}>
                   Template week · repeats {phase.duration_weeks}w
                 </Text>
                 <View style={styles.activitiesList}>
                   {phase.template_week.activities.map((act, aIdx) => (
-                    <Text key={aIdx} style={styles.activityText}>
+                    <Text key={aIdx} style={[styles.activityText, { color: colors.textSecondary }]}>
                       {dayAbbrev(act.day_of_week)}: {act.activity_type}
                     </Text>
                   ))}
@@ -120,14 +121,14 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
 
       <View style={styles.actions}>
         <TouchableOpacity
-          style={[styles.denyButton, disabled && styles.disabledButton]}
+          style={[styles.denyButton, { borderColor: colors.border }, disabled && styles.disabledButton]}
           onPress={onDeny}
           disabled={disabled}
         >
-          <Text style={styles.denyText}>Request Changes</Text>
+          <Text style={[styles.denyText, { color: colors.textSecondary }]}>Request Changes</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.acceptButton, disabled && styles.disabledButton]}
+          style={[styles.acceptButton, { backgroundColor: colors.primary }, disabled && styles.disabledButton]}
           onPress={onAccept}
           disabled={disabled}
         >
@@ -141,16 +142,11 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 16,
     marginHorizontal: 12,
     marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
   },
   header: {
     flexDirection: 'row',
@@ -161,18 +157,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.textPrimary,
     flex: 1,
   },
   subtitle: {
     fontSize: 14,
-    color: Colors.primary,
     fontWeight: '600',
     marginBottom: 2,
   },
   goal: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginBottom: 12,
   },
   metaRow: {
@@ -185,23 +178,19 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     fontSize: 11,
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   metaValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   dates: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginBottom: 12,
   },
   phasesContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#eee',
     paddingTop: 8,
     marginBottom: 12,
   },
@@ -214,12 +203,10 @@ const styles = StyleSheet.create({
   phaseName: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
     flex: 1,
   },
   phaseWeeks: {
     fontSize: 12,
-    color: Colors.textSecondary,
   },
   weeksList: {
     paddingLeft: 22,
@@ -228,7 +215,6 @@ const styles = StyleSheet.create({
   templateLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
     marginBottom: 4,
     fontStyle: 'italic',
   },
@@ -237,7 +223,6 @@ const styles = StyleSheet.create({
   },
   activityText: {
     fontSize: 12,
-    color: Colors.textSecondary,
     lineHeight: 18,
   },
   actions: {
@@ -249,7 +234,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
     borderRadius: 8,
     paddingVertical: 12,
     gap: 6,
@@ -264,12 +248,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 8,
     paddingVertical: 12,
   },
   denyText: {
-    color: Colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },

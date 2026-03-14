@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   getActivityIcon,
   formatPrescriptionSummary,
@@ -48,6 +48,7 @@ function formatDate(dateStr?: string) {
 
 export default function ProgramDetailScreen({ route, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { programId } = route.params;
   const { notifyProgramDataChanged, programDataVersion } = useProgram();
   const [program, setProgram] = useState<ProgramDetail | null>(null);
@@ -132,11 +133,11 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     navigation.setOptions({
       headerRight: () => (
         <Pressable onPress={handleDelete} hitSlop={8} style={{ marginRight: 4, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="trash-outline" size={20} color={Colors.primary} />
+          <Ionicons name="trash-outline" size={20} color={colors.primary} />
         </Pressable>
       ),
     });
-  }, [navigation, handleDelete]);
+  }, [navigation, handleDelete, colors]);
 
   const flatWeeks = useMemo<FlatWeek[]>(() => {
     if (!program) return [];
@@ -204,16 +205,16 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.centered, { flex: 1, backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (!program) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.errorText}>Program not found</Text>
+      <View style={[styles.centered, { flex: 1, backgroundColor: colors.background }]}>
+        <Text style={{ fontSize: 16, color: colors.textSecondary }}>Program not found</Text>
       </View>
     );
   }
@@ -223,49 +224,75 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
     >
-      <View style={styles.headerSection}>
-        <Text style={styles.programName}>{program.name}</Text>
-        {program.sport && <Text style={styles.sport}>{program.sport}</Text>}
-        {program.goal_description && (
-          <Text style={styles.goal}>{program.goal_description}</Text>
+      <View style={{
+        padding: 20,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: colors.border,
+      }}>
+        <Text style={{ fontSize: 22, fontWeight: '800', color: colors.textPrimary, marginBottom: 4 }}>
+          {program.name}
+        </Text>
+        {program.sport && (
+          <Text style={{ fontSize: 15, color: colors.primary, fontWeight: '600', marginBottom: 4 }}>
+            {program.sport}
+          </Text>
         )}
-        <Text style={styles.dates}>
+        {program.goal_description && (
+          <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 4, lineHeight: 20 }}>
+            {program.goal_description}
+          </Text>
+        )}
+        <Text style={{ fontSize: 13, color: colors.textSecondary }}>
           {formatDate(program.start_date)}
           {program.end_date ? ` — ${formatDate(program.end_date)}` : ''}
         </Text>
       </View>
 
       {program.criteria.length > 0 && (
-        <View style={styles.section}>
+        <View style={{
+          padding: 16,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: colors.border,
+        }}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Program Settings</Text>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.textPrimary }}>
+              Program Settings
+            </Text>
             <Pressable
               style={styles.editSettingsBtn}
               onPress={() => setCriteriaModalVisible(true)}
             >
-              <Ionicons name="create-outline" size={16} color={Colors.primary} />
-              <Text style={styles.editSettingsBtnText}>Edit</Text>
+              <Ionicons name="create-outline" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 13, color: colors.primary, fontWeight: '600' }}>Edit</Text>
             </Pressable>
           </View>
           <View style={styles.criteriaGrid}>
             {program.criteria.map((c) => (
-              <View key={c.id} style={styles.criterionCard}>
-                <Text style={styles.criterionLabel}>{c.label}</Text>
-                <Text style={styles.criterionValue}>{c.value}</Text>
+              <View key={c.id} style={[styles.criterionCard, { backgroundColor: colors.surfaceAlt }]}>
+                <Text style={{ fontSize: 11, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
+                  {c.label}
+                </Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>
+                  {c.value}
+                </Text>
               </View>
             ))}
           </View>
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Training Plan</Text>
+      <View style={{ padding: 16 }}>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: colors.textPrimary }}>
+          Training Plan
+        </Text>
 
         {flatWeeks.length === 0 ? (
-          <Text style={styles.emptyText}>No activities scheduled yet.</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, paddingVertical: 12 }}>
+            No activities scheduled yet.
+          </Text>
         ) : (
           <>
             <FlatList
@@ -289,26 +316,27 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
                   <Pressable
                     style={[
                       styles.weekPill,
-                      isSelected && styles.weekPillSelected,
-                      isCurrentWeek && !isSelected && styles.weekPillCurrent,
-                      isPast && !isSelected && styles.weekPillPast,
+                      { backgroundColor: colors.surfaceAlt },
+                      isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
+                      isCurrentWeek && !isSelected && { borderColor: colors.primary },
+                      isPast && !isSelected && { opacity: 0.6 },
                     ]}
                     onPress={() => setSelectedWeekId(week.id)}
                   >
                     <Text
                       style={[
-                        styles.weekPillNumber,
-                        isSelected && styles.weekPillTextSelected,
-                        isPast && !isSelected && styles.weekPillTextPast,
+                        { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+                        isSelected && { color: '#FFF' },
+                        isPast && !isSelected && { color: colors.textSecondary },
                       ]}
                     >
                       W{week.weekNumber}
                     </Text>
                     <Text
                       style={[
-                        styles.weekPillRange,
-                        isSelected && styles.weekPillTextSelected,
-                        isPast && !isSelected && styles.weekPillTextPast,
+                        { fontSize: 10, color: colors.textSecondary, marginTop: 1 },
+                        isSelected && { color: '#FFF' },
+                        isPast && !isSelected && { color: colors.textSecondary },
                       ]}
                     >
                       {week.weekMonday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -363,6 +391,8 @@ type WeekViewProps = {
 };
 
 function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivity }: WeekViewProps) {
+  const { colors } = useTheme();
+
   const byDay = useMemo<Map<number, ScheduledActivityResponse[]>>(() => {
     const map = new Map<number, ScheduledActivityResponse[]>();
     for (const a of week.activities) {
@@ -376,12 +406,14 @@ function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivit
   weekMonday.setHours(0, 0, 0, 0);
 
   return (
-    <View style={styles.weekView}>
-      <View style={styles.weekViewHeader}>
-        <Text style={styles.weekViewTitle}>
+    <View style={{ marginTop: 16 }}>
+      <View style={{ marginBottom: 12 }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: colors.textPrimary }}>
           Week {week.weekNumber} · {week.phaseName}
         </Text>
-        <Text style={styles.weekViewRange}>{formatWeekRange(weekMonday)}</Text>
+        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+          {formatWeekRange(weekMonday)}
+        </Text>
       </View>
 
       {[1, 2, 3, 4, 5, 6, 0].map((dayIndex) => {
@@ -429,16 +461,28 @@ type DayRowProps = {
 };
 
 function DayRow({ dayName, dayDate, activities, isToday, isPast, onPress, onRecord, onAdd }: DayRowProps) {
+  const { colors } = useTheme();
   const dateNum = dayDate.getDate();
   const hasActivities = activities.length > 0;
 
   return (
-    <View style={[styles.dayRow, isToday && styles.dayRowToday]}>
+    <View style={[
+      styles.dayRow,
+      isToday && { backgroundColor: colors.primaryLight },
+    ]}>
       <View style={styles.dayLabel}>
-        <Text style={[styles.dayName, isToday && styles.dayNameToday, isPast && styles.dayNamePast]}>
+        <Text style={[
+          { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
+          isToday && { color: colors.primary },
+          isPast && { color: colors.border },
+        ]}>
           {dayName}
         </Text>
-        <Text style={[styles.dayDate, isToday && styles.dayDateToday, isPast && styles.dayDatePast]}>
+        <Text style={[
+          { fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginTop: 1 },
+          isToday && { color: colors.primary },
+          isPast && { color: colors.border },
+        ]}>
           {dateNum}
         </Text>
       </View>
@@ -448,31 +492,41 @@ function DayRow({ dayName, dayDate, activities, isToday, isPast, onPress, onReco
           activities.map((activity) => (
             <Pressable
               key={activity.id}
-              style={({ pressed }) => [styles.activityRow, pressed && styles.dayRowPressed]}
+              style={({ pressed }) => [
+                styles.activityRow,
+                pressed && { backgroundColor: colors.surfaceAlt },
+              ]}
               onPress={() => onPress(activity.id)}
             >
               <View
                 style={[
                   styles.activityIconCircle,
-                  isToday && styles.activityIconCircleToday,
-                  isPast && styles.activityIconCirclePast,
+                  { backgroundColor: colors.primaryLight },
+                  isToday && { backgroundColor: colors.primary },
+                  isPast && { backgroundColor: colors.surfaceAlt },
                 ]}
               >
                 <Ionicons
                   name={getActivityIcon(activity.activity_type)}
                   size={16}
-                  color={isToday ? '#FFF' : isPast ? Colors.textSecondary : Colors.primary}
+                  color={isToday ? '#FFF' : isPast ? colors.textSecondary : colors.primary}
                 />
               </View>
               <View style={styles.activityInfo}>
                 <Text
-                  style={[styles.activityType, isPast && !isToday && styles.activityTypePast]}
+                  style={[
+                    { fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+                    isPast && !isToday && { color: colors.textSecondary },
+                  ]}
                   numberOfLines={1}
                 >
                   {activity.activity_type}
                 </Text>
                 <Text
-                  style={[styles.activitySummary, isPast && !isToday && styles.activitySummaryPast]}
+                  style={[
+                    { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+                    isPast && !isToday && { color: colors.border },
+                  ]}
                   numberOfLines={1}
                 >
                   {formatPrescriptionSummary(activity.prescription)}
@@ -484,25 +538,27 @@ function DayRow({ dayName, dayDate, activities, isToday, isPast, onPress, onReco
                   hitSlop={10}
                   style={styles.recordIconBtn}
                 >
-                  <Ionicons name="play-circle-outline" size={20} color={Colors.primary} />
+                  <Ionicons name="play-circle-outline" size={20} color={colors.primary} />
                 </Pressable>
               )}
               <Ionicons
                 name="chevron-forward"
                 size={14}
-                color={isPast && !isToday ? '#CCC' : Colors.textSecondary}
+                color={isPast && !isToday ? colors.border : colors.textSecondary}
               />
             </Pressable>
           ))
         ) : (
           <View style={styles.restRow}>
             <View style={styles.restDot} />
-            <Text style={styles.restText}>Rest</Text>
+            <Text style={{ flex: 1, fontSize: 14, color: colors.border, fontStyle: 'italic' }}>
+              Rest
+            </Text>
           </View>
         )}
 
         <Pressable style={styles.addButton} onPress={onAdd} hitSlop={8}>
-          <Ionicons name="add-circle-outline" size={20} color={Colors.textSecondary} />
+          <Ionicons name="add-circle-outline" size={20} color={colors.textSecondary} />
         </Pressable>
       </View>
     </View>
@@ -510,79 +566,22 @@ function DayRow({ dayName, dayDate, activities, isToday, isPast, onPress, onReco
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
   centered: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  errorText: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    paddingVertical: 12,
-  },
 
-  // Header
-  headerSection: {
-    backgroundColor: Colors.surface,
-    padding: 20,
-    marginBottom: 12,
-  },
-  programName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  sport: {
-    fontSize: 15,
-    color: Colors.primary,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  goal: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    marginBottom: 4,
-    lineHeight: 20,
-  },
-  dates: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-
-  // Section
-  section: {
-    backgroundColor: Colors.surface,
-    padding: 16,
-    marginBottom: 12,
-  },
+  // Section header
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
   editSettingsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-  },
-  editSettingsBtnText: {
-    fontSize: 13,
-    color: Colors.primary,
-    fontWeight: '600',
   },
 
   // Criteria
@@ -592,23 +591,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   criterionCard: {
-    backgroundColor: Colors.background,
     borderRadius: 8,
     padding: 10,
     minWidth: '45%',
     flex: 1,
-  },
-  criterionLabel: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  criterionValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
   },
 
   // Week Selector
@@ -621,54 +607,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.background,
     borderWidth: 1.5,
     borderColor: 'transparent',
     minWidth: 60,
-  },
-  weekPillSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  weekPillCurrent: {
-    borderColor: Colors.primary,
-  },
-  weekPillPast: {
-    opacity: 0.6,
-  },
-  weekPillNumber: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  weekPillRange: {
-    fontSize: 10,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  weekPillTextSelected: {
-    color: '#FFF',
-  },
-  weekPillTextPast: {
-    color: Colors.textSecondary,
-  },
-
-  // Week View
-  weekView: {
-    marginTop: 16,
-  },
-  weekViewHeader: {
-    marginBottom: 12,
-  },
-  weekViewTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  weekViewRange: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 2,
   },
 
   // Day Row
@@ -681,39 +622,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     gap: 10,
   },
-  dayRowToday: {
-    backgroundColor: '#FEF0F0',
-  },
-  dayRowPressed: {
-    backgroundColor: '#F0F0F0',
-  },
   dayLabel: {
     width: 36,
     alignItems: 'center',
     paddingTop: 4,
-  },
-  dayName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  dayNameToday: {
-    color: Colors.primary,
-  },
-  dayNamePast: {
-    color: '#CCC',
-  },
-  dayDate: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: 1,
-  },
-  dayDateToday: {
-    color: Colors.primary,
-  },
-  dayDatePast: {
-    color: '#CCC',
   },
   dayActivitiesColumn: {
     flex: 1,
@@ -736,44 +648,15 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#FEE2E5',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  activityIconCircleToday: {
-    backgroundColor: Colors.primary,
-  },
-  activityIconCirclePast: {
-    backgroundColor: '#F0F0F0',
   },
   activityInfo: {
     flex: 1,
   },
-  activityType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  activityTypePast: {
-    color: Colors.textSecondary,
-  },
-  activitySummary: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    marginTop: 1,
-  },
-  activitySummaryPast: {
-    color: '#CCC',
-  },
   restDot: {
     width: 32,
     height: 32,
-  },
-  restText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#CCC',
-    fontStyle: 'italic',
   },
   addButton: {
     padding: 2,

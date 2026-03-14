@@ -15,7 +15,7 @@ import MapView, { Polyline, UrlTile } from '../components/NativeMap';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,9 +40,11 @@ import { isPremium } from '../utils/premium';
 import { PremiumStatsCard } from '../components/PremiumStatsCard';
 import { EffortScoreCard } from '../components/EffortScoreCard';
 import { SplitsCard } from '../components/SplitsCard';
+import type { ThemeColors } from '../constants/colors';
 
 export default function WorkoutSummaryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
   const { activeGPSWorkout, clearGPSWorkout } = useWorkout();
   const { user } = useAuth();
   const { notifyProgramDataChanged } = useProgram();
@@ -80,8 +82,8 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
   if (!activeGPSWorkout || !gpsPayload) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>No workout data available.</Text>
+      <View style={[styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.textSecondary, fontSize: 15 }}>No workout data available.</Text>
       </View>
     );
   }
@@ -214,10 +216,10 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView style={styles.flex} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+      <ScrollView style={[styles.flex, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
         {/* Route map */}
         {workout.points.length > 1 ? (
           <MapView
@@ -236,32 +238,32 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
             )}
             <Polyline
               coordinates={polylineCoords}
-              strokeColor={Colors.primary}
+              strokeColor={colors.primary}
               strokeWidth={4}
             />
           </MapView>
         ) : (
-          <View style={styles.noMapPlaceholder}>
-            <Ionicons name="map-outline" size={40} color={Colors.textSecondary} />
-            <Text style={styles.noMapText}>No route recorded</Text>
+          <View style={[styles.noMapPlaceholder, { backgroundColor: colors.surfaceAlt }]}>
+            <Ionicons name="map-outline" size={40} color={colors.textSecondary} />
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>No route recorded</Text>
           </View>
         )}
 
         <View style={styles.body}>
           {/* Activity header */}
-          <Text style={styles.activityTitle}>
+          <Text style={[styles.activityTitle, { color: colors.textPrimary }]}>
             {workout.activityType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
           </Text>
-          <Text style={styles.dateText}>
+          <Text style={[styles.dateText, { color: colors.textSecondary }]}>
             {workout.startedAt.toLocaleDateString(undefined, {
               weekday: 'long', month: 'long', day: 'numeric',
             })}
           </Text>
 
           {savedOffline && (
-            <View style={styles.offlineBanner}>
-              <Ionicons name="cloud-offline-outline" size={16} color="#856404" />
-              <Text style={styles.offlineBannerText}>Saved offline — will sync when connected</Text>
+            <View style={[styles.offlineBanner, { backgroundColor: colors.warning + '20', }]}>
+              <Ionicons name="cloud-offline-outline" size={16} color={colors.warning} />
+              <Text style={[styles.offlineBannerText, { color: colors.textSecondary }]}>Saved offline — will sync when connected</Text>
             </View>
           )}
 
@@ -270,13 +272,15 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
             <StatCard
               label="Distance"
               value={`${formatDistanceKm(routeData.distance_km * 1000)} km`}
+              colors={colors}
             />
-            <StatCard label="Time" value={formatTime(Math.round(totalElapsed))} />
+            <StatCard label="Time" value={formatTime(Math.round(totalElapsed))} colors={colors} />
             {isRun && (
               <StatCard
                 label="Avg Pace"
                 value={formatPaceSecPerKm(routeData.avg_pace_sec_per_km)}
                 unit="/km"
+                colors={colors}
               />
             )}
             {!isRun && (
@@ -284,14 +288,16 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 label="Avg Speed"
                 value={formatSpeedKph(routeData.avg_speed_kph)}
                 unit="km/h"
+                colors={colors}
               />
             )}
-            <StatCard label="Elev Gain" value={`+${routeData.elevation_gain_m} m`} />
+            <StatCard label="Elev Gain" value={`+${routeData.elevation_gain_m} m`} colors={colors} />
             {bestLap && isRun && (
               <StatCard
                 label="Best Lap"
                 value={formatPaceSecPerKm(bestLap.avg_pace_sec_per_km)}
                 unit="/km"
+                colors={colors}
               />
             )}
             {bestLap && !isRun && (
@@ -299,27 +305,28 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 label="Best Lap"
                 value={formatSpeedKph(bestLap.avg_speed_kph)}
                 unit="km/h"
+                colors={colors}
               />
             )}
             {routeData.avg_hr && (
-              <StatCard label="Avg HR" value={`${routeData.avg_hr}`} unit="bpm" />
+              <StatCard label="Avg HR" value={`${routeData.avg_hr}`} unit="bpm" colors={colors} />
             )}
             {routeData.max_hr && (
-              <StatCard label="Max HR" value={`${routeData.max_hr}`} unit="bpm" />
+              <StatCard label="Max HR" value={`${routeData.max_hr}`} unit="bpm" colors={colors} />
             )}
             {routeData.avg_cadence && (
-              <StatCard label="Avg Cadence" value={`${routeData.avg_cadence}`} unit="spm" />
+              <StatCard label="Avg Cadence" value={`${routeData.avg_cadence}`} unit="spm" colors={colors} />
             )}
             {routeData.max_cadence && (
-              <StatCard label="Max Cadence" value={`${routeData.max_cadence}`} unit="spm" />
+              <StatCard label="Max Cadence" value={`${routeData.max_cadence}`} unit="spm" colors={colors} />
             )}
-            <StatCard label="Laps" value={`${workout.laps.length}`} />
+            <StatCard label="Laps" value={`${workout.laps.length}`} colors={colors} />
           </View>
 
           {/* HR Zone bar */}
           {hrZoneDist && hrZoneTotalSec > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Heart Rate Zones</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Heart Rate Zones</Text>
               <View style={styles.hrZoneBar}>
                 {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => {
                   const pct = hrZoneDist[zone] / hrZoneTotalSec;
@@ -335,7 +342,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => (
                   <View key={zone} style={styles.hrZoneLegendItem}>
                     <View style={[styles.hrZoneDot, { backgroundColor: HR_ZONE_COLORS[zone] }]} />
-                    <Text style={styles.hrZoneLegendText}>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>
                       Z{zone} {Math.round((hrZoneDist[zone] / hrZoneTotalSec) * 100)}%
                     </Text>
                   </View>
@@ -364,14 +371,14 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
           {/* Lap splits */}
           {workout.laps.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Lap Splits</Text>
-              <View style={styles.lapHeader}>
-                <Text style={[styles.lapCell, styles.lapCellLabel]}>Lap</Text>
-                <Text style={[styles.lapCell, styles.lapCellLabel]}>Dist</Text>
-                <Text style={[styles.lapCell, styles.lapCellLabel]}>Time</Text>
-                <Text style={[styles.lapCell, styles.lapCellLabel]}>{isRun ? 'Pace' : 'Speed'}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Lap Splits</Text>
+              <View style={[styles.lapHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Lap</Text>
+                <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Dist</Text>
+                <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Time</Text>
+                <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>{isRun ? 'Pace' : 'Speed'}</Text>
                 {workout.laps.some((l) => l.avg_hr) && (
-                  <Text style={[styles.lapCell, styles.lapCellLabel]}>HR</Text>
+                  <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>HR</Text>
                 )}
               </View>
               <FlatList
@@ -379,7 +386,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 keyExtractor={(item) => String(item.lap_number)}
                 scrollEnabled={false}
                 renderItem={({ item: lap }) => (
-                  <LapRow lap={lap} isRun={isRun} showHR={workout.laps.some((l) => l.avg_hr)} />
+                  <LapRow lap={lap} isRun={isRun} showHR={workout.laps.some((l) => l.avg_hr)} colors={colors} />
                 )}
               />
             </View>
@@ -397,12 +404,12 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
           {/* Notes */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Notes</Text>
             <TextInput
-              style={styles.notesInput}
+              style={[styles.notesInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary }]}
               multiline
               placeholder="How did it feel? Any observations..."
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={notes}
               onChangeText={setNotes}
             />
@@ -410,14 +417,14 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
           {/* Buttons */}
           <Pressable
-            style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
             onPress={handleSave}
             disabled={saving}
           >
-            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Workout'}</Text>
+            <Text style={[styles.saveBtnText, { color: colors.surface }]}>{saving ? 'Saving...' : 'Save Workout'}</Text>
           </Pressable>
-          <Pressable style={styles.discardBtn} onPress={handleDiscard}>
-            <Text style={styles.discardBtnText}>Discard</Text>
+          <Pressable style={[styles.discardBtn, { borderColor: colors.border }]} onPress={handleDiscard}>
+            <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Discard</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -425,85 +432,80 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   );
 }
 
-function StatCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function StatCard({ label, value, unit, colors }: { label: string; value: string; unit?: string; colors: ThemeColors }) {
   return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
+    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+      <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 4 }}>{label}</Text>
       <View style={styles.statValueRow}>
-        <Text style={styles.statValue}>{value}</Text>
-        {unit && <Text style={styles.statUnit}>{unit}</Text>}
+        <Text style={{ fontSize: 22, fontWeight: '700', color: colors.textPrimary }}>{value}</Text>
+        {unit && <Text style={{ fontSize: 12, color: colors.textSecondary }}>{unit}</Text>}
       </View>
     </View>
   );
 }
 
-function LapRow({ lap, isRun, showHR }: { lap: Lap; isRun: boolean; showHR: boolean }) {
+function LapRow({ lap, isRun, showHR, colors }: { lap: Lap; isRun: boolean; showHR: boolean; colors: ThemeColors }) {
   const lapColor = isRun
-    ? getLapPaceColor(lap.avg_pace_sec_per_km)
-    : getLapSpeedColor(lap.avg_speed_kph);
+    ? getLapPaceColor(lap.avg_pace_sec_per_km, colors)
+    : getLapSpeedColor(lap.avg_speed_kph, colors);
   return (
-    <View style={[styles.lapRow, { borderLeftColor: lapColor, borderLeftWidth: 3 }]}>
-      <Text style={styles.lapCell}>{lap.lap_number}</Text>
-      <Text style={styles.lapCell}>{(lap.distance_m / 1000).toFixed(2)} km</Text>
-      <Text style={styles.lapCell}>{formatTime(Math.round(lap.duration_sec))}</Text>
+    <View style={[styles.lapRow, { borderLeftColor: lapColor, borderLeftWidth: 3, borderBottomColor: colors.surfaceAlt }]}>
+      <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{lap.lap_number}</Text>
+      <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{(lap.distance_m / 1000).toFixed(2)} km</Text>
+      <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{formatTime(Math.round(lap.duration_sec))}</Text>
       <Text style={[styles.lapCell, { color: lapColor, fontWeight: '600' }]}>
         {isRun
           ? formatPaceSecPerKm(lap.avg_pace_sec_per_km)
           : `${formatSpeedKph(lap.avg_speed_kph)} km/h`}
       </Text>
       {showHR && (
-        <Text style={styles.lapCell}>{lap.avg_hr ? `${lap.avg_hr}` : '—'}</Text>
+        <Text style={[styles.lapCell, { color: colors.textPrimary }]}>{lap.avg_hr ? `${lap.avg_hr}` : '\u2014'}</Text>
       )}
     </View>
   );
 }
 
 // Simple 3-tier coloring for lap rows — green fast, yellow medium, red slow
-function getLapPaceColor(pace: number): string {
-  if (pace <= 0) return Colors.textSecondary;
-  if (pace < 300) return '#4CAF50';  // < 5:00/km — fast
-  if (pace < 420) return '#FFC107';  // < 7:00/km — medium
-  return '#F44336';                  // slow
+function getLapPaceColor(pace: number, colors: ThemeColors): string {
+  if (pace <= 0) return colors.textSecondary;
+  if (pace < 300) return colors.success;  // < 5:00/km — fast
+  if (pace < 420) return colors.warning;  // < 7:00/km — medium
+  return colors.error;                    // slow
 }
 
-function getLapSpeedColor(speed: number): string {
-  if (speed <= 0) return Colors.textSecondary;
-  if (speed > 30) return '#4CAF50';
-  if (speed > 20) return '#FFC107';
-  return '#F44336';
+function getLapSpeedColor(speed: number, colors: ThemeColors): string {
+  if (speed <= 0) return colors.textSecondary;
+  if (speed > 30) return colors.success;
+  if (speed > 20) return colors.warning;
+  return colors.error;
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { color: Colors.textSecondary, fontSize: 15 },
   map: { height: 220, width: '100%' },
   noMapPlaceholder: {
     height: 160,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E8E8E8',
     gap: 8,
   },
-  noMapText: { color: Colors.textSecondary, fontSize: 14 },
   body: { padding: 16 },
   activityTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 2,
   },
-  dateText: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+  dateText: { fontSize: 14, marginBottom: 16 },
   offlineBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFF3CD',
     padding: 10,
     borderRadius: 8,
     marginBottom: 12,
   },
-  offlineBannerText: { fontSize: 13, color: '#856404', flex: 1 },
+  offlineBannerText: { fontSize: 13, flex: 1 },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -511,26 +513,16 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statCard: {
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 12,
     minWidth: '47%',
     flex: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  statLabel: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4 },
   statValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  statValue: { fontSize: 22, fontWeight: '700', color: Colors.textPrimary },
-  statUnit: { fontSize: 12, color: Colors.textSecondary },
   section: { marginBottom: 20 },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
     marginBottom: 10,
   },
   // HR Zone bar
@@ -545,13 +537,11 @@ const styles = StyleSheet.create({
   hrZoneLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hrZoneLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   hrZoneDot: { width: 10, height: 10, borderRadius: 5 },
-  hrZoneLegendText: { fontSize: 11, color: Colors.textSecondary },
   // Lap table
   lapHeader: {
     flexDirection: 'row',
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
     marginBottom: 4,
   },
   lapRow: {
@@ -559,36 +549,30 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingLeft: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F0F0',
   },
-  lapCell: { flex: 1, fontSize: 13, color: Colors.textPrimary, fontVariant: ['tabular-nums'] },
-  lapCellLabel: { color: Colors.textSecondary, fontSize: 11, fontWeight: '600' },
+  lapCell: { flex: 1, fontSize: 13, fontVariant: ['tabular-nums'] },
+  lapCellLabel: { fontSize: 11, fontWeight: '600' },
   // Notes
   notesInput: {
-    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 12,
     minHeight: 90,
     fontSize: 14,
-    color: Colors.textPrimary,
     textAlignVertical: 'top',
   },
   // Buttons
   saveBtn: {
-    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 10,
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { fontSize: 16, fontWeight: '700' },
   discardBtn: {
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
-  discardBtnText: { color: Colors.textSecondary, fontSize: 15 },
 });

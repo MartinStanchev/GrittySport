@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { getEffortColor } from '../services/gpsUtils';
 import type { EffortScoreData } from '../types/gps';
 
@@ -8,6 +8,7 @@ interface EffortScoreCardProps {
 }
 
 export function EffortScoreCard({ data }: EffortScoreCardProps) {
+  const { colors } = useTheme();
   const color = getEffortColor(data.score);
 
   return (
@@ -16,10 +17,10 @@ export function EffortScoreCard({ data }: EffortScoreCardProps) {
         <Text style={[styles.scoreText, { color }]}>{data.score}</Text>
       </View>
       <View style={styles.labelContainer}>
-        <Text style={styles.labelTitle}>Effort Score</Text>
+        <Text style={[styles.labelTitle, { color: colors.textSecondary }]}>Effort Score</Text>
         <Text style={[styles.labelValue, { color }]}>{data.label}</Text>
       </View>
-      <View style={styles.barTrack}>
+      <View style={[styles.barTrack, { backgroundColor: colors.surfaceAlt }]}>
         <View style={[styles.barFill, { width: `${data.score}%`, backgroundColor: color }]} />
       </View>
     </View>
@@ -52,7 +53,6 @@ const styles = StyleSheet.create({
   },
   labelTitle: {
     fontSize: 12,
-    color: Colors.textSecondary,
     marginBottom: 2,
   },
   labelValue: {
@@ -62,7 +62,6 @@ const styles = StyleSheet.create({
   barTrack: {
     width: '100%',
     height: 6,
-    backgroundColor: '#E8E8E8',
     borderRadius: 3,
     overflow: 'hidden',
   },

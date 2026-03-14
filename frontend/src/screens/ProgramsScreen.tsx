@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { getPrograms, updateProgram, deleteProgram, clearChatMemory } from '../services/api';
 import type { ProgramSummary } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
@@ -21,6 +21,7 @@ interface ProgramsScreenProps {
 }
 
 export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { notifyProgramDataChanged, programDataVersion } = useProgram();
   const [programs, setPrograms] = useState<ProgramSummary[]>([]);
@@ -139,7 +140,10 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
   const renderItem = useCallback(
     ({ item }: { item: ProgramSummary }) => (
       <Pressable
-        style={styles.programCard}
+        style={[
+          styles.programCard,
+          { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+        ]}
         onPress={() => navigation.navigate('ProgramDetail', { programId: item.id })}
         onLongPress={() => {
           const options = [
@@ -152,39 +156,39 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         }}
       >
         <View style={styles.programCardHeader}>
-          <Text style={styles.programName} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.programName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
           {item.status === 'active' && (
             <View style={styles.activeBadge}>
               <Text style={styles.activeBadgeText}>ACTIVE</Text>
             </View>
           )}
           {item.status === 'archived' && (
-            <View style={styles.archivedBadge}>
-              <Text style={styles.archivedBadgeText}>ARCHIVED</Text>
+            <View style={[styles.archivedBadge, { backgroundColor: colors.surfaceAlt }]}>
+              <Text style={[styles.archivedBadgeText, { color: colors.textSecondary }]}>ARCHIVED</Text>
             </View>
           )}
         </View>
-        {item.sport && <Text style={styles.programSport}>{item.sport}</Text>}
-        <Text style={styles.programDates}>{formatDateRange(item.start_date, item.end_date)}</Text>
+        {item.sport && <Text style={[styles.programSport, { color: colors.primary }]}>{item.sport}</Text>}
+        <Text style={[styles.programDates, { color: colors.textSecondary }]}>{formatDateRange(item.start_date, item.end_date)}</Text>
       </Pressable>
     ),
-    [navigation, handleSetActive, handleArchive, handleDelete],
+    [navigation, handleSetActive, handleArchive, handleDelete, colors],
   );
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.loadingText}>Loading programs...</Text>
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading programs...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Programs</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Programs</Text>
         <Pressable
-          style={styles.createButton}
+          style={[styles.createButton, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('CreateProgramBasics')}
         >
           <Ionicons name="add" size={20} color="#FFF" />
@@ -198,17 +202,17 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="barbell-outline" size={48} color={Colors.textSecondary} />
-            <Text style={styles.emptyTitle}>No programs yet</Text>
-            <Text style={styles.emptySubtext}>
+            <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No programs yet</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
               Create your first training program
             </Text>
             <Pressable
-              style={styles.emptyCreateButton}
+              style={[styles.emptyCreateButton, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('CreateProgramBasics')}
             >
               <Ionicons name="add-circle-outline" size={20} color="#FFF" />
@@ -224,7 +228,6 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   centered: {
     alignItems: 'center',
@@ -241,13 +244,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: Colors.textPrimary,
   },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.primary,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -262,15 +263,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   programCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
     padding: 16,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: 0,
   },
   programCardHeader: {
     flexDirection: 'row',
@@ -280,7 +274,6 @@ const styles = StyleSheet.create({
   programName: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.textPrimary,
     flex: 1,
   },
   activeBadge: {
@@ -296,7 +289,6 @@ const styles = StyleSheet.create({
     color: '#2E7D32',
   },
   archivedBadge: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -305,21 +297,17 @@ const styles = StyleSheet.create({
   archivedBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: Colors.textSecondary,
   },
   programSport: {
     fontSize: 14,
-    color: Colors.primary,
     fontWeight: '600',
     marginBottom: 2,
   },
   programDates: {
     fontSize: 12,
-    color: Colors.textSecondary,
   },
   loadingText: {
     fontSize: 16,
-    color: Colors.textSecondary,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -329,18 +317,15 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   emptySubtext: {
     fontSize: 14,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   emptyCreateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
     borderRadius: 14,
     paddingHorizontal: 24,
     paddingVertical: 14,

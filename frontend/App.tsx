@@ -7,7 +7,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ProgramProvider } from './src/contexts/ProgramContext';
 import { WorkoutProvider } from './src/contexts/WorkoutContext';
-import { Colors } from './src/constants/colors';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthStackNavigator from './src/navigation/AuthStackNavigator';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
@@ -16,11 +16,12 @@ import { syncPendingWorkouts } from './src/services/syncService';
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
+  const { colors } = useTheme();
 
   if (isLoading) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.loading, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -39,13 +40,13 @@ function RootNavigator() {
   );
 }
 
-export default function App() {
+function AppContent() {
+  const { isDark } = useTheme();
+
   useEffect(() => {
-    // Sync on app foreground
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state === 'active') syncPendingWorkouts();
     });
-    // Sync when network reconnects
     const netInfoSub = NetInfo.addEventListener((state) => {
       if (state.isConnected) syncPendingWorkouts();
     });
@@ -56,13 +57,21 @@ export default function App() {
   }, []);
 
   return (
+    <AuthProvider>
+      <NavigationContainer ref={navigationRef}>
+        <RootNavigator />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </NavigationContainer>
+    </AuthProvider>
+  );
+}
+
+export default function App() {
+  return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <NavigationContainer ref={navigationRef}>
-          <RootNavigator />
-          <StatusBar style="auto" />
-        </NavigationContainer>
-      </AuthProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
@@ -72,7 +81,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.background,
   },
   appContainer: {
     flex: 1,

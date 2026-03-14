@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import { getActivityIcon, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
@@ -29,6 +29,7 @@ const ACTIVITY_TYPES = [
 ];
 
 export default function ActivityDetailScreen({ route, navigation }: any) {
+  const { colors } = useTheme();
   const { activityId, weekId, dayOfWeek: createDayOfWeek, programId: createProgramId } = route.params ?? {};
   const isCreateMode = !activityId;
   const { notifyProgramDataChanged } = useProgram();
@@ -145,18 +146,18 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   if (error || (!isCreateMode && !activity)) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.textSecondary} />
-        <Text style={styles.errorText}>{error || 'Activity not found'}</Text>
-        <Pressable style={styles.retryButton} onPress={fetchActivity}>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={colors.textSecondary} />
+        <Text style={[styles.errorText, { color: colors.textSecondary }]}>{error || 'Activity not found'}</Text>
+        <Pressable style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={fetchActivity}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </Pressable>
       </View>
@@ -168,46 +169,54 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.kavContainer}
+      style={[styles.kavContainer, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       <ScrollView
-        style={styles.container}
+        style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.contentContainer}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         {!isCreateMode && activity && (
           <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <Ionicons name={icon} size={32} color={Colors.primary} />
+            <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name={icon} size={32} color={colors.primary} />
             </View>
-            <Text style={styles.activityType}>{activity.activity_type}</Text>
-            <Text style={styles.date}>{formatActivityDate(activity.date)}</Text>
+            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{activity.activity_type}</Text>
+            <Text style={[styles.date, { color: colors.textSecondary }]}>{formatActivityDate(activity.date)}</Text>
             <View style={styles.contextRow}>
-              <View style={styles.contextBadge}>
-                <Text style={styles.contextBadgeText}>{activity.phase_name}</Text>
+              <View style={[styles.contextBadge, { backgroundColor: colors.primaryLight }]}>
+                <Text style={[styles.contextBadgeText, { color: colors.primary }]}>{activity.phase_name}</Text>
               </View>
-              <Text style={styles.contextSep}>·</Text>
-              <Text style={styles.contextText}>Week {activity.week_number}</Text>
+              <Text style={[styles.contextSep, { color: colors.textSecondary }]}>·</Text>
+              <Text style={[styles.contextText, { color: colors.textSecondary }]}>Week {activity.week_number}</Text>
             </View>
-            <Text style={styles.programName}>{activity.program_name}</Text>
+            <Text style={[styles.programName, { color: colors.textSecondary }]}>{activity.program_name}</Text>
           </View>
         )}
 
         {/* Day of Week (visible in edit and create mode) */}
         {editing && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Day of Week</Text>
+          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Day of Week</Text>
             <View style={styles.dayPicker}>
               {[0, 1, 2, 3, 4, 5, 6].map((i) => (
                 <Pressable
                   key={i}
-                  style={[styles.dayButton, editDayOfWeek === i && styles.dayButtonActive]}
+                  style={[
+                    styles.dayButton,
+                    { backgroundColor: colors.surfaceAlt },
+                    editDayOfWeek === i && { backgroundColor: colors.primary },
+                  ]}
                   onPress={() => setEditDayOfWeek(i)}
                 >
-                  <Text style={[styles.dayButtonText, editDayOfWeek === i && styles.dayButtonTextActive]}>
+                  <Text style={[
+                    styles.dayButtonText,
+                    { color: colors.textSecondary },
+                    editDayOfWeek === i && styles.dayButtonTextActive,
+                  ]}>
                     {dayAbbrev(i)}
                   </Text>
                 </Pressable>
@@ -218,13 +227,17 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 
         {/* Activity Type picker (create mode only) */}
         {isCreateMode && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Activity Type</Text>
+          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Activity Type</Text>
             <View style={styles.typePicker}>
               {ACTIVITY_TYPES.map((type) => (
                 <Pressable
                   key={type}
-                  style={[styles.typeChip, editActivityType === type && styles.typeChipActive]}
+                  style={[
+                    styles.typeChip,
+                    { backgroundColor: colors.surfaceAlt },
+                    editActivityType === type && { backgroundColor: colors.primary },
+                  ]}
                   onPress={() => {
                     setEditActivityType(type);
                     setEditPrescription({});
@@ -233,9 +246,13 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                   <Ionicons
                     name={getActivityIcon(type)}
                     size={14}
-                    color={editActivityType === type ? '#FFF' : Colors.textSecondary}
+                    color={editActivityType === type ? '#FFF' : colors.textSecondary}
                   />
-                  <Text style={[styles.typeChipText, editActivityType === type && styles.typeChipTextActive]}>
+                  <Text style={[
+                    styles.typeChipText,
+                    { color: colors.textSecondary },
+                    editActivityType === type && styles.typeChipTextActive,
+                  ]}>
                     {type}
                   </Text>
                 </Pressable>
@@ -245,8 +262,8 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
         )}
 
         {/* Prescription */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Prescription</Text>
+        <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Prescription</Text>
           {editing ? (
             <PrescriptionEditor
               activityType={currentActivityType}
@@ -262,20 +279,27 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
         </View>
 
         {/* Notes */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Notes</Text>
+        <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notes</Text>
           {editing ? (
             <TextInput
-              style={styles.notesInput}
+              style={[
+                styles.notesInput,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: colors.border,
+                  color: colors.textPrimary,
+                },
+              ]}
               value={editNotes}
               onChangeText={setEditNotes}
               multiline
               placeholder="Add notes..."
-              placeholderTextColor="#BBB"
+              placeholderTextColor={colors.textSecondary}
               textAlignVertical="top"
             />
           ) : (
-            <Text style={styles.notesText}>
+            <Text style={[styles.notesText, { color: colors.textPrimary }]}>
               {activity!.notes || 'No notes'}
             </Text>
           )}
@@ -291,7 +315,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
           {editing ? (
             <>
               <Pressable
-                style={[styles.actionButton, styles.primaryButton]}
+                style={[styles.actionButton, { backgroundColor: colors.primary }]}
                 onPress={isCreateMode ? saveCreate : saveEdit}
                 disabled={saving}
               >
@@ -308,11 +332,11 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
               </Pressable>
               {!isCreateMode && (
                 <Pressable
-                  style={[styles.actionButton, styles.cancelButton]}
+                  style={[styles.actionButton, { backgroundColor: colors.surfaceAlt }]}
                   onPress={() => setEditing(false)}
                   disabled={saving}
                 >
-                  <Text style={styles.actionButtonTextDark}>Cancel</Text>
+                  <Text style={[styles.actionButtonTextDark, { color: colors.textPrimary }]}>Cancel</Text>
                 </Pressable>
               )}
             </>
@@ -320,15 +344,19 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
             <>
               {activity?.linked_workout_id && (
                 <Pressable
-                  style={[styles.actionButton, styles.editButton]}
+                  style={[styles.actionButton, { backgroundColor: colors.primaryLight }]}
                   onPress={() => navigation.navigate('WorkoutDetail', { workoutId: activity.linked_workout_id })}
                 >
-                  <Ionicons name="checkmark-circle" size={18} color="#4CAF50" />
-                  <Text style={[styles.actionButtonTextDark, { color: '#4CAF50' }]}>View Recording</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  <Text style={[styles.actionButtonTextDark, { color: colors.success }]}>View Recording</Text>
                 </Pressable>
               )}
               <Pressable
-                style={[styles.actionButton, styles.primaryButton, activity && !isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type) && styles.actionButtonDisabled]}
+                style={[
+                  styles.actionButton,
+                  { backgroundColor: colors.primary },
+                  activity && !isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type) && styles.actionButtonDisabled,
+                ]}
                 disabled={!activity || (!isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type))}
                 onPress={() => {
                   if (!activity) return;
@@ -344,7 +372,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
               </Pressable>
               {activity && !activity.linked_workout_id && isGPSActivity(activity.activity_type) && (
                 <Pressable
-                  style={[styles.actionButton, styles.editButton]}
+                  style={[styles.actionButton, { backgroundColor: colors.primaryLight }]}
                   onPress={async () => {
                     const file = await pickWorkoutFile();
                     if (file) {
@@ -357,13 +385,13 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                     }
                   }}
                 >
-                  <Ionicons name="cloud-upload-outline" size={18} color="#2196F3" />
-                  <Text style={[styles.actionButtonTextDark, { color: '#2196F3' }]}>Import File</Text>
+                  <Ionicons name="cloud-upload-outline" size={18} color={colors.info} />
+                  <Text style={[styles.actionButtonTextDark, { color: colors.info }]}>Import File</Text>
                 </Pressable>
               )}
-              <Pressable style={[styles.actionButton, styles.editButton]} onPress={enterEditMode}>
-                <Ionicons name="pencil" size={18} color={Colors.primary} />
-                <Text style={[styles.actionButtonTextDark, { color: Colors.primary }]}>Edit</Text>
+              <Pressable style={[styles.actionButton, { backgroundColor: colors.primaryLight }]} onPress={enterEditMode}>
+                <Ionicons name="pencil" size={18} color={colors.primary} />
+                <Text style={[styles.actionButtonTextDark, { color: colors.primary }]}>Edit</Text>
               </Pressable>
             </>
           )}
@@ -376,11 +404,9 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 const styles = StyleSheet.create({
   kavContainer: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   contentContainer: {
     padding: 16,
@@ -390,12 +416,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
     padding: 24,
   },
   errorText: {
     fontSize: 15,
-    color: Colors.textSecondary,
     marginTop: 12,
     textAlign: 'center',
   },
@@ -403,7 +427,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   retryButtonText: {
@@ -419,7 +442,6 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FEE2E5',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
@@ -427,11 +449,9 @@ const styles = StyleSheet.create({
   activityType: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   date: {
     fontSize: 15,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   contextRow: {
@@ -441,7 +461,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   contextBadge: {
-    backgroundColor: '#FEE2E5',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -449,37 +468,25 @@ const styles = StyleSheet.create({
   contextBadgeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.primary,
   },
   contextSep: {
     fontSize: 12,
-    color: Colors.textSecondary,
   },
   contextText: {
     fontSize: 13,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   programName: {
     fontSize: 13,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+  section: {
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cardTitle: {
+  sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -493,15 +500,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: '#F0F0F0',
-  },
-  dayButtonActive: {
-    backgroundColor: Colors.primary,
   },
   dayButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   dayButtonTextActive: {
     color: '#FFF',
@@ -518,33 +520,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
-  },
-  typeChipActive: {
-    backgroundColor: Colors.primary,
   },
   typeChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   typeChipTextActive: {
     color: '#FFF',
   },
   notesInput: {
-    backgroundColor: '#F5F5F5',
     borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: Colors.textPrimary,
     minHeight: 80,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   notesText: {
     fontSize: 14,
-    color: Colors.textPrimary,
     lineHeight: 20,
   },
   routeMapCard: {
@@ -562,17 +555,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  primaryButton: {
-    backgroundColor: Colors.primary,
-  },
   actionButtonDisabled: {
     opacity: 0.4,
-  },
-  editButton: {
-    backgroundColor: '#FEE2E5',
-  },
-  cancelButton: {
-    backgroundColor: '#F0F0F0',
   },
   actionButtonTextLight: {
     fontSize: 15,
@@ -582,6 +566,5 @@ const styles = StyleSheet.create({
   actionButtonTextDark: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
 });

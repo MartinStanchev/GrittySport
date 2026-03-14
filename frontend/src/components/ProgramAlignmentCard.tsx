@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '../constants/colors';
+import { useTheme } from '../contexts/ThemeContext';
 import type { ProgramAlignment } from '../types/gps';
 
 interface ProgramAlignmentCardProps {
@@ -7,6 +7,7 @@ interface ProgramAlignmentCardProps {
 }
 
 export function ProgramAlignmentCard({ data }: ProgramAlignmentCardProps) {
+  const { colors } = useTheme();
   const rows: { label: string; prescribed: string; actual: string; deviationPct?: number }[] = [];
 
   if (data.prescribed_distance_km != null && data.actual_distance_km != null) {
@@ -40,21 +41,21 @@ export function ProgramAlignmentCard({ data }: ProgramAlignmentCardProps) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Prescribed vs Actual</Text>
+      <Text style={[styles.title, { color: colors.textPrimary }]}>Prescribed vs Actual</Text>
 
-      <View style={styles.headerRow}>
-        <Text style={[styles.cell, styles.labelCell, styles.headerText]}>Metric</Text>
-        <Text style={[styles.cell, styles.headerText]}>Prescribed</Text>
-        <Text style={[styles.cell, styles.headerText]}>Actual</Text>
-        <Text style={[styles.cell, styles.headerText]}>Diff</Text>
+      <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.cell, styles.labelCell, styles.headerText, { color: colors.textSecondary }]}>Metric</Text>
+        <Text style={[styles.cell, styles.headerText, { color: colors.textSecondary }]}>Prescribed</Text>
+        <Text style={[styles.cell, styles.headerText, { color: colors.textSecondary }]}>Actual</Text>
+        <Text style={[styles.cell, styles.headerText, { color: colors.textSecondary }]}>Diff</Text>
       </View>
 
       {rows.map((row) => (
-        <View key={row.label} style={styles.dataRow}>
-          <Text style={[styles.cell, styles.labelCell]}>{row.label}</Text>
-          <Text style={styles.cell}>{row.prescribed}</Text>
-          <Text style={styles.cell}>{row.actual}</Text>
-          <Text style={[styles.cell, { color: deviationColor(row.deviationPct) }]}>
+        <View key={row.label} style={[styles.dataRow, { borderBottomColor: colors.surfaceAlt }]}>
+          <Text style={[styles.cell, styles.labelCell, { color: colors.textPrimary }]}>{row.label}</Text>
+          <Text style={[styles.cell, { color: colors.textPrimary }]}>{row.prescribed}</Text>
+          <Text style={[styles.cell, { color: colors.textPrimary }]}>{row.actual}</Text>
+          <Text style={[styles.cell, { color: deviationColor(row.deviationPct, colors) }]}>
             {formatDeviation(row.deviationPct)}
           </Text>
         </View>
@@ -63,12 +64,12 @@ export function ProgramAlignmentCard({ data }: ProgramAlignmentCardProps) {
   );
 }
 
-function deviationColor(pct?: number): string {
-  if (pct == null) return Colors.textSecondary;
+function deviationColor(pct: number | undefined, colors: { success: string; warning: string; error: string; textSecondary: string }): string {
+  if (pct == null) return colors.textSecondary;
   const abs = Math.abs(pct);
-  if (abs <= 5) return '#4CAF50';   // green — met target
-  if (abs <= 15) return '#FFC107';  // yellow — close
-  return '#F44336';                 // red — off target
+  if (abs <= 5) return colors.success;
+  if (abs <= 15) return colors.warning;
+  return colors.error;
 }
 
 function formatDeviation(pct?: number): string {
@@ -84,31 +85,26 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textPrimary,
     marginBottom: 10,
   },
   headerRow: {
     flexDirection: 'row',
     paddingBottom: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E0E0E0',
     marginBottom: 4,
   },
   headerText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   dataRow: {
     flexDirection: 'row',
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0F0F0',
   },
   cell: {
     flex: 1,
     fontSize: 13,
-    color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
   },
   labelCell: {

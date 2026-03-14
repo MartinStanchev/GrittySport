@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/AuthStackNavigator';
-import { Colors } from '../../constants/colors';
+import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ApiError } from '../../services/api';
 import { authStyles as styles } from './authStyles';
@@ -19,6 +19,7 @@ import { authStyles as styles } from './authStyles';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
+  const { colors } = useTheme();
   const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -66,29 +67,29 @@ export default function RegisterScreen({ navigation }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>GRITTY FITNESS</Text>
+        <Text style={[styles.title, { color: colors.primary }]}>GRITTY FITNESS</Text>
 
         <View style={styles.form}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
             placeholder="Name"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
             placeholder="Email"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -97,34 +98,34 @@ export default function RegisterScreen({ navigation }: Props) {
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
             placeholder="Password"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
             placeholder="Confirm Password"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry
           />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {error ? <Text style={[styles.error, { color: colors.primary }]}>{error}</Text> : null}
 
           <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
             onPress={handleRegister}
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={Colors.surface} />
+              <ActivityIndicator color="#FFF" />
             ) : (
-              <Text style={styles.buttonText}>Create Account</Text>
+              <Text style={[styles.buttonText, { color: '#FFF' }]}>Create Account</Text>
             )}
           </TouchableOpacity>
 
@@ -132,9 +133,9 @@ export default function RegisterScreen({ navigation }: Props) {
             style={styles.link}
             onPress={() => navigation.navigate('Login')}
           >
-            <Text style={styles.linkText}>
+            <Text style={[styles.linkText, { color: colors.textSecondary }]}>
               Already have an account?{' '}
-              <Text style={styles.linkBold}>Log In</Text>
+              <Text style={[styles.linkBold, { color: colors.primary }]}>Log In</Text>
             </Text>
           </TouchableOpacity>
         </View>
