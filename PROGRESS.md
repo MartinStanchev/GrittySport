@@ -44,6 +44,7 @@ Full details for each change are in the `progress/` folder.
 | [gpx-file-import](progress/gpx-file-import.md) | GPX file import: file picker, XML parsing, preview screen, 3 entry points |
 | [multi-format-workout-import](progress/multi-format-workout-import.md) | Multi-format import: TCX, FIT, CSV, ZIP support with unified preview screen |
 | [dark-mode-flat-design](progress/dark-mode-flat-design.md) | Dark mode with settings toggle, flat design replacing card/box patterns across entire app |
+| [home-screen-redesign](progress/home-screen-redesign.md) | Home screen redesign: program arc, Grit chat banner, activity dashboard, weekly effort counter |
 
 ## Instructions for Agents
 

@@ -163,6 +163,7 @@ func main() {
 
 		r.Post("/workouts", workoutHandler.Create)
 		r.Get("/workouts", workoutHandler.List)
+		r.Get("/workouts/weekly-effort", workoutHandler.WeeklyEffort)
 		r.Get("/workouts/{workoutId}", workoutHandler.Get)
 		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
 		r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)

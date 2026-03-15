@@ -24,11 +24,15 @@ import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import { ProgramModificationCard } from '../components/ProgramModificationCard';
-import { UpcomingActivityCard } from '../components/UpcomingActivityCard';
+import { ProgramArc } from '../components/ProgramArc';
+import { GritChatBanner } from '../components/GritChatBanner';
+import { ActivityDashboard } from '../components/ActivityDashboard';
+import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
 import { FABActionSheet } from '../components/FABActionSheet';
 import { ClearChatModal } from '../components/ClearChatModal';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
+
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -326,136 +330,44 @@ export default function HomeScreen() {
 
   const inputBottomPadding = keyboardHeight > 0 ? 4 : Math.max(insets.bottom, 8);
 
-  // Calculate program progress
-  let progressText = '';
-  let progressPercent = 0;
-  if (activeProgram) {
-    const start = new Date(activeProgram.start_date);
-    const end = activeProgram.end_date ? new Date(activeProgram.end_date) : null;
-    if (end) {
-      const total = end.getTime() - start.getTime();
-      const elapsed = Date.now() - start.getTime();
-      progressPercent = Math.min(Math.max(elapsed / total, 0), 1);
-      const totalWeeks = Math.ceil(total / (7 * 24 * 60 * 60 * 1000));
-      const currentWeek = Math.ceil(elapsed / (7 * 24 * 60 * 60 * 1000));
-      progressText = `Week ${Math.min(currentWeek, totalWeeks)} of ${totalWeeks}`;
-    }
-  }
-
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
-      {/* Scrollable Content -- padded so it scrolls past the floating bottom bar */}
+      {/* Scrollable Content */}
       <ScrollView
         style={styles.scrollContent}
         contentContainerStyle={styles.scrollContentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Zone */}
+        {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.primary }]}>GRITTY FITNESS</Text>
-
-          {activeProgram ? (
-            <View style={[styles.programCard, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.activeProgramName, { color: colors.textPrimary }]}>{activeProgram.name}</Text>
-              {activeProgram.sport && (
-                <Text style={[styles.activeProgramSport, { color: colors.primary }]}>{activeProgram.sport}</Text>
-              )}
-              {progressText && (
-                <Text style={[styles.activeProgramWeek, { color: colors.textSecondary }]}>{progressText}</Text>
-              )}
-              {activeProgram.end_date && (
-                <View style={[styles.progressBarContainer, { backgroundColor: colors.surfaceAlt }]}>
-                  <View
-                    style={[styles.progressBarFill, { width: `${progressPercent * 100}%`, backgroundColor: colors.primary }]}
-                  />
-                </View>
-              )}
-              <Pressable
-                style={[styles.logWorkoutBtn, { borderColor: colors.primary }]}
-                onPress={() => navigation.navigate('RecordManual')}
-              >
-                <Ionicons name="play-circle-outline" size={16} color={colors.primary} />
-                <Text style={[styles.logWorkoutBtnText, { color: colors.primary }]}>Log Workout</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={[styles.programCard, { borderBottomColor: colors.border }]}>
-              <Ionicons
-                name="barbell-outline"
-                size={32}
-                color={colors.textSecondary}
-                style={styles.programIcon}
-              />
-              <Text style={[styles.programText, { color: colors.textPrimary }]}>No active program</Text>
-              <Text style={[styles.programSubtext, { color: colors.textSecondary }]}>
-                Let Grit build your personalized training program
-              </Text>
-              <Pressable style={[styles.createButton, { backgroundColor: colors.primary }]} onPress={openProgramCreation}>
-                <Text style={[styles.createButtonText, { color: colors.surface }]}>Create Your Program</Text>
-              </Pressable>
-            </View>
-          )}
         </View>
 
-        {/* Middle Zone */}
-        <View style={styles.comingUp}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Coming up</Text>
-          {upcomingActivities.length > 0 ? (
-            upcomingActivities.map((activity) => (
-              <UpcomingActivityCard
-                key={activity.id}
-                activity={activity}
-                onPress={() => navigation.navigate('ActivityDetail', { activityId: activity.id })}
-                onRecord={() => navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type })}
-                onRecordGPS={() => navigation.navigate('RecordGPS', { scheduledActivityId: activity.id, activityType: activity.activity_type })}
-              />
-            ))
-          ) : (
-            <View style={[styles.emptyCard, { borderBottomColor: colors.border }]}>
-              <Ionicons
-                name="calendar-outline"
-                size={24}
-                color={colors.textSecondary}
-              />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No upcoming activities</Text>
-            </View>
-          )}
-        </View>
+        {/* Program Progress Arc */}
+        <ProgramArc program={activeProgram} onCreateProgram={openProgramCreation} />
+
+        {/* Grit Chat Banner */}
+        <GritChatBanner onOpenChat={openChat} unreadCount={unreadCount} />
+
+        {/* Activity Dashboard */}
+        <ActivityDashboard
+          upcomingActivities={upcomingActivities}
+          onWorkoutPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })}
+          onActivityPress={(activityId) => navigation.navigate('ActivityDetail', { activityId })}
+        />
+
+        {/* Weekly Effort */}
+        <WeeklyEffortCounter />
       </ScrollView>
 
-      {/* Floating bottom -- FAB + chat bar overlaid on scroll content */}
-      <View style={[styles.floatingBottom, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        {/* FAB Row -- Log Workout */}
-        <View style={styles.fabRow}>
-          <Pressable
-            style={[styles.fab, { backgroundColor: colors.primary }]}
-            onPress={() => setFabSheetVisible(true)}
-            hitSlop={8}
-          >
-            <Ionicons name="add" size={28} color={colors.surface} />
-          </Pressable>
-        </View>
-
-        {/* Chat Bar */}
-        <View style={[styles.chatBar, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
-          <Pressable style={[styles.chatBarInner, { backgroundColor: colors.surface }]} onPress={() => openChat()}>
-            <View style={[styles.chatBarAvatar, { backgroundColor: colors.primary }]}>
-              <Text style={[styles.chatBarAvatarText, { color: colors.surface }]}>G</Text>
-              {unreadCount > 0 && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.chatBarPlaceholder, { color: colors.textSecondary }]}>
-              {unreadCount > 0 ? 'Grit replied...' : 'Message Grit...'}
-            </Text>
-            <View style={[styles.sendButton, { backgroundColor: colors.surfaceAlt }]}>
-              <Ionicons name="arrow-up" size={18} color={colors.textSecondary} />
-            </View>
-          </Pressable>
-        </View>
-      </View>
+      {/* FAB */}
+      <Pressable
+        style={[styles.fab, { backgroundColor: colors.primary, bottom: Math.max(insets.bottom, 16) }]}
+        onPress={() => setFabSheetVisible(true)}
+        hitSlop={8}
+      >
+        <Ionicons name="add" size={28} color={colors.surface} />
+      </Pressable>
 
       <FABActionSheet
         visible={fabSheetVisible}
@@ -655,90 +567,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1,
   },
-  programCard: {
-    marginTop: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  programIcon: {
-    marginBottom: 8,
-  },
-  programText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  programSubtext: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  createButton: {
-    borderRadius: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  createButtonText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  activeProgramName: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  activeProgramSport: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  activeProgramWeek: {
-    fontSize: 13,
-    marginBottom: 8,
-  },
-  progressBarContainer: {
-    width: '100%',
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  logWorkoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  logWorkoutBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
   scrollContent: {
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 160,
-  },
-  floatingBottom: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  fabRow: {
-    alignItems: 'flex-end',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingBottom: 100,
   },
   fab: {
+    position: 'absolute',
+    right: 20,
     width: 52,
     height: 52,
     borderRadius: 26,
@@ -749,72 +586,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 6,
-  },
-  comingUp: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 10,
-  },
-  emptyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  emptyText: {
-    fontSize: 14,
-  },
-  chatBar: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  chatBarInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 24,
-    paddingLeft: 6,
-    paddingRight: 6,
-    paddingVertical: 6,
-  },
-  chatBarAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
-  },
-  chatBarAvatarText: {
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  unreadBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#FF3B30', // system red badge — intentionally static
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  unreadBadgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  chatBarPlaceholder: {
-    flex: 1,
-    fontSize: 15,
-    paddingVertical: Platform.OS === 'ios' ? 6 : 4,
   },
   sendButton: {
     width: 32,

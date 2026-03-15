@@ -17,6 +17,7 @@ type Workout struct {
 	GPSRoute            json.RawMessage `json:"gps_route,omitempty"`
 	HeartRateData       json.RawMessage `json:"heart_rate_data,omitempty"`
 	Notes               *string         `json:"notes,omitempty"`
+	EffortScore         *int            `json:"effort_score,omitempty"`
 	CreatedAt           time.Time       `json:"created_at"`
 	UpdatedAt           time.Time       `json:"updated_at"`
 	CompletionStatus    string          `json:"completion_status,omitempty"`
@@ -40,4 +41,5 @@ type SaveWorkoutInput struct {
 	GPSRoute            json.RawMessage `json:"gps_route,omitempty"`
 	HeartRateData       json.RawMessage `json:"heart_rate_data,omitempty"`
 	Notes               *string         `json:"notes,omitempty"`
+	EffortScore         *int            `json:"-"`
 }

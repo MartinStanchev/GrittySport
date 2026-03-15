@@ -1,30 +1,44 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Svg, { Rect, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { LineChart } from 'react-native-gifted-charts';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   downsample,
-  HR_ZONE_COLORS,
   computePaceTimeSeries,
   computeSpeedTimeSeries,
   formatPaceSecPerKm,
 } from '../services/gpsUtils';
-import type { HRReading, CadenceReading, GPSPoint, HRZone } from '../types/gps';
+import type { HRReading, CadenceReading, GPSPoint } from '../types/gps';
 
 const CHART_MAX_POINTS = 150;
-const ZONE_LABELS = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5'] as const;
-const ZONE_COUNT = 5;
 
-// Bright zone colors for chart background bands (~60% opacity)
-const SECTION_COLORS = [
-  '#F8717199', // Z5 — red
-  '#FB923C99', // Z4 — orange
-  '#FACC1599', // Z3 — amber
-  '#4ADE8099', // Z2 — green
+// Zone band colors ordered Z1 → Z5 (bottom → top), ~60% opacity
+const ZONE_BAND_COLORS = [
   '#60A5FA99', // Z1 — blue
+  '#4ADE8099', // Z2 — green
+  '#FACC1599', // Z3 — amber
+  '#FB923C99', // Z4 — orange
+  '#F8717199', // Z5 — red
 ];
 
-// --- HR Over Time Chart ---
+// Layout constants for the HR SVG chart
+const HR_PLOT_HEIGHT = 180;
+const HR_PAD_TOP = 10;
+const HR_PAD_BOTTOM = 20; // space for time labels
+const HR_CHART_HEIGHT = HR_PLOT_HEIGHT + HR_PAD_TOP + HR_PAD_BOTTOM;
+const HR_LABEL_WIDTH = 34;
+const HR_RIGHT_WIDTH = 30;
+const TIME_TICKS = 5;
+
+function formatElapsed(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  if (m < 60) return `${m}:${s.toString().padStart(2, '0')}`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return `${h}:${rm.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 interface HROverTimeChartProps {
   readings: HRReading[];
@@ -34,10 +48,10 @@ interface HROverTimeChartProps {
 export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
   const { width: screenWidth } = useWindowDimensions();
   const { colors } = useTheme();
-  const chartWidth = screenWidth - 80;
+  const plotWidth = screenWidth - 32 - HR_LABEL_WIDTH - HR_RIGHT_WIDTH;
 
-  const { chartData, avgHR, peakHR } = useMemo(() => {
-    if (readings.length < 2) return { chartData: [], avgHR: 0, peakHR: 0 };
+  const { downsampled, avgHR, peakHR } = useMemo(() => {
+    if (readings.length < 2) return { downsampled: [] as HRReading[], avgHR: 0, peakHR: 0 };
 
     let sum = 0, max = -Infinity;
     for (const r of readings) {
@@ -45,27 +59,64 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
       sum += r.bpm;
     }
 
-    const chartPoints = downsample(readings, CHART_MAX_POINTS)
-      .map((r) => ({ value: r.bpm, label: '' }));
-
     return {
-      chartData: chartPoints,
+      downsampled: downsample(readings, CHART_MAX_POINTS),
       avgHR: Math.round(sum / readings.length),
       peakHR: max,
     };
   }, [readings]);
 
-  // Chart Y range: 50% to 100% of maxHR — 5 zones of equal height (10% each)
-  const chartMin = Math.round(maxHR * 0.5);
-  const chartRange = maxHR - chartMin;
+  // Zone boundaries: 50%, 60%, 70%, 80%, 90%, 100% of maxHR
+  const zoneBounds = useMemo(() => {
+    const step = maxHR * 0.1;
+    return Array.from({ length: 6 }, (_, i) => Math.round(maxHR * 0.5 + step * i));
+  }, [maxHR]);
 
-  const formatHRLabel = useCallback((label: string) => {
-    const bpm = Math.round(parseFloat(label));
-    if (bpm <= chartMin + 2 || bpm >= maxHR - 2) return '';
-    return String(bpm);
-  }, [chartMin, maxHR]);
+  // Compute zone percentages from raw readings
+  const zonePercents = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0];
+    for (const r of readings) {
+      if (r.bpm >= zoneBounds[4]) counts[4]++;
+      else if (r.bpm >= zoneBounds[3]) counts[3]++;
+      else if (r.bpm >= zoneBounds[2]) counts[2]++;
+      else if (r.bpm >= zoneBounds[1]) counts[1]++;
+      else counts[0]++;
+    }
+    const total = readings.length || 1;
+    return counts.map((c) => Math.round((c / total) * 100));
+  }, [readings, zoneBounds]);
 
-  if (chartData.length < 2) return null;
+  const chartMin = zoneBounds[0];
+  const chartMax = zoneBounds[5];
+  const chartRange = chartMax - chartMin;
+
+  const bpmToY = (bpm: number) => {
+    const clamped = Math.max(chartMin, Math.min(chartMax, bpm));
+    return HR_PAD_TOP + HR_PLOT_HEIGHT - ((clamped - chartMin) / chartRange) * HR_PLOT_HEIGHT;
+  };
+
+  // Total duration for time axis (derived from timestamps in ms)
+  const totalDuration = useMemo(() => {
+    if (readings.length < 2) return 0;
+    return (readings[readings.length - 1].timestamp - readings[0].timestamp) / 1000;
+  }, [readings]);
+
+  const polylinePoints = useMemo(() => {
+    if (downsampled.length < 2) return '';
+    const n = downsampled.length;
+    return downsampled
+      .map((r, i) => {
+        const x = HR_LABEL_WIDTH + (i / (n - 1)) * plotWidth;
+        const y = bpmToY(r.bpm);
+        return `${x},${y}`;
+      })
+      .join(' ');
+  }, [downsampled, plotWidth, chartMin, chartRange]);
+
+  if (downsampled.length < 2) return null;
+
+  const svgWidth = HR_LABEL_WIDTH + plotWidth + HR_RIGHT_WIDTH;
+  const startSec = 0; // chart starts at 0:00
 
   return (
     <View style={styles.chartSection}>
@@ -81,38 +132,103 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
           <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> bpm</Text>
         </View>
       </View>
-      <View style={styles.chartClip}>
-        <LineChart
-          data={chartData}
-          width={chartWidth}
-          height={180}
-          initialSpacing={0}
-          endSpacing={0}
-          spacing={Math.max(1, chartWidth / Math.max(1, chartData.length - 1))}
-          color="#E63946"
-          thickness={2}
-          hideDataPoints
-          hideRules
-          yAxisTextStyle={{ fontSize: 10, color: colors.textSecondary }}
-          formatYLabel={formatHRLabel}
-          yAxisOffset={chartMin}
-          maxValue={chartRange}
-          noOfSections={ZONE_COUNT}
-          sectionColors={SECTION_COLORS}
-          xAxisLabelsHeight={0}
-          hideXAxisText
-          curved
-          isAnimated={false}
+
+      <Svg width={svgWidth} height={HR_CHART_HEIGHT} style={styles.hrSvg}>
+        {/* Zone background bands */}
+        {ZONE_BAND_COLORS.map((fill, i) => {
+          const bandHeight = HR_PLOT_HEIGHT / 5;
+          const y = HR_PAD_TOP + HR_PLOT_HEIGHT - (i + 1) * bandHeight;
+          return (
+            <Rect
+              key={i}
+              x={HR_LABEL_WIDTH}
+              y={y}
+              width={plotWidth}
+              height={bandHeight}
+              fill={fill}
+            />
+          );
+        })}
+
+        {/* Zone boundary lines + BPM labels on left */}
+        {zoneBounds.map((bpm, i) => {
+          const y = bpmToY(bpm);
+          return (
+            <Line
+              key={`line-${i}`}
+              x1={HR_LABEL_WIDTH}
+              y1={y}
+              x2={HR_LABEL_WIDTH + plotWidth}
+              y2={y}
+              stroke={colors.textSecondary}
+              strokeWidth={0.5}
+              opacity={0.4}
+            />
+          );
+        })}
+        {/* Y-axis: percentage labels on left, zone % on right at boundary lines */}
+        {zoneBounds.map((bpm, i) => {
+          const y = bpmToY(bpm);
+          const pctLabel = `${50 + i * 10}%`;
+          return (
+            <SvgText
+              key={`label-${i}`}
+              x={HR_LABEL_WIDTH - 4}
+              y={y + 4}
+              textAnchor="end"
+              fontSize={10}
+              fill={colors.textSecondary}
+            >
+              {pctLabel}
+            </SvgText>
+          );
+        })}
+        {zonePercents.map((pct, i) => {
+          if (pct === 0) return null;
+          const y = bpmToY(zoneBounds[i]) ;
+          return (
+            <SvgText
+              key={`pct-${i}`}
+              x={HR_LABEL_WIDTH + plotWidth + 4}
+              y={y + 4}
+              textAnchor="start"
+              fontSize={10}
+              fontWeight="600"
+              fill={colors.textSecondary}
+            >
+              {pct}%
+            </SvgText>
+          );
+        })}
+
+        {/* HR data line */}
+        <Polyline
+          points={polylinePoints}
+          fill="none"
+          stroke="#E63946"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
         />
-      </View>
-      <View style={styles.zoneLegend}>
-        {ZONE_LABELS.map((label, i) => (
-          <View key={label} style={styles.zoneItem}>
-            <View style={[styles.zoneColorDot, { backgroundColor: HR_ZONE_COLORS[(i + 1) as HRZone] }]} />
-            <Text style={[styles.zoneText, { color: colors.textSecondary }]}>{label}</Text>
-          </View>
-        ))}
-      </View>
+
+        {/* X-axis time labels */}
+        {Array.from({ length: TIME_TICKS + 1 }, (_, i) => {
+          const frac = i / TIME_TICKS;
+          const x = HR_LABEL_WIDTH + frac * plotWidth;
+          const sec = startSec + frac * totalDuration;
+          return (
+            <SvgText
+              key={`time-${i}`}
+              x={x}
+              y={HR_PAD_TOP + HR_PLOT_HEIGHT + 14}
+              textAnchor="middle"
+              fontSize={9}
+              fill={colors.textSecondary}
+            >
+              {formatElapsed(sec)}
+            </SvgText>
+          );
+        })}
+      </Svg>
     </View>
   );
 }
@@ -349,23 +465,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 12,
   },
-  zoneLegend: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 14,
-    marginTop: 10,
-  },
-  zoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  zoneColorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  zoneText: {
-    fontSize: 10,
+  hrSvg: {
+    alignSelf: 'center',
   },
 });

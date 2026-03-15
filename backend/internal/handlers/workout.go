@@ -57,6 +57,20 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Compute effort score if HR data and finished_at are available
+	if len(input.HeartRateData) > 0 && input.FinishedAt != nil {
+		startedAt, err1 := time.Parse(time.RFC3339, input.StartedAt)
+		finishedAt, err2 := time.Parse(time.RFC3339, *input.FinishedAt)
+		if err1 == nil && err2 == nil {
+			durationSec := finishedAt.Sub(startedAt).Seconds()
+			if durationSec > 0 {
+				maxHR := h.getUserMaxHR(r.Context(), userID)
+				score := review.ComputeEffortScore(input.HeartRateData, maxHR, durationSec)
+				input.EffortScore = &score
+			}
+		}
+	}
+
 	workout, err := h.workoutService.Create(r.Context(), userID, input)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Str("source", input.Source).Msg("failed to save workout")
@@ -165,6 +179,43 @@ func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+const defaultMaxHR = 185
+
+func (h *WorkoutHandler) getUserMaxHR(ctx context.Context, userID string) int {
+	var maxHR int
+	_ = h.pool.QueryRow(ctx, "SELECT max_heart_rate FROM users WHERE id = $1", userID).Scan(&maxHR)
+	if maxHR <= 0 {
+		return defaultMaxHR
+	}
+	return maxHR
+}
+
+// WeeklyEffort returns aggregated effort score for the current week.
+func (h *WorkoutHandler) WeeklyEffort(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	var totalEffort int
+	var workoutCount int
+	err := h.pool.QueryRow(r.Context(),
+		`SELECT COALESCE(SUM(effort_score), 0), COUNT(*)
+		 FROM workouts
+		 WHERE user_id = $1
+		   AND started_at >= date_trunc('week', NOW())
+		   AND effort_score IS NOT NULL`,
+		userID,
+	).Scan(&totalEffort, &workoutCount)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to query weekly effort")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]int{
+		"total_effort":  totalEffort,
+		"workout_count": workoutCount,
+		"goal":          300,
+	})
+}
+
 // Analytics returns computed premium analytics for a workout.
 func (h *WorkoutHandler) Analytics(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
@@ -195,13 +246,7 @@ func (h *WorkoutHandler) Analytics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user's max HR
-	var maxHR int
-	_ = h.pool.QueryRow(r.Context(), "SELECT max_heart_rate FROM users WHERE id = $1", userID).Scan(&maxHR)
-	if maxHR <= 0 {
-		maxHR = 185
-	}
-
+	maxHR := h.getUserMaxHR(r.Context(), userID)
 	analytics, err := review.ComputeAnalytics(r.Context(), h.pool, workout, maxHR)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to compute analytics")

@@ -520,6 +520,7 @@ export interface WorkoutResponse {
   gps_route?: Record<string, any>;
   heart_rate_data?: Record<string, any>;
   notes?: string;
+  effort_score?: number;
   completion_status?: 'completed' | 'met_targets' | 'below_targets';
   created_at: string;
   updated_at: string;
@@ -570,6 +571,18 @@ export async function linkWorkoutToActivity(workoutId: string, scheduledActivity
     method: 'PUT',
     body: JSON.stringify({ scheduled_activity_id: scheduledActivityId }),
   });
+}
+
+// Weekly effort
+
+export interface WeeklyEffortResponse {
+  total_effort: number;
+  workout_count: number;
+  goal: number;
+}
+
+export async function getWeeklyEffort(): Promise<WeeklyEffortResponse> {
+  return apiFetch<WeeklyEffortResponse>('/api/v1/workouts/weekly-effort');
 }
 
 // Usage types
