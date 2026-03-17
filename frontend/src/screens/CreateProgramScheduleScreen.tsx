@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatActivityType } from '../constants/activityIcons';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
 
@@ -318,7 +319,7 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                       onPress={() => openEditActivity(globalIdx, act)}
                     >
                       <Text style={[styles.activityChipText, { color: colors.primary }]} numberOfLines={1}>
-                        {act.activity_type}
+                        {formatActivityType(act.activity_type)}
                       </Text>
                       <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
                     </Pressable>

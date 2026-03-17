@@ -1,6 +1,7 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatActivityType } from '../constants/activityIcons';
 
 interface ProgramModificationData {
   type: 'program_modification';
@@ -29,9 +30,9 @@ function describeAction(mod: ProgramModificationData['modifications'][0]): strin
     case 'swap_day':
       return `Swap ${fromDay} ↔ ${DAY_NAMES[mod.new_day ?? 0]}`;
     case 'change_activity':
-      return `Change activity on ${fromDay}${mod.activity_type ? ` to ${mod.activity_type}` : ''}`;
+      return `Change activity on ${fromDay}${mod.activity_type ? ` to ${formatActivityType(mod.activity_type)}` : ''}`;
     case 'add_activity':
-      return `Add ${mod.activity_type ?? 'activity'} on ${fromDay}`;
+      return `Add ${mod.activity_type ? formatActivityType(mod.activity_type) : 'activity'} on ${fromDay}`;
     case 'remove_activity':
       return `Remove activity on ${fromDay} (make rest day)`;
     default:

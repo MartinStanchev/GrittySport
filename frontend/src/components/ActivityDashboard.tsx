@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { getWorkouts, type WorkoutResponse } from '../services/api';
-import { getActivityIcon, formatPrescriptionSummary, formatActivityDate } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, formatPrescriptionSummary, formatActivityDate } from '../constants/activityIcons';
 
 interface UpcomingActivity {
   id: string;
@@ -68,7 +68,7 @@ export function ActivityDashboard({ upcomingActivities, onWorkoutPress, onActivi
           {lastWorkout ? (
             <>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                {lastWorkout.activity_type.replace(/_/g, ' ')}
+                {formatActivityType(lastWorkout.activity_type)}
               </Text>
               <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>
                 {formatDuration(lastWorkout.started_at, lastWorkout.finished_at)}
@@ -98,7 +98,7 @@ export function ActivityDashboard({ upcomingActivities, onWorkoutPress, onActivi
           {nextActivity ? (
             <>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                {nextActivity.activity_type.replace(/_/g, ' ')}
+                {formatActivityType(nextActivity.activity_type)}
               </Text>
               <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
                 {formatActivityDate(nextActivity.date)}

@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeStackNavigator from './HomeStackNavigator';
 import HistoryStackNavigator from './HistoryStackNavigator';
 import ProgramsStackNavigator from './ProgramsStackNavigator';
-import SettingsScreen from '../screens/SettingsScreen';
+import SettingsStackNavigator from './SettingsStackNavigator';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
@@ -59,8 +59,9 @@ export default function BottomTabNavigator() {
       />
       <Tab.Screen
         name="Settings"
-        component={SettingsScreen}
+        component={SettingsStackNavigator}
         options={{
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings" size={size} color={color} />
           ),

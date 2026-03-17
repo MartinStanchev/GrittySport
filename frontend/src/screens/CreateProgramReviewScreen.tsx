@@ -11,6 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { formatActivityType } from '../constants/activityIcons';
 import { ApiError, createProgram } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import StepIndicator from '../components/StepIndicator';
@@ -130,7 +131,7 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
                       <View style={styles.dayActivities}>
                         {acts.map((act: any, ai: number) => (
                           <View key={ai} style={styles.activityRow}>
-                            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{act.activity_type}</Text>
+                            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{formatActivityType(act.activity_type)}</Text>
                             <Text style={[styles.activityDetail, { color: colors.textSecondary }]} numberOfLines={1}>
                               {prescriptionSummary(act.prescription)}
                             </Text>

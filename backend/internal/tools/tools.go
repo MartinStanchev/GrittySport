@@ -919,6 +919,34 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 	})
 
 	reg.Register(&Tool{
+		Name:        "set_weekly_effort_goal",
+		Description: "Set the user's weekly effort goal. Use this when creating or modifying a training program to align the effort target with the program's training load.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"goal"},
+			Properties: map[string]*genai.Schema{
+				"goal": {Type: genai.TypeInteger, Description: "The weekly effort goal (positive integer)"},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			goalFloat, ok := params["goal"].(float64)
+			if !ok || goalFloat <= 0 {
+				return nil, fmt.Errorf("goal must be a positive integer")
+			}
+			goal := int(goalFloat)
+			updated, err := userSvc.Update(ctx, userID, services.UpdateUserInput{WeeklyEffortGoal: &goal})
+			if err != nil {
+				return nil, fmt.Errorf("update weekly effort goal: %w", err)
+			}
+			return map[string]any{
+				"status":             "updated",
+				"weekly_effort_goal": updated.WeeklyEffortGoal,
+				"message":            fmt.Sprintf("Weekly effort goal set to %d", updated.WeeklyEffortGoal),
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
 		Name:        "get_scheduled_activity",
 		Description: "Get details of a specific scheduled activity including its week and phase context",
 		Parameters: &genai.Schema{

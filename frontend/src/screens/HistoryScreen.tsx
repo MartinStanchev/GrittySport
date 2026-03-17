@@ -8,7 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { getWorkouts } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
-import { getActivityIcon } from '../constants/activityIcons';
+import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 
@@ -95,23 +95,12 @@ function sourceBadge(source: string): { icon: string; color: string } | null {
   return null;
 }
 
-function completionIcon(status?: string): { name: string; color: string } | null {
-  if (status === 'met_targets' || status === 'completed') {
-    return { name: 'checkmark-circle', color: '#34C759' };
-  }
-  if (status === 'below_targets') {
-    return { name: 'alert-circle', color: '#FF9500' };
-  }
-  return null;
-}
-
 // ── WorkoutRow ──────────────────────────────────────────────────────────────
 
 function WorkoutRow({ workout, colors }: { workout: WorkoutResponse; colors: ThemeColors }) {
   const icon = getActivityIcon(workout.activity_type);
   const stat = keyStat(workout);
   const badge = sourceBadge(workout.source);
-  const statusIcon = completionIcon(workout.completion_status);
 
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
@@ -120,12 +109,9 @@ function WorkoutRow({ workout, colors }: { workout: WorkoutResponse; colors: The
       </View>
       <View style={styles.rowContent}>
         <View style={styles.rowTypeRow}>
-          <Text style={[styles.rowType, { color: colors.textPrimary }]}>{workout.activity_type}</Text>
+          <Text style={[styles.rowType, { color: colors.textPrimary }]}>{formatActivityType(workout.activity_type)}</Text>
           {badge && (
             <Ionicons name={badge.icon as any} size={14} color={badge.color} style={{ marginLeft: 6 }} />
-          )}
-          {statusIcon && (
-            <Ionicons name={statusIcon.name as any} size={16} color={statusIcon.color} style={{ marginLeft: 4 }} />
           )}
         </View>
         <Text style={[styles.rowDate, { color: colors.textSecondary }]}>{formatShortDate(workout.started_at)}</Text>
@@ -236,7 +222,7 @@ export default function HistoryScreen({ navigation }: Props) {
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.primary }]}>HISTORY</Text>
         <Pressable onPress={() => navigation.navigate('Import')} style={styles.addBtn}>
-          <Ionicons name="download-outline" size={22} color={colors.primary} />
+          <Ionicons name="download-outline" size={24} color={colors.primary} />
         </Pressable>
         <Pressable
           onPress={async () => {
@@ -245,35 +231,40 @@ export default function HistoryScreen({ navigation }: Props) {
           }}
           style={styles.addBtn}
         >
-          <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
+          <Ionicons name="cloud-upload-outline" size={24} color={colors.primary} />
         </Pressable>
         <Pressable onPress={() => navigation.navigate('LogActivity')} style={styles.addBtn}>
-          <Ionicons name="add" size={24} color={colors.primary} />
+          <Ionicons name="add" size={28} color={colors.primary} />
         </Pressable>
       </View>
 
       {/* Filter chips */}
-      <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScroll}>
-          {ACTIVITY_FILTERS.map((f) => (
-            <Pressable
-              key={f.key}
-              style={[
-                styles.chip,
-                { backgroundColor: colors.surface, borderColor: colors.border },
-                activeFilter === f.key && { backgroundColor: colors.primary, borderColor: colors.primary },
-              ]}
-              onPress={() => handleFilterChange(f.key)}
-            >
-              <Text style={[styles.chipText, { color: colors.textSecondary }, activeFilter === f.key && styles.chipTextActive]}>{f.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <Pressable style={[styles.dateBtn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => setDateModalVisible(true)}>
-          <Ionicons name="calendar-outline" size={16} color={datePreset === 'all' ? colors.textSecondary : colors.primary} />
-          <Text style={[styles.dateBtnText, { color: colors.textSecondary }, datePreset !== 'all' && { color: colors.primary }]}>{dateLabel}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipScroll}>
+        {ACTIVITY_FILTERS.map((f) => (
+          <Pressable
+            key={f.key}
+            style={[
+              styles.chip,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              activeFilter === f.key && { backgroundColor: colors.primary, borderColor: colors.primary },
+            ]}
+            onPress={() => handleFilterChange(f.key)}
+          >
+            <Text style={[styles.chipText, { color: colors.textSecondary }, activeFilter === f.key && styles.chipTextActive]}>{f.label}</Text>
+          </Pressable>
+        ))}
+        <Pressable
+          style={[
+            styles.chip,
+            { backgroundColor: colors.surface, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 4 },
+            datePreset !== 'all' && { backgroundColor: colors.primary, borderColor: colors.primary },
+          ]}
+          onPress={() => setDateModalVisible(true)}
+        >
+          <Ionicons name="calendar-outline" size={14} color={datePreset === 'all' ? colors.textSecondary : '#FFF'} />
+          <Text style={[styles.chipText, { color: colors.textSecondary }, datePreset !== 'all' && styles.chipTextActive]}>{dateLabel}</Text>
         </Pressable>
-      </View>
+      </ScrollView>
 
       {loading ? (
         <View style={styles.center}>
@@ -353,44 +344,31 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   addBtn: {
-    padding: 4,
+    padding: 6,
+    marginLeft: 8,
   },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingBottom: 8,
+  chipRow: {
+    flexGrow: 0,
+    flexShrink: 0,
   },
   chipScroll: {
     paddingLeft: 16,
-    paddingRight: 8,
+    paddingRight: 16,
+    paddingBottom: 8,
     gap: 6,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
   },
   chipText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   chipTextActive: {
     color: '#FFF',
-  },
-  dateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginRight: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  dateBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   center: {
     flex: 1,

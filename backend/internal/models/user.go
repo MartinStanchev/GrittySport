@@ -10,6 +10,11 @@ type User struct {
 	Timezone              *string    `json:"timezone"`
 	UnitsPreference       string     `json:"units_preference"`
 	MaxHeartRate          int        `json:"max_heart_rate"`
+	WeeklyEffortGoal      int        `json:"weekly_effort_goal"`
+	BirthYear             *int       `json:"birth_year,omitempty"`
+	HeightCm              *float64   `json:"height_cm,omitempty"`
+	WeightKg              *float64   `json:"weight_kg,omitempty"`
+	ProfileCompleted      bool       `json:"profile_completed"`
 	SubscriptionTier      string     `json:"subscription_tier"`
 	SubscriptionStartedAt *time.Time `json:"subscription_started_at,omitempty"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
@@ -25,6 +30,11 @@ func (u *User) ToResponse() UserResponse {
 		Timezone:              u.Timezone,
 		UnitsPreference:       u.UnitsPreference,
 		MaxHeartRate:          u.MaxHeartRate,
+		WeeklyEffortGoal:      u.WeeklyEffortGoal,
+		BirthYear:             u.BirthYear,
+		HeightCm:              u.HeightCm,
+		WeightKg:              u.WeightKg,
+		ProfileCompleted:      u.ProfileCompleted,
 		SubscriptionTier:      u.SubscriptionTier,
 		SubscriptionExpiresAt: u.SubscriptionExpiresAt,
 	}
@@ -39,6 +49,11 @@ type UserResponse struct {
 	Timezone              *string    `json:"timezone,omitempty"`
 	UnitsPreference       string     `json:"units_preference"`
 	MaxHeartRate          int        `json:"max_heart_rate"`
+	WeeklyEffortGoal      int        `json:"weekly_effort_goal"`
+	BirthYear             *int       `json:"birth_year,omitempty"`
+	HeightCm              *float64   `json:"height_cm,omitempty"`
+	WeightKg              *float64   `json:"weight_kg,omitempty"`
+	ProfileCompleted      bool       `json:"profile_completed"`
 	SubscriptionTier      string     `json:"subscription_tier"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
 }

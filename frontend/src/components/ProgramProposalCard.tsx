@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { dayAbbrev } from '../constants/activityIcons';
+import { dayAbbrev, formatActivityType } from '../constants/activityIcons';
 
 interface ActivityProposal {
   day_of_week: number;
@@ -109,7 +109,7 @@ export function ProgramProposalCard({ data, onAccept, onDeny, disabled }: Progra
                 <View style={styles.activitiesList}>
                   {phase.template_week.activities.map((act, aIdx) => (
                     <Text key={aIdx} style={[styles.activityText, { color: colors.textSecondary }]}>
-                      {dayAbbrev(act.day_of_week)}: {act.activity_type}
+                      {dayAbbrev(act.day_of_week)}: {formatActivityType(act.activity_type)}
                     </Text>
                   ))}
                 </View>

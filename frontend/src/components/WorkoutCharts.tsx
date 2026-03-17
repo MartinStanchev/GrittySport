@@ -166,10 +166,9 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
             />
           );
         })}
-        {/* Y-axis: percentage labels on left, zone % on right at boundary lines */}
+        {/* BPM labels on left */}
         {zoneBounds.map((bpm, i) => {
           const y = bpmToY(bpm);
-          const pctLabel = `${50 + i * 10}%`;
           return (
             <SvgText
               key={`label-${i}`}
@@ -179,13 +178,14 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
               fontSize={10}
               fill={colors.textSecondary}
             >
-              {pctLabel}
+              {bpm}
             </SvgText>
           );
         })}
-        {zonePercents.map((pct, i) => {
-          if (pct === 0) return null;
-          const y = bpmToY(zoneBounds[i]) ;
+        {/* Max HR % labels on right, aligned with zone boundaries */}
+        {zoneBounds.map((_, i) => {
+          const pct = 50 + i * 10;
+          const y = bpmToY(zoneBounds[i]);
           return (
             <SvgText
               key={`pct-${i}`}
@@ -193,7 +193,6 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
               y={y + 4}
               textAnchor="start"
               fontSize={10}
-              fontWeight="600"
               fill={colors.textSecondary}
             >
               {pct}%
@@ -229,6 +228,17 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
           );
         })}
       </Svg>
+
+      {/* Zone time distribution */}
+      <View style={styles.zoneDistribution}>
+        {zonePercents.map((pct, i) => (
+          <View key={i} style={styles.zoneDistItem}>
+            <View style={[styles.zoneDistDot, { backgroundColor: ZONE_BAND_COLORS[i].slice(0, 7) }]} />
+            <Text style={[styles.zoneDistLabel, { color: colors.textSecondary }]}>Z{i + 1}</Text>
+            <Text style={[styles.zoneDistValue, { color: colors.textPrimary }]}>{pct}%</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -467,5 +477,28 @@ const styles = StyleSheet.create({
   },
   hrSvg: {
     alignSelf: 'center',
+  },
+  zoneDistribution: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  zoneDistItem: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  zoneDistDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  zoneDistLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  zoneDistValue: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

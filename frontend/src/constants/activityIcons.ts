@@ -56,6 +56,39 @@ export function formatActivityDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+export const ACTIVITY_DISPLAY_NAMES: Record<string, string> = {
+  run: 'Run',
+  easy_run: 'Easy Run',
+  long_run: 'Long Run',
+  tempo_run: 'Tempo Run',
+  interval: 'Interval',
+  interval_run: 'Interval Run',
+  interval_training: 'Interval Training',
+  trail_run: 'Trail Run',
+  indoor_run: 'Indoor Run',
+  walk: 'Walk',
+  swim: 'Swim',
+  open_water_swim: 'Open Water Swim',
+  strength: 'Strength',
+  strength_training: 'Strength Training',
+  cycling: 'Cycling',
+  indoor_cycling: 'Indoor Cycling',
+  mobility: 'Mobility',
+  yoga: 'Yoga',
+  recovery: 'Recovery',
+  rest: 'Rest',
+  drill: 'Drill',
+  cross_training: 'Cross Training',
+  bike: 'Cycling',
+};
+
+export function formatActivityType(type: string): string {
+  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  if (ACTIVITY_DISPLAY_NAMES[normalized]) return ACTIVITY_DISPLAY_NAMES[normalized];
+  // Fallback: replace underscores with spaces and title-case each word
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
   { type: 'run', label: 'Run' },
   { type: 'walk', label: 'Walk' },

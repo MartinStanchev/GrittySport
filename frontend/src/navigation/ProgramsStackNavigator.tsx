@@ -22,6 +22,7 @@ export default function ProgramsStackNavigator() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.textPrimary,
+        headerBackTitle: 'Back',
       }}
     >
       <Stack.Screen
@@ -42,7 +43,7 @@ export default function ProgramsStackNavigator() {
       <Stack.Screen
         name="RecordManual"
         component={RecordManualScreen}
-        options={{ title: 'Log Workout', headerBackTitle: 'Back' }}
+        options={{ title: 'Log Workout' }}
       />
       <Stack.Screen
         name="RecordGPS"

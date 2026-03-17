@@ -12,7 +12,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { clearChatMemory } from '../services/api';
@@ -21,6 +22,7 @@ import HRSensorModal from '../components/HRSensorModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
+import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
 
 function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
   if (status === 'not_supported') return 'Not available on this device';
@@ -29,16 +31,19 @@ function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): stri
   return 'Not connected';
 }
 
+const DEFAULT_EFFORT_GOAL = 300;
+
 export default function SettingsScreen() {
   const { user, signOut, updateUser } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
 
   const [name, setName] = useState(user?.name ?? '');
   const [units, setUnits] = useState<'metric' | 'imperial'>(
     (user?.units_preference as 'metric' | 'imperial') ?? 'metric',
   );
   const [timezone, setTimezone] = useState(user?.timezone ?? '');
-  const [maxHR, setMaxHR] = useState(`${user?.max_heart_rate ?? 185}`);
+  const [effortGoal, setEffortGoal] = useState(`${user?.weekly_effort_goal ?? DEFAULT_EFFORT_GOAL}`);
   const [isSaving, setIsSaving] = useState(false);
   const [hrModalVisible, setHRModalVisible] = useState(false);
   const [connectedDevice, setConnectedDevice] = useState<string | null>(
@@ -76,18 +81,18 @@ export default function SettingsScreen() {
     name !== (user?.name ?? '') ||
     units !== (user?.units_preference ?? 'metric') ||
     timezone !== (user?.timezone ?? '') ||
-    maxHR !== `${user?.max_heart_rate ?? 185}`;
+    effortGoal !== `${user?.weekly_effort_goal ?? DEFAULT_EFFORT_GOAL}`;
 
   async function handleSave() {
     if (!hasChanges) return;
     setIsSaving(true);
     try {
-      const parsedMaxHR = parseInt(maxHR, 10);
+      const parsedEffortGoal = parseInt(effortGoal, 10);
       await updateUser({
         name: name.trim(),
         units_preference: units,
         timezone: timezone.trim(),
-        max_heart_rate: isNaN(parsedMaxHR) ? undefined : parsedMaxHR,
+        weekly_effort_goal: isNaN(parsedEffortGoal) ? undefined : parsedEffortGoal,
       });
       Alert.alert('Saved', 'Your settings have been updated.');
     } catch {
@@ -103,7 +108,7 @@ export default function SettingsScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        style={[styles.flex, { backgroundColor: colors.background }]}
+        style={styles.flex}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
@@ -154,21 +159,38 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Heart Rate</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Training</Text>
         <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Max Heart Rate</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Weekly Effort Goal</Text>
           <Text style={[styles.helpText, { color: colors.textSecondary }]}>
-            Used to calculate your heart rate zones during workouts.
+            Your target effort score for the week. Grit can also adjust this when creating or modifying programs.
           </Text>
           <TextInput
             style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-            value={maxHR}
-            onChangeText={setMaxHR}
-            placeholder="185"
+            value={effortGoal}
+            onChangeText={setEffortGoal}
+            placeholder={`${DEFAULT_EFFORT_GOAL}`}
             placeholderTextColor={colors.textSecondary}
             keyboardType="number-pad"
-            maxLength={3}
+            maxLength={4}
           />
+        </View>
+
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Body & Heart Rate</Text>
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={[styles.navRow, { borderColor: colors.border }]}
+            onPress={() => navigation.navigate('BodyMetrics')}
+          >
+            <Ionicons name="body" size={20} color={colors.primary} />
+            <View style={styles.navRowInfo}>
+              <Text style={[styles.navRowLabel, { color: colors.textPrimary }]}>Body Metrics</Text>
+              <Text style={[styles.navRowHint, { color: colors.textSecondary }]}>
+                Age, height, weight, max heart rate
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
 
           <Text style={[styles.label, { marginTop: 16, color: colors.textSecondary }]}>HR Monitor</Text>
           <TouchableOpacity
@@ -316,8 +338,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Task 14: Notification toggles will go here */}
-
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Grit AI</Text>
         <View style={styles.section}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Coaching Memory</Text>
@@ -457,6 +477,26 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  navRowInfo: {
+    flex: 1,
+  },
+  navRowLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  navRowHint: {
+    fontSize: 13,
+    marginTop: 2,
   },
   hrDeviceRow: {
     flexDirection: 'row',

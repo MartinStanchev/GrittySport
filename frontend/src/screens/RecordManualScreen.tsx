@@ -61,6 +61,7 @@ const DISPLAY_TYPE_LABELS: Record<string, string> = {
   drill: 'Sport-Specific Drill',
   indoor_run: 'Indoor Run',
   indoor_cycling: 'Indoor Cycling',
+  swim: 'Pool Swim',
 };
 
 // ─────────────────────────────────────────────
@@ -78,11 +79,13 @@ const GPS_OPTIONS: TypeOption[] = [
   { activityType: 'run', icon: 'walk-outline', label: 'Run', desc: 'Outdoor run with GPS tracking' },
   { activityType: 'walk', icon: 'walk-outline', label: 'Walk', desc: 'Walk or hike with GPS tracking' },
   { activityType: 'cycling', icon: 'bicycle-outline', label: 'Cycling', desc: 'Outdoor cycling with GPS tracking' },
+  { activityType: 'open_water_swim', icon: 'water-outline', label: 'Open Water Swim', desc: 'Lake, sea, or river swim with GPS' },
 ];
 
 const INDOOR_OPTIONS: TypeOption[] = [
   { activityType: 'indoor_run', icon: 'walk-outline', label: 'Indoor Run', desc: 'Treadmill or indoor track' },
   { activityType: 'indoor_cycling', icon: 'bicycle-outline', label: 'Indoor Cycling', desc: 'Stationary bike or spin class' },
+  { activityType: 'swim', icon: 'water-outline', label: 'Swim', desc: 'Pool swimming session' },
   { activityType: 'strength', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight' },
   { activityType: 'mobility', icon: 'body-outline', label: 'Mobility', desc: 'Timed exercises with countdowns' },
   { activityType: 'drill', icon: 'flag-outline', label: 'Drill', desc: 'Drill session with notes' },

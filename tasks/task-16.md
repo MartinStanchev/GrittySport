@@ -14,3 +14,7 @@ When grit is doing something, we an show a line in the chat which says for examp
 ### We should add basic measurements for the user
 
 We need to add a basic profile for the user - Age, Height, Weight. These can and should then be used to calculate various things. For example the max heart rate via the common formula. The height and weight can be used for better estimates on the calories burned during workouts for example. These should obviously be changable by the user in the settings page. 
+
+### Live recording screen fix
+
+The design needs to be overhauled

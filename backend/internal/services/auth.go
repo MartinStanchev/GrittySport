@@ -62,10 +62,14 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 
 	var user models.UserResponse
 	err = s.pool.QueryRow(ctx,
-		`INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3)
-		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, subscription_tier, subscription_expires_at`,
+		`INSERT INTO users (email, password_hash, name, profile_completed) VALUES ($1, $2, $3, false)
+		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
+		           birth_year, height_cm, weight_kg, profile_completed,
+		           subscription_tier, subscription_expires_at`,
 		email, string(hash), name,
-	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.SubscriptionTier, &user.SubscriptionExpiresAt)
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -91,9 +95,14 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 
 	var user models.User
 	err := s.pool.QueryRow(ctx,
-		"SELECT id, email, password_hash, name, timezone, units_preference, max_heart_rate, subscription_tier, subscription_started_at, subscription_expires_at FROM users WHERE email = $1",
+		`SELECT id, email, password_hash, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
+		        birth_year, height_cm, weight_kg, profile_completed,
+		        subscription_tier, subscription_started_at, subscription_expires_at
+		 FROM users WHERE email = $1`,
 		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.SubscriptionTier, &user.SubscriptionStartedAt, &user.SubscriptionExpiresAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.SubscriptionTier, &user.SubscriptionStartedAt, &user.SubscriptionExpiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidCredentials
@@ -128,12 +137,16 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 	var userResp models.UserResponse
 	var expiresAt time.Time
 	err = tx.QueryRow(ctx,
-		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, u.max_heart_rate, u.subscription_tier, u.subscription_expires_at, rt.expires_at
+		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, u.max_heart_rate, u.weekly_effort_goal,
+		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed,
+		        u.subscription_tier, u.subscription_expires_at, rt.expires_at
 		 FROM refresh_tokens rt
 		 JOIN users u ON rt.user_id = u.id
 		 WHERE rt.token = $1`,
 		token,
-	).Scan(&userResp.ID, &userResp.Email, &userResp.Name, &userResp.Timezone, &userResp.UnitsPreference, &userResp.MaxHeartRate, &userResp.SubscriptionTier, &userResp.SubscriptionExpiresAt, &expiresAt)
+	).Scan(&userResp.ID, &userResp.Email, &userResp.Name, &userResp.Timezone, &userResp.UnitsPreference, &userResp.MaxHeartRate, &userResp.WeeklyEffortGoal,
+		&userResp.BirthYear, &userResp.HeightCm, &userResp.WeightKg, &userResp.ProfileCompleted,
+		&userResp.SubscriptionTier, &userResp.SubscriptionExpiresAt, &expiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidToken

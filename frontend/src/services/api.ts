@@ -215,6 +215,11 @@ export interface UserResponse {
   timezone?: string;
   units_preference: string;
   max_heart_rate: number;
+  weekly_effort_goal: number;
+  birth_year?: number;
+  height_cm?: number;
+  weight_kg?: number;
+  profile_completed: boolean;
   subscription_tier: string;
   subscription_expires_at?: string;
 }
@@ -259,6 +264,11 @@ export interface UpdateUserInput {
   timezone?: string;
   units_preference?: string;
   max_heart_rate?: number;
+  weekly_effort_goal?: number;
+  birth_year?: number;
+  height_cm?: number;
+  weight_kg?: number;
+  profile_completed?: boolean;
 }
 
 export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {

@@ -10,12 +10,13 @@ import { WorkoutProvider } from './src/contexts/WorkoutContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthStackNavigator from './src/navigation/AuthStackNavigator';
+import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { navigationRef } from './src/navigation/navigationRef';
 import { syncPendingWorkouts } from './src/services/syncService';
 
 function RootNavigator() {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   const { colors } = useTheme();
 
   if (isLoading) {
@@ -27,6 +28,8 @@ function RootNavigator() {
   }
 
   if (!isAuthenticated) return <AuthStackNavigator />;
+
+  if (!user?.profile_completed) return <ProfileSetupScreen />;
 
   return (
     <ProgramProvider>

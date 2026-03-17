@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
-import { getActivityIcon } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { getUpcomingActivities, saveWorkout } from '../services/api';
 import type { UpcomingActivity } from '../services/api';
 import * as healthKit from '../services/healthKitService';
@@ -267,7 +267,7 @@ function ImportDetailSheet({
                     color={selectedActivityId === a.id ? colors.primary : colors.textSecondary}
                   />
                   <View style={styles.linkOptionContent}>
-                    <Text style={[styles.linkOptionType, { color: colors.textPrimary }]}>{a.activity_type}</Text>
+                    <Text style={[styles.linkOptionType, { color: colors.textPrimary }]}>{formatActivityType(a.activity_type)}</Text>
                     <Text style={[styles.linkOptionMeta, { color: colors.textSecondary }]}>
                       {a.date} - {a.phase_name}, Week {a.week_number}
                     </Text>

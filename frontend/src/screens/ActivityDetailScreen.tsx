@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { getActivityIcon, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
@@ -184,7 +184,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
             <View style={[styles.iconCircle, { backgroundColor: colors.primaryLight }]}>
               <Ionicons name={icon} size={32} color={colors.primary} />
             </View>
-            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{activity.activity_type}</Text>
+            <Text style={[styles.activityType, { color: colors.textPrimary }]}>{formatActivityType(activity.activity_type)}</Text>
             <Text style={[styles.date, { color: colors.textSecondary }]}>{formatActivityDate(activity.date)}</Text>
             <View style={styles.contextRow}>
               <View style={[styles.contextBadge, { backgroundColor: colors.primaryLight }]}>

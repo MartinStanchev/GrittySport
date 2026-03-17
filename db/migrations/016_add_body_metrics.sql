@@ -1,0 +1,4 @@
+ALTER TABLE users ADD COLUMN birth_year INTEGER;
+ALTER TABLE users ADD COLUMN height_cm NUMERIC(5,1);
+ALTER TABLE users ADD COLUMN weight_kg NUMERIC(5,1);
+ALTER TABLE users ADD COLUMN profile_completed BOOLEAN NOT NULL DEFAULT true;

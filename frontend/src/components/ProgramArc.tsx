@@ -62,7 +62,6 @@ export function ProgramArc({ program, onCreateProgram }: ProgramArcProps) {
             fill="none"
             strokeLinecap="round"
             strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={-circumference}
             rotation={180}
             origin={`${size / 2}, ${size / 2}`}
           />
@@ -75,8 +74,7 @@ export function ProgramArc({ program, onCreateProgram }: ProgramArcProps) {
             strokeWidth={strokeWidth}
             fill="none"
             strokeLinecap="round"
-            strokeDasharray={`${circumference * progressPercent} ${circumference * (1 - progressPercent)}`}
-            strokeDashoffset={-circumference}
+            strokeDasharray={`${circumference * progressPercent} ${circumference}`}
             rotation={180}
             origin={`${size / 2}, ${size / 2}`}
           />

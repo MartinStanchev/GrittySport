@@ -1,7 +1,7 @@
 import { Pressable, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { getActivityIcon, formatPrescriptionSummary, formatActivityDate, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, formatPrescriptionSummary, formatActivityDate, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import type { UpcomingActivity } from '../services/api';
 
 interface UpcomingActivityCardProps {
@@ -25,7 +25,7 @@ export function UpcomingActivityCard({ activity, onPress, onRecord, onRecordGPS 
           <Ionicons name={icon} size={22} color={colors.primary} />
         </View>
         <View style={styles.content}>
-          <Text style={[styles.activityType, { color: colors.textPrimary }]}>{activity.activity_type}</Text>
+          <Text style={[styles.activityType, { color: colors.textPrimary }]}>{formatActivityType(activity.activity_type)}</Text>
           <Text style={[styles.date, { color: colors.textSecondary }]}>{formatActivityDate(activity.date)}</Text>
           {summary ? <Text style={[styles.prescription, { color: colors.textSecondary }]} numberOfLines={1}>{summary}</Text> : null}
         </View>

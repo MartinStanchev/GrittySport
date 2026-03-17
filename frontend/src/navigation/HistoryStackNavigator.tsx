@@ -18,6 +18,7 @@ export default function HistoryStackNavigator() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.textPrimary,
+        headerBackTitle: 'Back',
       }}
     >
       <Stack.Screen

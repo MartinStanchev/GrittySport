@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   getActivityIcon,
+  formatActivityType,
   formatPrescriptionSummary,
   isManualActivity,
   dayAbbrev,
@@ -638,7 +639,7 @@ function DayCard({ dayName, dayDate, activities, isToday, isPast, onPress, onRec
                   style={[styles.activityType, { color: colors.textPrimary }]}
                   numberOfLines={1}
                 >
-                  {activity.activity_type}
+                  {formatActivityType(activity.activity_type)}
                 </Text>
                 <Text
                   style={[styles.activityPrescription, { color: colors.textSecondary }]}

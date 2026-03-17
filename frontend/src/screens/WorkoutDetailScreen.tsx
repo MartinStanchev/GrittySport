@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
-import { getActivityIcon } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { formatDuration, formatFullDate } from '../utils/dates';
 import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
@@ -37,21 +37,6 @@ function normalizeActivityType(type: string): NormalizedType {
 
 type LinkOption = { id: string; activityType: string; dateLabel: string };
 
-const ACTIVITY_TYPE_LABELS: Record<NormalizedType, string> = {
-  run: 'Running',
-  cycling: 'Cycling',
-  swim: 'Swimming',
-  strength: 'Strength Training',
-  mobility: 'Mobility / Yoga',
-  drill: 'Sport Drill',
-  other: '',
-};
-
-function activityTypeLabel(type: string): string {
-  const normalized = normalizeActivityType(type);
-  if (normalized === 'other') return type.charAt(0).toUpperCase() + type.slice(1);
-  return ACTIVITY_TYPE_LABELS[normalized];
-}
 
 const SOURCE_BADGES: Record<string, { icon: string; color: string; label: string }> = {
   apple_health: { icon: 'heart', color: '#FF2D55', label: 'Apple Health' },
@@ -198,8 +183,8 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
       : 0
   );
   const calories = useMemo(
-    () => estimateCalories(workout.activity_type, durationSec),
-    [workout.activity_type, durationSec],
+    () => estimateCalories(workout.activity_type, durationSec, user?.weight_kg ?? 70),
+    [workout.activity_type, durationSec, user?.weight_kg],
   );
 
   const effortData = useMemo(
@@ -441,7 +426,7 @@ export default function WorkoutDetailScreen({ route }: Props) {
   }
 
   const icon = getActivityIcon(workout.activity_type);
-  const label = activityTypeLabel(workout.activity_type);
+  const label = formatActivityType(workout.activity_type);
   const duration = formatDuration(workout.started_at, workout.finished_at);
   const date = formatFullDate(workout.started_at);
   const badge = SOURCE_BADGES[workout.source] ?? null;
@@ -552,7 +537,7 @@ export default function WorkoutDetailScreen({ route }: Props) {
                   <Ionicons name={getActivityIcon(opt.activityType)} size={22} color={colors.primary} />
                 </View>
                 <View style={styles.sheetRowText}>
-                  <Text style={[styles.sheetRowTitle, { color: colors.textPrimary }]}>{activityTypeLabel(opt.activityType)}</Text>
+                  <Text style={[styles.sheetRowTitle, { color: colors.textPrimary }]}>{formatActivityType(opt.activityType)}</Text>
                   <Text style={[styles.sheetRowSubtitle, { color: colors.textSecondary }]}>{opt.dateLabel}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />

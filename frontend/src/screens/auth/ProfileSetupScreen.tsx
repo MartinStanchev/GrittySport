@@ -1,0 +1,268 @@
+import { useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { ageBasedMaxHR, inchesToCm, lbsToKg } from '../../utils/units';
+
+export default function ProfileSetupScreen() {
+  const { updateUser } = useAuth();
+  const { colors } = useTheme();
+
+  const [age, setAge] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+  const [units, setUnits] = useState<'metric' | 'imperial'>('metric');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const parsedAge = parseInt(age, 10);
+  const estimatedMaxHR = !isNaN(parsedAge) ? ageBasedMaxHR(parsedAge) : null;
+
+  async function handleContinue() {
+    const parsedHeight = parseFloat(height);
+    const parsedWeight = parseFloat(weight);
+
+    if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 120) {
+      Alert.alert('Invalid Age', 'Please enter an age between 10 and 120.');
+      return;
+    }
+    if (isNaN(parsedHeight) || parsedHeight <= 0) {
+      Alert.alert('Invalid Height', 'Please enter a valid height.');
+      return;
+    }
+    if (isNaN(parsedWeight) || parsedWeight <= 0) {
+      Alert.alert('Invalid Weight', 'Please enter a valid weight.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const birthYear = new Date().getFullYear() - parsedAge;
+      const heightCm = units === 'imperial' ? inchesToCm(parsedHeight) : parsedHeight;
+      const weightKg = units === 'imperial' ? lbsToKg(parsedWeight) : parsedWeight;
+
+      await updateUser({
+        birth_year: birthYear,
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        max_heart_rate: estimatedMaxHR ?? 185,
+        profile_completed: true,
+      });
+    } catch {
+      Alert.alert('Error', 'Failed to save your profile. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSkip() {
+    setIsSaving(true);
+    try {
+      await updateUser({ profile_completed: true });
+    } catch {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={[styles.title, { color: colors.textPrimary }]}>About You</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Help Grit personalise your training by sharing a few details. This is used to calculate your heart rate zones and estimate calories burned.
+        </Text>
+
+        <View style={styles.unitsRow}>
+          <TouchableOpacity
+            style={[styles.unitButton, { borderColor: colors.border }, units === 'metric' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setUnits('metric')}
+          >
+            <Text style={[styles.unitText, { color: colors.textPrimary }, units === 'metric' && { color: colors.surface }]}>
+              Metric
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.unitButton, { borderColor: colors.border }, units === 'imperial' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setUnits('imperial')}
+          >
+            <Text style={[styles.unitText, { color: colors.textPrimary }, units === 'imperial' && { color: colors.surface }]}>
+              Imperial
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Age</Text>
+        <TextInput
+          style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+          value={age}
+          onChangeText={setAge}
+          placeholder="e.g. 30"
+          placeholderTextColor={colors.textSecondary}
+          keyboardType="number-pad"
+          maxLength={3}
+        />
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          Height ({units === 'metric' ? 'cm' : 'inches'})
+        </Text>
+        <TextInput
+          style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+          value={height}
+          onChangeText={setHeight}
+          placeholder={units === 'metric' ? 'e.g. 175' : 'e.g. 69'}
+          placeholderTextColor={colors.textSecondary}
+          keyboardType="decimal-pad"
+          maxLength={5}
+        />
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
+          Weight ({units === 'metric' ? 'kg' : 'lbs'})
+        </Text>
+        <TextInput
+          style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+          value={weight}
+          onChangeText={setWeight}
+          placeholder={units === 'metric' ? 'e.g. 70' : 'e.g. 154'}
+          placeholderTextColor={colors.textSecondary}
+          keyboardType="decimal-pad"
+          maxLength={5}
+        />
+
+        {estimatedMaxHR !== null && (
+          <View style={[styles.infoBox, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
+            <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Estimated Max Heart Rate</Text>
+            <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{estimatedMaxHR} bpm</Text>
+            <Text style={[styles.infoHint, { color: colors.textSecondary }]}>
+              Calculated as 220 - age. You can change this later in Settings.
+            </Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.continueButton, { backgroundColor: colors.primary }, isSaving && styles.disabled]}
+          onPress={handleContinue}
+          disabled={isSaving}
+        >
+          <Text style={[styles.continueText, { color: colors.surface }]}>
+            {isSaving ? 'Saving...' : 'Continue'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={handleSkip}
+          disabled={isSaving}
+        >
+          <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip for now</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  container: {
+    padding: 24,
+    paddingTop: 60,
+    paddingBottom: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  unitsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  unitButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  unitText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    fontSize: 16,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  infoBox: {
+    marginTop: 20,
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  infoLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  infoHint: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  continueButton: {
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 32,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  continueText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  skipButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  skipText: {
+    fontSize: 15,
+  },
+});

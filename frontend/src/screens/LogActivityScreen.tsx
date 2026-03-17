@@ -14,13 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
-import { getActivityIcon } from '../constants/activityIcons';
+import { getActivityIcon, IMPORT_ACTIVITY_TYPES } from '../constants/activityIcons';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-
-type LogType = 'run' | 'walk' | 'cycling' | 'indoor_cycling' | 'indoor_run' | 'swim' | 'strength' | 'mobility' | 'drill';
 
 interface SetLog {
   reps: string;
@@ -36,29 +34,9 @@ interface MobilityExLog {
   completed: boolean;
 }
 
-const TYPE_OPTIONS: { type: LogType; label: string }[] = [
-  { type: 'run', label: 'Run' },
-  { type: 'walk', label: 'Walk' },
-  { type: 'cycling', label: 'Cycling' },
-  { type: 'indoor_run', label: 'Indoor Run' },
-  { type: 'indoor_cycling', label: 'Indoor Cycling' },
-  { type: 'swim', label: 'Swimming' },
-  { type: 'strength', label: 'Strength' },
-  { type: 'mobility', label: 'Mobility' },
-  { type: 'drill', label: 'Drill' },
-];
-
-const DISPLAY_LABELS: Record<LogType, string> = {
-  run: 'Running',
-  walk: 'Walking',
-  cycling: 'Cycling',
-  indoor_run: 'Indoor Run',
-  indoor_cycling: 'Indoor Cycling',
-  swim: 'Swimming',
-  strength: 'Strength Training',
-  mobility: 'Mobility / Yoga',
-  drill: 'Sport Drill',
-};
+const PACE_TYPES = ['run', 'walk', 'indoor_run', 'trail_run'];
+const SPEED_TYPES = ['cycling', 'indoor_cycling'];
+const SWIM_TYPES = ['swim', 'open_water_swim'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -73,22 +51,22 @@ function formatDisplayDate(date: Date): string {
 }
 
 function buildRecordedData(
-  type: LogType,
+  type: string,
   dist: number,
   durationSec: number,
   laps: string,
   exercises: ExerciseLog[],
   mobilityExercises: MobilityExLog[],
 ): Record<string, unknown> {
-  if (type === 'run' || type === 'walk' || type === 'indoor_run') {
+  if (PACE_TYPES.includes(type)) {
     const avgPaceSec = dist > 0 && durationSec > 0 ? Math.round(durationSec / dist) : 0;
     return { distance_km: dist || 0, avg_pace_sec_per_km: avgPaceSec };
   }
-  if (type === 'cycling' || type === 'indoor_cycling') {
+  if (SPEED_TYPES.includes(type)) {
     const avgSpeed = dist > 0 && durationSec > 0 ? Math.round((dist / durationSec) * 3600 * 10) / 10 : 0;
     return { distance_km: dist || 0, avg_speed_kph: avgSpeed };
   }
-  if (type === 'swim') {
+  if (SWIM_TYPES.includes(type)) {
     return { distance_m: dist || 0, ...(laps ? { laps: parseInt(laps, 10) } : {}) };
   }
   if (type === 'strength') {
@@ -120,10 +98,10 @@ function formatPace(paceSecPerKm: number): string {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function TypeSelector({ onSelect, colors }: { onSelect: (t: LogType) => void; colors: ThemeColors }) {
+function TypeSelector({ onSelect, colors }: { onSelect: (t: string) => void; colors: ThemeColors }) {
   return (
     <View style={styles.typeGrid}>
-      {TYPE_OPTIONS.map(({ type, label }) => (
+      {IMPORT_ACTIVITY_TYPES.map(({ type, label }) => (
         <Pressable
           key={type}
           style={[styles.typeCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}
@@ -299,7 +277,7 @@ type Props = NativeStackScreenProps<any, 'LogActivity'>;
 export default function LogActivityScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const { notifyProgramDataChanged } = useProgram();
-  const [selectedType, setSelectedType] = useState<LogType | null>(null);
+  const [selectedType, setSelectedType] = useState<string | null>(null);
   const [dateOffset, setDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
   const [hours, setHours] = useState('');
   const [minutes, setMinutes] = useState('');
@@ -317,8 +295,9 @@ export default function LogActivityScreen({ navigation }: Props) {
 
   // Auto-computed stats
   const dist = parseFloat(distanceKm);
-  const isPaceType = selectedType === 'run' || selectedType === 'walk' || selectedType === 'indoor_run';
-  const isSpeedType = selectedType === 'cycling' || selectedType === 'indoor_cycling';
+  const isPaceType = selectedType ? PACE_TYPES.includes(selectedType) : false;
+  const isSpeedType = selectedType ? SPEED_TYPES.includes(selectedType) : false;
+  const isSwimType = selectedType ? SWIM_TYPES.includes(selectedType) : false;
   const avgPaceSec = isPaceType && dist > 0 && durationSec > 0
     ? Math.round(durationSec / dist) : 0;
   const avgSpeed = isSpeedType && dist > 0 && durationSec > 0
@@ -391,7 +370,9 @@ export default function LogActivityScreen({ navigation }: Props) {
         {/* Activity type badge */}
         <View style={[styles.typeBadge, { backgroundColor: colors.surface }]}>
           <Ionicons name={getActivityIcon(selectedType)} size={20} color={colors.primary} />
-          <Text style={[styles.typeBadgeLabel, { color: colors.textPrimary }]}>{DISPLAY_LABELS[selectedType]}</Text>
+          <Text style={[styles.typeBadgeLabel, { color: colors.textPrimary }]}>
+            {IMPORT_ACTIVITY_TYPES.find((t) => t.type === selectedType)?.label ?? selectedType}
+          </Text>
           <Pressable onPress={() => setSelectedType(null)} style={[styles.changeTypeBtn, { backgroundColor: colors.background }]}>
             <Text style={[styles.changeTypeLabel, { color: colors.primary }]}>Change</Text>
           </Pressable>
@@ -467,7 +448,7 @@ export default function LogActivityScreen({ navigation }: Props) {
           </View>
         )}
 
-        {selectedType === 'swim' && (
+        {isSwimType && (
           <View style={styles.fieldBlock}>
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Distance (m)</Text>
             <TextInput

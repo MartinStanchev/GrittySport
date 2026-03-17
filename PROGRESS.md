@@ -45,6 +45,7 @@ Full details for each change are in the `progress/` folder.
 | [multi-format-workout-import](progress/multi-format-workout-import.md) | Multi-format import: TCX, FIT, CSV, ZIP support with unified preview screen |
 | [dark-mode-flat-design](progress/dark-mode-flat-design.md) | Dark mode with settings toggle, flat design replacing card/box patterns across entire app |
 | [home-screen-redesign](progress/home-screen-redesign.md) | Home screen redesign: program arc, Grit chat banner, activity dashboard, weekly effort counter |
+| [configurable-weekly-effort-goal](progress/configurable-weekly-effort-goal.md) | Task 17: User/Grit-configurable weekly effort goal, replacing hardcoded 300 |
 
 ## Instructions for Agents
 

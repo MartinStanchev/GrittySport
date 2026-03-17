@@ -196,14 +196,15 @@ func (h *WorkoutHandler) WeeklyEffort(w http.ResponseWriter, r *http.Request) {
 
 	var totalEffort int
 	var workoutCount int
+	var goal int
 	err := h.pool.QueryRow(r.Context(),
-		`SELECT COALESCE(SUM(effort_score), 0), COUNT(*)
-		 FROM workouts
-		 WHERE user_id = $1
-		   AND started_at >= date_trunc('week', NOW())
-		   AND effort_score IS NOT NULL`,
+		`SELECT
+		   (SELECT COALESCE(SUM(effort_score), 0) FROM workouts WHERE user_id = $1 AND started_at >= date_trunc('week', NOW()) AND effort_score IS NOT NULL),
+		   (SELECT COUNT(*) FROM workouts WHERE user_id = $1 AND started_at >= date_trunc('week', NOW()) AND effort_score IS NOT NULL),
+		   weekly_effort_goal
+		 FROM users WHERE id = $1`,
 		userID,
-	).Scan(&totalEffort, &workoutCount)
+	).Scan(&totalEffort, &workoutCount, &goal)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to query weekly effort")
 		return
@@ -212,7 +213,7 @@ func (h *WorkoutHandler) WeeklyEffort(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int{
 		"total_effort":  totalEffort,
 		"workout_count": workoutCount,
-		"goal":          300,
+		"goal":          goal,
 	})
 }
 

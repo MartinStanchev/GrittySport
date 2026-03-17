@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN weekly_effort_goal INTEGER NOT NULL DEFAULT 300;
