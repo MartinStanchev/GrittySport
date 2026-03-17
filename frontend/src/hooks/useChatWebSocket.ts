@@ -8,8 +8,10 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
-  messageType?: 'text' | 'program_proposal' | 'adjustment_proposal' | 'program_modification';
+  messageType?: 'text' | 'program_proposal' | 'adjustment_proposal' | 'program_modification' | 'tool_action';
   proposalData?: any;
+  toolName?: string;
+  toolDone?: boolean;
 }
 
 interface WsIncoming {
@@ -35,7 +37,8 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [isGritTyping, setIsGritTyping] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
-  const [activeToolAction, setActiveToolAction] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [rateLimitResetsAt, setRateLimitResetsAt] = useState<string | null>(null);
@@ -58,6 +61,15 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
 
   // Track whether we've given up on auth — stops reconnect loop when logged out
   const authFailedRef = useRef(false);
+
+  /** Mark all in-flight tool_action messages as done. */
+  function finalizeToolActions(msgs: ChatMessage[]): ChatMessage[] {
+    const hasActive = msgs.some((m) => m.messageType === 'tool_action' && !m.toolDone);
+    if (!hasActive) return msgs;
+    return msgs.map((m) =>
+      m.messageType === 'tool_action' && !m.toolDone ? { ...m, toolDone: true } : m,
+    );
+  }
 
   const connect = useCallback(async () => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -129,8 +141,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
         if (data.done) {
           lastActivityRef.current = Date.now();
           setIsGritTyping(false);
-          setActiveToolAction(null);
-          // Update usage remaining from the done frame
           if (data.usage_remaining != null) {
             setUsageRemaining(data.usage_remaining);
             setIsRateLimited(false);
@@ -138,18 +148,19 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
           if (data.usage_limit != null) {
             setUsageLimit(data.usage_limit);
           }
+          // Finalize tool actions and close the streaming message in one pass
           setMessages((prev) => {
-            const last = prev[prev.length - 1];
+            let updated = finalizeToolActions(prev);
+            const last = updated[updated.length - 1];
             if (last?.isStreaming) {
-              // Strip the quick reply delimiter from displayed message
               let content = last.content;
               const delimIdx = content.indexOf('|||QUICK_REPLIES|||');
               if (delimIdx >= 0) {
                 content = content.substring(0, delimIdx).trimEnd();
               }
-              return [...prev.slice(0, -1), { ...last, content, isStreaming: false }];
+              updated = [...updated.slice(0, -1), { ...last, content, isStreaming: false }];
             }
-            return prev;
+            return updated;
           });
           streamingContentRef.current = '';
           if (!chatOpenRef.current) {
@@ -181,36 +192,52 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
           });
         }
       } else if (data.type === 'tool_call') {
+        const toolKey = data.tool || '';
+        const label = TOOL_LABELS[toolKey] || toolKey.replace(/_/g, ' ');
         if (data.status === 'calling') {
-          const label = TOOL_LABELS[data.tool || ''] || `Running ${data.tool}...`;
-          setActiveToolAction(label);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `tool-${toolKey}-${Date.now()}`,
+              role: 'system',
+              content: label,
+              messageType: 'tool_action',
+              toolName: toolKey,
+              toolDone: false,
+            },
+          ]);
         } else {
-          setActiveToolAction(null);
+          // Mark the matching tool_action as done
+          setMessages((prev) => {
+            const idx = prev.findLastIndex(
+              (m) => m.messageType === 'tool_action' && m.toolName === toolKey && !m.toolDone,
+            );
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = { ...updated[idx], toolDone: true };
+              return updated;
+            }
+            return prev;
+          });
         }
-      } else if (data.type === 'program_proposal') {
+      } else if (data.type === 'program_proposal' || data.type === 'adjustment_proposal') {
         setIsGritTyping(false);
-        setActiveToolAction(null);
+        const isModification = data.type === 'adjustment_proposal' && data.data?.type === 'program_modification';
+        let messageType: ChatMessage['messageType'];
+        if (data.type === 'program_proposal') {
+          messageType = 'program_proposal';
+        } else if (isModification) {
+          messageType = 'program_modification';
+        } else {
+          messageType = 'adjustment_proposal';
+        }
         setMessages((prev) => [
-          ...prev,
+          ...finalizeToolActions(prev),
           {
             id: `proposal-${Date.now()}`,
             role: 'system',
             content: '',
-            messageType: 'program_proposal',
-            proposalData: data.data,
-          },
-        ]);
-      } else if (data.type === 'adjustment_proposal') {
-        setIsGritTyping(false);
-        setActiveToolAction(null);
-        const isModification = data.data?.type === 'program_modification';
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `adj-proposal-${Date.now()}`,
-            role: 'system',
-            content: '',
-            messageType: isModification ? 'program_modification' : 'adjustment_proposal',
+            messageType,
             proposalData: data.data,
           },
         ]);
@@ -334,15 +361,23 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     setMessages([]);
     setQuickReplies([]);
     setIsGritTyping(false);
+    setHasMore(false);
     streamingContentRef.current = '';
     historyLoadedRef.current = false;
   }, []);
 
-  const loadHistory = useCallback((historyMessages: ChatMessage[]) => {
+  const loadHistory = useCallback((historyMessages: ChatMessage[], more: boolean) => {
     if (!historyLoadedRef.current) {
       setMessages(historyMessages);
+      setHasMore(more);
       historyLoadedRef.current = true;
     }
+  }, []);
+
+  const prependHistory = useCallback((olderMessages: ChatMessage[], more: boolean) => {
+    setMessages((prev) => [...olderMessages, ...prev]);
+    setHasMore(more);
+    setIsLoadingMore(false);
   }, []);
 
   const markRead = useCallback(() => {
@@ -389,17 +424,20 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     isConnected,
     isGritTyping,
     quickReplies,
-    activeToolAction,
     unreadCount,
     isRateLimited,
     rateLimitResetsAt,
     usageRemaining,
     usageLimit,
+    hasMore,
+    isLoadingMore,
     sendMessage,
     respondToProposal,
     loadHistory,
+    prependHistory,
     clearChat,
     markRead,
     markClosed,
+    setIsLoadingMore,
   };
 }

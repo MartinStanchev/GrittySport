@@ -33,6 +33,14 @@ import { ClearChatModal } from '../components/ClearChatModal';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
 
+function mapHistoryMessages(messages: { id: string; role: string; content: string }[]): ChatMessage[] {
+  return messages.map((m) => ({
+    id: m.id,
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+    messageType: 'text' as const,
+  }));
+}
 
 function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
@@ -155,9 +163,10 @@ export default function HomeScreen() {
 
   const {
     messages, isGritTyping, sendMessage, respondToProposal,
-    loadHistory, isConnected, quickReplies, clearChat, activeToolAction,
+    loadHistory, prependHistory, isConnected, quickReplies, clearChat,
     unreadCount, markRead, markClosed,
     isRateLimited, usageRemaining, usageLimit,
+    hasMore, isLoadingMore, setIsLoadingMore,
   } = useChatWebSocket({
     onProgramCreated: handleProgramCreated,
     onAdjustmentApplied: handleAdjustmentApplied,
@@ -183,22 +192,28 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (chatOpen && !historyLoaded) {
-      getChatHistory(50)
+      getChatHistory(25)
         .then((resp) => {
           if (resp.messages.length > 0) {
-            const mapped: ChatMessage[] = resp.messages.map((m) => ({
-              id: m.id,
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-              messageType: 'text' as const,
-            }));
-            loadHistory(mapped);
+            loadHistory(mapHistoryMessages(resp.messages), resp.has_more);
           }
           setHistoryLoaded(true);
         })
         .catch(() => setHistoryLoaded(true));
     }
   }, [chatOpen, historyLoaded, loadHistory]);
+
+  const loadOlderMessages = useCallback(() => {
+    if (!hasMore || isLoadingMore) return;
+    const firstMsg = messages.find((m) => m.messageType !== 'tool_action');
+    if (!firstMsg) return;
+    setIsLoadingMore(true);
+    getChatHistory(25, firstMsg.id)
+      .then((resp) => {
+        prependHistory(mapHistoryMessages(resp.messages), resp.has_more);
+      })
+      .catch(() => setIsLoadingMore(false));
+  }, [hasMore, isLoadingMore, messages, setIsLoadingMore, prependHistory]);
 
   const scrollToBottom = useCallback((animated = true) => {
     setTimeout(() => {
@@ -259,6 +274,21 @@ export default function HomeScreen() {
 
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => {
+      if (item.messageType === 'tool_action') {
+        return (
+          <View style={styles.toolActionRow}>
+            {item.toolDone ? (
+              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+            ) : (
+              <ActivityIndicator size={12} color={colors.textSecondary} />
+            )}
+            <Text style={[styles.toolActionLabel, { color: colors.textSecondary }]}>
+              {item.content}
+            </Text>
+          </View>
+        );
+      }
+
       if (item.messageType === 'program_proposal' || item.messageType === 'adjustment_proposal') {
         return (
           <ProgramProposalCard
@@ -288,7 +318,7 @@ export default function HomeScreen() {
             styles.messageBubble,
             isUser
               ? [styles.userBubble, { backgroundColor: colors.primary }]
-              : [styles.gritBubble, { backgroundColor: colors.surface }],
+              : [styles.gritBubble, { backgroundColor: colors.messageBubble }],
           ]}
         >
           {!isUser && <Text style={[styles.gritLabel, { color: colors.primary }]}>Grit</Text>}
@@ -446,16 +476,30 @@ export default function HomeScreen() {
             keyboardDismissMode="none"
             onLayout={() => scrollToBottom(true)}
             onContentSizeChange={handleChatContentSizeChange}
+            onScroll={(e) => {
+              if (e.nativeEvent.contentOffset.y < 60 && hasMore && !isLoadingMore) {
+                loadOlderMessages();
+              }
+            }}
+            scrollEventThrottle={200}
+            ListHeaderComponent={
+              isLoadingMore ? (
+                <View style={styles.loadMoreContainer}>
+                  <ActivityIndicator size="small" color={colors.textSecondary} />
+                </View>
+              ) : null
+            }
           />
 
-          {/* Typing / Tool Indicator */}
-          {(isGritTyping || activeToolAction) &&
-            messages[messages.length - 1]?.isStreaming !== true && (
+          {/* Typing Indicator */}
+          {isGritTyping &&
+            messages[messages.length - 1]?.isStreaming !== true &&
+            messages[messages.length - 1]?.messageType !== 'tool_action' && (
               <View style={styles.typingContainer}>
-                <View style={styles.toolActionRow}>
+                <View style={styles.typingRow}>
                   <ActivityIndicator size="small" color={colors.textSecondary} />
-                  <Text style={[styles.toolActionLabel, { color: colors.textSecondary }]}>
-                    {activeToolAction ?? 'Thinking...'}
+                  <Text style={[styles.typingLabel, { color: colors.textSecondary }]}>
+                    Thinking...
                   </Text>
                 </View>
               </View>
@@ -685,7 +729,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-  toolActionRow: {
+  typingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
@@ -693,9 +737,25 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
   },
-  toolActionLabel: {
+  typingLabel: {
     fontSize: 12,
     fontStyle: 'italic',
+  },
+  toolActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    gap: 6,
+    marginBottom: 2,
+  },
+  toolActionLabel: {
+    fontSize: 12,
+  },
+  loadMoreContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   chatInputContainer: {
     flexDirection: 'row',

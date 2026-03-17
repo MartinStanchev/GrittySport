@@ -271,11 +271,11 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
-			if allowed, _ := usageSvc.CanCreateProgram(ctx, userID); !allowed {
+			if allowed, _ := usageSvc.CanCreateDraft(ctx, userID); !allowed {
 				return map[string]any{
 					"status":  "blocked",
 					"reason":  "free_tier_limit",
-					"message": "You've reached your free program limit. Upgrade to premium to create more programs.",
+					"message": "You've reached your free draft program limit (3). Delete an existing draft or upgrade to premium.",
 				}, nil
 			}
 
@@ -497,13 +497,9 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			Properties: map[string]*genai.Schema{},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
-			if allowed, _ := usageSvc.CanCreateProgram(ctx, userID); !allowed {
-				return map[string]any{
-					"status":  "blocked",
-					"reason":  "free_tier_limit",
-					"message": "You've reached your free program limit. Upgrade to premium to create more programs.",
-				}, nil
-			}
+			// No CanCreateProgram check here — SaveProgramWithCriteria archives
+			// the existing active program first, so this always results in at most
+			// 1 active program regardless of tier.
 
 			proposal, ok := proposals.Get(userID)
 			if !ok {

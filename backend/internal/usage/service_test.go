@@ -249,12 +249,13 @@ func TestGetUsage_PremiumUser(t *testing.T) {
 	}
 }
 
-func TestCountUserPrograms(t *testing.T) {
+func TestCountUserPrograms_ExcludesDrafts(t *testing.T) {
 	cleanTables(t)
 	svc := usage.NewService(testPool)
 	userID := createTestUser(t, "free")
+	ctx := context.Background()
 
-	count, err := svc.CountUserPrograms(context.Background(), userID)
+	count, err := svc.CountUserPrograms(ctx, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,21 +263,151 @@ func TestCountUserPrograms(t *testing.T) {
 		t.Errorf("expected 0 programs, got %d", count)
 	}
 
-	// Create a program
-	_, err = testPool.Exec(context.Background(),
+	// Create an active program
+	_, err = testPool.Exec(ctx,
 		`INSERT INTO programs (user_id, name, status, created_by, start_date)
-		 VALUES ($1, 'Test Program', 'active', 'user', '2026-03-03')`,
+		 VALUES ($1, 'Active Program', 'active', 'user', '2026-03-03')`,
 		userID,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	count, err = svc.CountUserPrograms(context.Background(), userID)
+	// Create a draft program — should NOT count
+	_, err = testPool.Exec(ctx,
+		`INSERT INTO programs (user_id, name, status, created_by, start_date)
+		 VALUES ($1, 'Draft Program', 'draft', 'grit', '2026-03-03')`,
+		userID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = svc.CountUserPrograms(ctx, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
-		t.Errorf("expected 1 program, got %d", count)
+		t.Errorf("expected 1 program (drafts excluded), got %d", count)
+	}
+}
+
+func TestCountUserDrafts(t *testing.T) {
+	cleanTables(t)
+	svc := usage.NewService(testPool)
+	userID := createTestUser(t, "free")
+	ctx := context.Background()
+
+	count, err := svc.CountUserDrafts(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 drafts, got %d", count)
+	}
+
+	// Create a draft
+	_, err = testPool.Exec(ctx,
+		`INSERT INTO programs (user_id, name, status, created_by, start_date)
+		 VALUES ($1, 'Draft 1', 'draft', 'grit', '2026-03-03')`,
+		userID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = svc.CountUserDrafts(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 draft, got %d", count)
+	}
+
+	// Active program should NOT count as draft
+	_, err = testPool.Exec(ctx,
+		`INSERT INTO programs (user_id, name, status, created_by, start_date)
+		 VALUES ($1, 'Active', 'active', 'user', '2026-03-03')`,
+		userID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	count, err = svc.CountUserDrafts(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected still 1 draft, got %d", count)
+	}
+}
+
+func TestCanCreateDraft_FreeUserUnderLimit(t *testing.T) {
+	cleanTables(t)
+	svc := usage.NewService(testPool)
+	userID := createTestUser(t, "free")
+	ctx := context.Background()
+
+	allowed, err := svc.CanCreateDraft(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Error("free user with 0 drafts should be allowed")
+	}
+}
+
+func TestCanCreateDraft_FreeUserAtLimit(t *testing.T) {
+	cleanTables(t)
+	svc := usage.NewService(testPool)
+	userID := createTestUser(t, "free")
+	ctx := context.Background()
+
+	// Create max drafts
+	for i := 0; i < usage.FreeDraftsTotal; i++ {
+		_, err := testPool.Exec(ctx,
+			`INSERT INTO programs (user_id, name, status, created_by, start_date)
+			 VALUES ($1, $2, 'draft', 'grit', '2026-03-03')`,
+			userID, "Draft "+string(rune('A'+i)),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	allowed, err := svc.CanCreateDraft(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Errorf("free user at %d drafts should be blocked", usage.FreeDraftsTotal)
+	}
+}
+
+func TestCanCreateDraft_PremiumUnlimited(t *testing.T) {
+	cleanTables(t)
+	svc := usage.NewService(testPool)
+	userID := createTestUser(t, "premium")
+	ctx := context.Background()
+
+	// Create many drafts
+	for i := 0; i < 10; i++ {
+		_, err := testPool.Exec(ctx,
+			`INSERT INTO programs (user_id, name, status, created_by, start_date)
+			 VALUES ($1, $2, 'draft', 'grit', '2026-03-03')`,
+			userID, "Draft "+string(rune('A'+i)),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	allowed, err := svc.CanCreateDraft(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Error("premium user should always be allowed to create drafts")
 	}
 }

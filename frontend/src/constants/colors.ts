@@ -12,6 +12,7 @@ export interface ThemeColors {
   tabBarBorder: string;
   tabBarBackground: string;
   inputBackground: string;
+  messageBubble: string;
   overlay: string;
   success: string;
   warning: string;
@@ -33,6 +34,7 @@ export const LightColors: ThemeColors = {
   tabBarBorder: '#E0E0E0',
   tabBarBackground: '#FFFFFF',
   inputBackground: '#FFFFFF',
+  messageBubble: '#FFFFFF',
   overlay: 'rgba(0,0,0,0.35)',
   success: '#4CAF50',
   warning: '#FF9800',
@@ -54,6 +56,7 @@ export const DarkColors: ThemeColors = {
   tabBarBorder: '#333333',
   tabBarBackground: '#1A1A1A',
   inputBackground: '#2A2A2A',
+  messageBubble: '#2A2A2A',
   overlay: 'rgba(0,0,0,0.55)',
   success: '#66BB6A',
   warning: '#FFA726',

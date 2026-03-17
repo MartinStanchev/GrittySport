@@ -19,6 +19,7 @@ const (
 	FreePostWorkoutReviewsPerMonth     = 3
 	FreeMissedWorkoutReviewsPerMonth   = 3
 	FreeProgramsTotal                  = 1
+	FreeDraftsTotal                    = 3
 )
 
 type Service struct {
@@ -190,12 +191,8 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 		userID, monthStart,
 	).Scan(&programsCreated, &reviewsUsed, &missedReviewsUsed)
 
-	// Program count
-	var programCount int
-	_ = s.pool.QueryRow(ctx,
-		"SELECT COUNT(*) FROM programs WHERE user_id = $1",
-		userID,
-	).Scan(&programCount)
+	// Program count (active only, drafts don't count toward limit)
+	programCount, _ := s.CountUserPrograms(ctx, userID)
 
 	chatLimit := FreeChatMessagesPerWeek
 	programCreationLimit := FreeProgramCreationsPerMonth
@@ -246,32 +243,50 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 	}, nil
 }
 
-// CountUserPrograms returns the number of programs a user has.
+// CountUserPrograms returns the number of active programs a user has (excludes drafts).
 func (s *Service) CountUserPrograms(ctx context.Context, userID string) (int, error) {
+	return s.countProgramsByStatus(ctx, userID, "!=", "draft")
+}
+
+// CountUserDrafts returns the number of draft programs a user has.
+func (s *Service) CountUserDrafts(ctx context.Context, userID string) (int, error) {
+	return s.countProgramsByStatus(ctx, userID, "=", "draft")
+}
+
+func (s *Service) countProgramsByStatus(ctx context.Context, userID, op, status string) (int, error) {
 	var count int
 	err := s.pool.QueryRow(ctx,
-		"SELECT COUNT(*) FROM programs WHERE user_id = $1",
-		userID,
+		"SELECT COUNT(*) FROM programs WHERE user_id = $1 AND status "+op+" $2",
+		userID, status,
 	).Scan(&count)
 	return count, err
 }
 
-// CanCreateProgram checks if the user is allowed to create a new program.
-// Returns (allowed, error). Free users are limited to FreeProgramsTotal programs.
+// CanCreateProgram checks if the user is allowed to have another active program.
+// Free users are limited to FreeProgramsTotal active programs. Fails open on errors.
 func (s *Service) CanCreateProgram(ctx context.Context, userID string) (bool, error) {
+	return s.canCreate(ctx, userID, s.CountUserPrograms, FreeProgramsTotal)
+}
+
+// CanCreateDraft checks if the user is allowed to create another draft program.
+// Free users are limited to FreeDraftsTotal drafts. Fails open on errors.
+func (s *Service) CanCreateDraft(ctx context.Context, userID string) (bool, error) {
+	return s.canCreate(ctx, userID, s.CountUserDrafts, FreeDraftsTotal)
+}
+
+func (s *Service) canCreate(ctx context.Context, userID string, count func(context.Context, string) (int, error), limit int) (bool, error) {
 	tier, err := s.GetTier(ctx, userID)
 	if err != nil {
-		// Fail open
 		return true, nil
 	}
 	if tier == TierPremium {
 		return true, nil
 	}
-	count, err := s.CountUserPrograms(ctx, userID)
+	n, err := count(ctx, userID)
 	if err != nil {
 		return true, nil
 	}
-	return count < FreeProgramsTotal, nil
+	return n < limit, nil
 }
 
 // computePeriodStart returns the start of the current period.

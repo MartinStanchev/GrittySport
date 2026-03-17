@@ -28,15 +28,8 @@ func NewProgramHandler(programService *services.ProgramService, chatService *ser
 func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	// Check program limit for free users
-	if allowed, _ := h.usageService.CanCreateProgram(r.Context(), userID); !allowed {
-		writeJSON(w, http.StatusForbidden, map[string]any{
-			"error":            "free_tier_limit",
-			"message":          "Free accounts are limited to 1 program. Upgrade to premium for unlimited programs.",
-			"upgrade_required": true,
-		})
-		return
-	}
+	// No active program limit check here — SaveProgramWithCriteria archives
+	// the existing active program, so this always results in at most 1 active program.
 
 	var input models.TemplateProgramInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
