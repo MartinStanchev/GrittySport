@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
 import { getValidAccessToken, getWsBaseUrl } from '../services/api';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
@@ -56,7 +55,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const streamingContentRef = useRef('');
   const optionsRef = useRef(options);
   const historyLoadedRef = useRef(false);
-  const lastActivityRef = useRef<number>(Date.now());
   optionsRef.current = options;
 
   // Track whether we've given up on auth — stops reconnect loop when logged out
@@ -139,7 +137,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
         ]);
       } else if (data.type === 'grit_chunk') {
         if (data.done) {
-          lastActivityRef.current = Date.now();
           setIsGritTyping(false);
           if (data.usage_remaining != null) {
             setUsageRemaining(data.usage_remaining);
@@ -300,7 +297,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
 
       setQuickReplies([]);
-      lastActivityRef.current = Date.now();
 
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
@@ -349,23 +345,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     [],
   );
 
-  const clearChat = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
-        JSON.stringify({
-          type: 'clear_chat',
-        }),
-      );
-    }
-
-    setMessages([]);
-    setQuickReplies([]);
-    setIsGritTyping(false);
-    setHasMore(false);
-    streamingContentRef.current = '';
-    historyLoadedRef.current = false;
-  }, []);
-
   const loadHistory = useCallback((historyMessages: ChatMessage[], more: boolean) => {
     if (!historyLoadedRef.current) {
       setMessages(historyMessages);
@@ -388,25 +367,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const markClosed = useCallback(() => {
     chatOpenRef.current = false;
   }, []);
-
-  const messagesRef = useRef(messages);
-  messagesRef.current = messages;
-
-  useEffect(() => {
-    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
-    let prevState: AppStateStatus = AppState.currentState;
-
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && prevState !== 'active') {
-        const elapsed = Date.now() - lastActivityRef.current;
-        if (elapsed >= SIX_HOURS_MS && messagesRef.current.length > 0) {
-          clearChat();
-        }
-      }
-      prevState = nextState;
-    });
-    return () => sub.remove();
-  }, [clearChat]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -435,7 +395,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     respondToProposal,
     loadHistory,
     prependHistory,
-    clearChat,
     markRead,
     markClosed,
     setIsLoadingMore,

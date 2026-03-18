@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/grittyfitness/api/internal/ai"
+	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/sanitize"
@@ -22,9 +24,10 @@ import (
 )
 
 // sessionState tracks context that persists across WS turns within a single connection.
-// This compensates for tool call results not being saved in chat_messages.
 type sessionState struct {
-	activeDraftID string // current draft program being worked on
+	activeDraftID   string    // current draft program being worked on
+	activeSegmentID string    // current memory segment being tracked
+	lastMessageTime time.Time // when the last message was received
 }
 
 var upgrader = websocket.Upgrader{
@@ -41,10 +44,10 @@ type ChatHandler struct {
 	toolRegistry   *tools.Registry
 	proposalStore  *tools.ProposalStore
 	promptLoader   *ai.PromptLoader
-	memoryEnabled  bool
+	memoryService  *memory.Service
 }
 
-func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memoryEnabled bool, usageSvc *usage.Service) *ChatHandler {
+func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memorySvc *memory.Service, usageSvc *usage.Service) *ChatHandler {
 	proposalStore := tools.NewProposalStore()
 	toolRegistry := tools.NewRegistry()
 	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader, usageSvc)
@@ -59,7 +62,7 @@ func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient
 		toolRegistry:   toolRegistry,
 		proposalStore:  proposalStore,
 		promptLoader:   promptLoader,
-		memoryEnabled:  memoryEnabled,
+		memoryService:  memorySvc,
 	}
 }
 
@@ -137,15 +140,23 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		userName = user.Name
 	}
 
-	var memory string
-	if h.memoryEnabled {
-		memory, err = h.chatService.GetMemory(r.Context(), userID)
-		if err != nil {
-			log.Error().Err(err).Str("user_id", userID).Msg("Failed to load chat memory")
-		}
+	assembledMemory, err := h.memoryService.AssembleMemory(r.Context(), userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("Failed to assemble memory")
 	}
 
 	session := &sessionState{}
+
+	// Restore active segment if one exists.
+	if activeSeg, err := h.memoryService.GetActiveSegment(r.Context(), userID); err == nil && activeSeg != nil {
+		session.activeSegmentID = activeSeg.ID
+	}
+	// Seed lastMessageTime from DB so gap detection works across reconnects.
+	if lastTime, err := h.memoryService.GetLastMessageTime(r.Context(), userID); err == nil && !lastTime.IsZero() {
+		session.lastMessageTime = lastTime
+	} else {
+		session.lastMessageTime = time.Now()
+	}
 
 	for {
 		_, rawMsg, err := conn.ReadMessage()
@@ -165,12 +176,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if incoming.Type == "proposal_response" {
-			h.handleProposalResponse(r, ws, userID, userName, memory, user, incoming, &recentMsgs, session)
-			continue
-		}
-
-		if incoming.Type == "clear_chat" {
-			h.handleClearContext(r, ws, userID, &recentMsgs, &memory)
+			h.handleProposalResponse(r, ws, userID, userName, assembledMemory, user, incoming, &recentMsgs, session)
 			continue
 		}
 
@@ -195,6 +201,9 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		// Sanitize user input before saving and LLM processing
 		incoming.Content = sanitize.SanitizeChatMessage(incoming.Content)
 
+		// Segment boundary detection: check for time gap.
+		assembledMemory = h.handleSegmentBoundary(r.Context(), userID, session, assembledMemory)
+
 		log.Debug().
 			Str("user_id", userID).
 			Str("content", incoming.Content).
@@ -206,8 +215,18 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Start a segment if none is active.
+		if session.activeSegmentID == "" {
+			segType := h.memoryService.DetectSegmentType(r.Context(), incoming.Content)
+			if seg, err := h.memoryService.StartSegment(r.Context(), userID, segType, userMsg.ID); err == nil {
+				session.activeSegmentID = seg.ID
+			}
+		}
+
+		session.lastMessageTime = time.Now()
+
 		aiMessages := buildAIMessages(recentMsgs, incoming.Content)
-		systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
+		systemPrompt := h.buildSystemPrompt(userName, assembledMemory, user, session)
 		h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, &recentMsgs, session, remaining)
 	}
 }
@@ -237,6 +256,8 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					session.activeDraftID = id
 				}
 			}
+			// Transition from general_coaching to program_creation segment.
+			h.transitionSegment(r.Context(), userID, "program_creation", session)
 		case "get_draft_program":
 			if resultMap, ok := result.(map[string]any); ok {
 				if id, ok := resultMap["id"].(string); ok {
@@ -270,10 +291,12 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					_ = ws.writeJSON(wsOutgoing{Type: "program_created", Data: data})
 				}
 			}
+			h.closeSessionSegment(r.Context(), session)
 		case "add_week_activity":
 			_ = ws.writeJSON(wsOutgoing{Type: "program_updated"})
 		case "confirm_adjustment", "confirm_program_modification":
 			_ = ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
+			h.closeSessionSegment(r.Context(), session)
 		}
 
 		return result, nil
@@ -364,34 +387,58 @@ func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, user
 	h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, recentMsgs, session, -1)
 }
 
-func (h *ChatHandler) handleClearContext(r *http.Request, ws *wsWriter, userID string, recentMsgs *[]models.ChatMessage, memory *string) {
-	if h.memoryEnabled && len(*recentMsgs) > 0 {
-		aiMessages := make([]ai.ChatMessage, 0, len(*recentMsgs))
-		for _, msg := range *recentMsgs {
-			aiMessages = append(aiMessages, ai.ChatMessage{Role: msg.Role, Content: msg.Content})
-		}
+// handleSegmentBoundary checks for a 2+ hour gap since the last message. If found,
+// it uses the LLM to check if the active segment is complete, closes and summarizes
+// it if so, and reassembles memory for the prompt.
+func (h *ChatHandler) handleSegmentBoundary(ctx context.Context, userID string, session *sessionState, currentMemory string) string {
+	const gapThreshold = 2 * time.Hour
 
-		summary, err := h.aiClient.SummarizeConversation(r.Context(), aiMessages)
-		if err != nil {
-			log.Error().Err(err).Str("user_id", userID).Msg("Failed to summarize conversation")
-		}
+	if session.activeSegmentID == "" || session.lastMessageTime.IsZero() {
+		return currentMemory
+	}
 
-		if summary != "" {
-			if err := h.chatService.SaveMemory(r.Context(), userID, summary); err != nil {
-				log.Error().Err(err).Str("user_id", userID).Msg("Failed to save chat memory")
-			} else {
-				*memory = summary
-				log.Debug().Str("user_id", userID).Msg("Chat memory saved")
-			}
+	if time.Since(session.lastMessageTime) < gapThreshold {
+		return currentMemory
+	}
+
+	log.Debug().Str("user_id", userID).Str("segment_id", session.activeSegmentID).Msg("Time gap detected, checking segment completion")
+
+	complete, err := h.memoryService.CheckSegmentCompletion(ctx, session.activeSegmentID)
+	if err != nil {
+		log.Warn().Err(err).Msg("Segment completion check failed")
+		complete = true
+	}
+
+	if complete {
+		h.memoryService.CloseAndSummarize(ctx, session.activeSegmentID)
+		session.activeSegmentID = ""
+
+		// Reassemble memory with the new summary.
+		if mem, err := h.memoryService.AssembleMemory(ctx, userID); err == nil {
+			return mem
 		}
 	}
 
-	if err := h.chatService.ClearMessages(r.Context(), userID); err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("Failed to clear chat messages")
-	}
+	return currentMemory
+}
 
-	*recentMsgs = nil
-	_ = ws.writeJSON(wsOutgoing{Type: "chat_cleared"})
+// closeSessionSegment closes the active segment and triggers async summarization.
+func (h *ChatHandler) closeSessionSegment(ctx context.Context, session *sessionState) {
+	if session.activeSegmentID == "" {
+		return
+	}
+	h.memoryService.CloseAndSummarize(ctx, session.activeSegmentID)
+	session.activeSegmentID = ""
+}
+
+// transitionSegment closes the current segment (if any) and starts a new one of the given type.
+func (h *ChatHandler) transitionSegment(ctx context.Context, userID, newType string, session *sessionState) {
+	h.closeSessionSegment(ctx, session)
+
+	startMsgID := h.memoryService.GetLastMessageID(ctx, userID)
+	if seg, err := h.memoryService.StartSegment(ctx, userID, newType, startMsgID); err == nil {
+		session.activeSegmentID = seg.ID
+	}
 }
 
 func (h *ChatHandler) buildSystemPrompt(userName, memory string, user *models.UserResponse, session *sessionState) string {
@@ -514,12 +561,3 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *ChatHandler) ClearMemory(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserID(r.Context())
-	if err := h.chatService.ClearMemory(r.Context(), userID); err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("Failed to clear chat memory")
-		writeError(w, http.StatusInternalServerError, "failed to clear memory")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"cleared": true})
-}

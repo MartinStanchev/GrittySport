@@ -14,6 +14,7 @@ import (
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/db"
 	"github.com/grittyfitness/api/internal/handlers"
+	"github.com/grittyfitness/api/internal/memory"
 	appmw "github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/review"
 	"github.com/grittyfitness/api/internal/services"
@@ -98,21 +99,19 @@ func main() {
 	usageService := usage.NewService(pool)
 	userHandler := handlers.NewUserHandler(userService, usageService)
 
-	chatMemoryEnabled := os.Getenv("ENABLE_CHAT_MEMORY") == "true"
-	log.Info().Bool("chat_memory", chatMemoryEnabled).Msg("Feature flags")
-
 	chatService := services.NewChatService(pool)
+	memoryService := memory.NewService(pool, geminiClient)
 
 	programService := services.NewProgramService(pool)
 	programHandler := handlers.NewProgramHandler(programService, chatService, usageService)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, chatMemoryEnabled, usageService)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService)
 
 	workoutService := services.NewWorkoutService(pool)
 
 	// Load review prompts
 	reviewPrompt, _ := skillLoader.GetSkill("post_workout_review")
 	missedPrompt, _ := skillLoader.GetSkill("missed_workout_review")
-	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, reviewPrompt, missedPrompt)
+	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, memoryService, reviewPrompt, missedPrompt)
 
 	// Start missed workout checker
 	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)
@@ -147,7 +146,6 @@ func main() {
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Get("/users/me/usage", userHandler.GetUsage)
 		r.Get("/chat/history", chatHandler.History)
-		r.Delete("/chat/memory", chatHandler.ClearMemory)
 
 		r.Post("/programs", programHandler.Create)
 		r.Get("/programs", programHandler.List)

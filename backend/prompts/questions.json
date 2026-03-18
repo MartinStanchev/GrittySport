@@ -13,30 +13,28 @@
       "name": "Experience",
       "criteria": [
         {"id": "experience_level", "description": "Assess the user's experience level with their sport", "required": true},
-        {"id": "training_history", "description": "How long they have been training consistently", "required": false},
-        {"id": "current_fitness", "description": "Their current fitness level and recent training load", "required": false}
+        {"id": "current_fitness", "description": "Their current fitness level and recent training load. Based on this answer, suggest workout intensity and volume", "required": false}
       ]
     },
     {
       "name": "Schedule",
       "criteria": [
         {"id": "days_per_week", "description": "How many days per week the user can commit to training", "required": true},
-        {"id": "preferred_days", "description": "Specific days they prefer to train or need to rest", "required": true},
-        {"id": "morning_evening", "description": "Whether they prefer morning or evening training", "required": false}
+        {"id": "preferred_days", "description": "Specific days they prefer to train or need to rest", "required": true}
       ]
     },
     {
       "name": "Equipment & Access",
       "criteria": [
-        {"id": "equipment", "description": "What equipment specific for their sport does the user have access to", "required": false},
+        {"id": "equipment", "description": "What equipment specific for their sport does the user have access to. Ask this only when the sport needs very specific equipment and the user clearly mentioned that they are a beginner or just starting out.", "required": false},
         {"id": "facility_access", "description": "Access to sport-specific facilities (pool, track, climbing gym, fitness gym, etc.)", "required": false}
       ]
     },
     {
       "name": "Cross-Training",
       "criteria": [
-        {"id": "strength_conditioning", "description": "Whether to include strength and conditioning sessions", "required": true},
-        {"id": "stretching_mobility", "description": "Whether to include dedicated stretching and mobility work", "required": true},
+        {"id": "strength_conditioning", "description": "Whether to include strength and conditioning sessions. Ask only when the user is creating a program for a sport that does not include this implicitly.", "required": true},
+        {"id": "stretching_mobility", "description": "Whether to include dedicated stretching and mobility work. Do not treat these as a separate workout DAY while planning the program, these are always complementary to a rest day or after a workout.", "required": true},
         {"id": "complementary_activities", "description": "Other activities to include (yoga, pilates, swimming for recovery, etc.)", "required": true}
       ]
     },

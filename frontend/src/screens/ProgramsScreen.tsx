@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { getPrograms, updateProgram, deleteProgram, clearChatMemory } from '../services/api';
+import { getPrograms, updateProgram, deleteProgram } from '../services/api';
 import type { ProgramSummary } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { formatDateRange } from '../utils/dates';
@@ -94,23 +94,6 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
     [notifyProgramDataChanged],
   );
 
-  const offerMemoryClear = useCallback(() => {
-    Alert.alert(
-      "Clear Grit's Memory?",
-      "Grit may still remember details from this program. Clear his coaching memory so he starts fresh?",
-      [
-        { text: 'Keep Memory', style: 'cancel' },
-        {
-          text: 'Clear Memory',
-          style: 'destructive',
-          onPress: async () => {
-            try { await clearChatMemory(); } catch { /* non-critical */ }
-          },
-        },
-      ],
-    );
-  }, []);
-
   const handleDelete = useCallback(
     (programId: string) => {
       Alert.alert(
@@ -125,7 +108,6 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
               try {
                 await deleteProgram(programId);
                 await notifyProgramDataChanged();
-                offerMemoryClear();
               } catch {
                 Alert.alert('Error', 'Failed to delete program');
               }
@@ -134,7 +116,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
         ],
       );
     },
-    [notifyProgramDataChanged, offerMemoryClear],
+    [notifyProgramDataChanged],
   );
 
   const renderItem = useCallback(

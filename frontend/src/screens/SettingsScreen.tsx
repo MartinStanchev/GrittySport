@@ -16,7 +16,6 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { clearChatMemory } from '../services/api';
 import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
 import * as healthKit from '../services/healthKitService';
@@ -338,40 +337,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Grit AI</Text>
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Coaching Memory</Text>
-          <Text style={[styles.helpText, { color: colors.textSecondary }]}>
-            Grit remembers key details from past conversations to personalise coaching. Clearing memory resets this.
-          </Text>
-          <TouchableOpacity
-            style={[styles.clearMemoryButton, { borderColor: colors.primary }]}
-            onPress={() =>
-              Alert.alert(
-                "Clear Grit's Memory",
-                "This will erase all of Grit's coaching memory. He won't remember past conversations or program details. Continue?",
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Clear Memory',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await clearChatMemory();
-                        Alert.alert('Done', "Grit's memory has been cleared.");
-                      } catch {
-                        Alert.alert('Error', 'Failed to clear memory. Please try again.');
-                      }
-                    },
-                  },
-                ],
-              )
-            }
-          >
-            <Text style={[styles.clearMemoryText, { color: colors.primary }]}>Clear Grit&apos;s Memory</Text>
-          </TouchableOpacity>
-        </View>
-
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
           <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
         </TouchableOpacity>
@@ -456,16 +421,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 4,
     marginBottom: 12,
-  },
-  clearMemoryButton: {
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  clearMemoryText: {
-    fontSize: 15,
-    fontWeight: '600',
   },
   logoutButton: {
     borderRadius: 8,

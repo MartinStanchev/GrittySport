@@ -176,30 +176,19 @@ func (g *GeminiClient) GenerateContent(ctx context.Context, contents []*genai.Co
 	return extractText(resp.Candidates[0].Content.Parts), nil
 }
 
-// SummarizeConversation uses a cheap/fast model to summarize a conversation for long-term memory.
-func (g *GeminiClient) SummarizeConversation(ctx context.Context, messages []ChatMessage) (string, error) {
-	if len(messages) == 0 {
-		return "", nil
-	}
-
-	var convo strings.Builder
-	for _, msg := range messages {
-		fmt.Fprintf(&convo, "%s: %s\n", msg.Role, msg.Content)
-	}
-
-	prompt := "Summarize this fitness coaching conversation in 2-3 sentences. Capture the key facts shared (sport, goals, program decisions, user preferences). Be brief and factual.\n\n" + convo.String()
-
+// GenerateCheap calls the cheap/fast model with a single user prompt and returns the text response.
+func (g *GeminiClient) GenerateCheap(ctx context.Context, prompt string) (string, error) {
 	contents := []*genai.Content{
 		{Role: "user", Parts: []*genai.Part{genai.NewPartFromText(prompt)}},
 	}
 
 	resp, err := g.client.Models.GenerateContent(ctx, cheapModel, contents, nil)
 	if err != nil {
-		return "", fmt.Errorf("summarize conversation: %w", err)
+		return "", fmt.Errorf("cheap generate: %w", err)
 	}
 
 	if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
-		return "", fmt.Errorf("no summary generated")
+		return "", fmt.Errorf("no response generated")
 	}
 
 	return extractText(resp.Candidates[0].Content.Parts), nil

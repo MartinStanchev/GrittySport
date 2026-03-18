@@ -434,10 +434,6 @@ export async function deleteProgram(id: string): Promise<void> {
   await apiFetch<{ deleted: boolean }>(`/api/v1/programs/${id}`, { method: 'DELETE' });
 }
 
-export async function clearChatMemory(): Promise<void> {
-  await apiFetch<{ cleared: boolean }>('/api/v1/chat/memory', { method: 'DELETE' });
-}
-
 export async function getProgramCriteria(id: string): Promise<CriterionResponse[]> {
   return apiFetch<CriterionResponse[]>(`/api/v1/programs/${id}/criteria`);
 }

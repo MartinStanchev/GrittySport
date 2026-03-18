@@ -12,6 +12,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/grittyfitness/api/internal/ai"
+	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
 )
@@ -22,6 +23,7 @@ type Service struct {
 	chatService    *services.ChatService
 	workoutService *services.WorkoutService
 	geminiClient   *ai.GeminiClient
+	memoryService  *memory.Service
 	reviewPrompt   string
 	missedPrompt   string
 }
@@ -32,6 +34,7 @@ func NewService(
 	chatService *services.ChatService,
 	workoutService *services.WorkoutService,
 	geminiClient *ai.GeminiClient,
+	memoryService *memory.Service,
 	reviewPrompt string,
 	missedPrompt string,
 ) *Service {
@@ -40,6 +43,7 @@ func NewService(
 		chatService:    chatService,
 		workoutService: workoutService,
 		geminiClient:   geminiClient,
+		memoryService:  memoryService,
 		reviewPrompt:   reviewPrompt,
 		missedPrompt:   missedPrompt,
 	}
@@ -103,10 +107,13 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	}
 
 	// Save Grit's review message
-	_, err = s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
+	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
 	if err != nil {
 		return fmt.Errorf("save review message: %w", err)
 	}
+
+	// Close any active segment and start a new post-workout review segment.
+	s.startReviewSegment(ctx, userID, "post_workout_review", savedMsg.ID)
 
 	log.Info().
 		Str("user_id", userID).
@@ -156,10 +163,13 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 		return fmt.Errorf("generate missed review: %w", err)
 	}
 
-	_, err = s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
+	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
 	if err != nil {
 		return fmt.Errorf("save missed review message: %w", err)
 	}
+
+	// Close any active segment and start a new missed workout segment.
+	s.startReviewSegment(ctx, userID, "missed_workout_checkin", savedMsg.ID)
 
 	// Mark as sent
 	_, err = s.pool.Exec(ctx,
@@ -264,6 +274,17 @@ func (s *Service) loadTrendSummary(ctx context.Context, userID, activityType str
 	}
 
 	return fmt.Sprintf("Last %d workouts:\n%s", len(summaries), strings.Join(summaries, "\n"))
+}
+
+// startReviewSegment closes any active segment (with async summarization) and starts a new one.
+func (s *Service) startReviewSegment(ctx context.Context, userID, segType, startMessageID string) {
+	if s.memoryService == nil {
+		return
+	}
+	s.memoryService.CloseActiveAndSummarize(ctx, userID)
+	if _, err := s.memoryService.StartSegment(ctx, userID, segType, startMessageID); err != nil {
+		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to start review segment")
+	}
 }
 
 func buildRecordedDataSummary(workout *models.Workout) string {

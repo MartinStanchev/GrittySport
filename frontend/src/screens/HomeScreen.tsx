@@ -29,17 +29,41 @@ import { GritChatBanner } from '../components/GritChatBanner';
 import { ActivityDashboard } from '../components/ActivityDashboard';
 import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
 import { FABActionSheet } from '../components/FABActionSheet';
-import { ClearChatModal } from '../components/ClearChatModal';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
+import { TOOL_LABELS } from '../constants/toolLabels';
+
+const TOOL_CALL_RE = /^\[System: Grit called tools?: ([^\]]+?)(?:\. .*)?\]$/;
 
 function mapHistoryMessages(messages: { id: string; role: string; content: string }[]): ChatMessage[] {
-  return messages.map((m) => ({
-    id: m.id,
-    role: m.role as 'user' | 'assistant',
-    content: m.content,
-    messageType: 'text' as const,
-  }));
+  const result: ChatMessage[] = [];
+  for (const m of messages) {
+    if (m.role === 'system') {
+      const match = m.content.match(TOOL_CALL_RE);
+      if (match) {
+        const tools = match[1].split(',').map((t) => t.trim());
+        for (let i = 0; i < tools.length; i++) {
+          result.push({
+            id: `${m.id}-tool-${i}`,
+            role: 'assistant',
+            content: TOOL_LABELS[tools[i]] ?? tools[i],
+            messageType: 'tool_action',
+            toolName: tools[i],
+            toolDone: true,
+          });
+        }
+      }
+      // Skip system messages that don't match the tool pattern (internal context)
+      continue;
+    }
+    result.push({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      messageType: 'text',
+    });
+  }
+  return result;
 }
 
 function useKeyboardHeight() {
@@ -142,7 +166,6 @@ export default function HomeScreen() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
   const [fabSheetVisible, setFabSheetVisible] = useState(false);
-  const [clearChatVisible, setClearChatVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
@@ -163,7 +186,7 @@ export default function HomeScreen() {
 
   const {
     messages, isGritTyping, sendMessage, respondToProposal,
-    loadHistory, prependHistory, isConnected, quickReplies, clearChat,
+    loadHistory, prependHistory, isConnected, quickReplies,
     unreadCount, markRead, markClosed,
     isRateLimited, usageRemaining, usageLimit,
     hasMore, isLoadingMore, setIsLoadingMore,
@@ -171,6 +194,15 @@ export default function HomeScreen() {
     onProgramCreated: handleProgramCreated,
     onAdjustmentApplied: handleAdjustmentApplied,
   });
+
+  const uniqueMessages = useMemo(() => {
+    const seen = new Set<string>();
+    return messages.filter((m) => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+  }, [messages]);
 
   const openChat = useCallback(() => {
     markRead();
@@ -335,12 +367,6 @@ export default function HomeScreen() {
     [handleProposalResponse, respondedProposals, colors, markdownStyles],
   );
 
-  const confirmClearChat = useCallback(() => {
-    setClearChatVisible(false);
-    clearChat();
-    setHistoryLoaded(false);
-  }, [clearChat]);
-
   // Refresh upcoming activities each time the home tab gains focus
   useFocusEffect(
     useCallback(() => {
@@ -455,19 +481,12 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
-            <Pressable
-              onPress={() => setClearChatVisible(true)}
-              style={[styles.clearButton, { backgroundColor: colors.background }]}
-              hitSlop={12}
-            >
-              <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
-            </Pressable>
           </View>
 
           {/* Messages */}
           <FlatList
             ref={flatListRef}
-            data={messages}
+            data={uniqueMessages}
             renderItem={renderMessage}
             keyExtractor={(item) => item.id}
             style={styles.messageList}
@@ -588,11 +607,6 @@ export default function HomeScreen() {
           )}
         </KeyboardAvoidingView>
 
-        <ClearChatModal
-          visible={clearChatVisible}
-          onCancel={() => setClearChatVisible(false)}
-          onConfirm={confirmClearChat}
-        />
       </Modal>
     </View>
   );
@@ -774,13 +788,6 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 10 : 8,
     maxHeight: 120,
     minHeight: 40,
-  },
-  clearButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   quickReplyContainer: {
     flexDirection: 'row',

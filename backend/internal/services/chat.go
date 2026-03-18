@@ -110,36 +110,3 @@ func reverseMessages(messages []models.ChatMessage) {
 	}
 }
 
-func (s *ChatService) SaveMemory(ctx context.Context, userID, summary string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO chat_memory (user_id, context, summary)
-		 VALUES ($1, 'chat', $2)
-		 ON CONFLICT (user_id, context)
-		 DO UPDATE SET summary = $2, updated_at = NOW()`,
-		userID, summary,
-	)
-	return err
-}
-
-func (s *ChatService) GetMemory(ctx context.Context, userID string) (string, error) {
-	var summary string
-	err := s.pool.QueryRow(ctx,
-		`SELECT summary FROM chat_memory WHERE user_id = $1 AND context = 'chat'`,
-		userID,
-	).Scan(&summary)
-	if err != nil {
-		// No memory found is not an error
-		return "", nil
-	}
-	return summary, nil
-}
-
-func (s *ChatService) ClearMessages(ctx context.Context, userID string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM chat_messages WHERE user_id = $1`, userID)
-	return err
-}
-
-func (s *ChatService) ClearMemory(ctx context.Context, userID string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM chat_memory WHERE user_id = $1`, userID)
-	return err
-}

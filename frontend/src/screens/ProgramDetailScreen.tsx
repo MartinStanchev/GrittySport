@@ -23,7 +23,7 @@ import {
   isManualActivity,
   dayAbbrev,
 } from '../constants/activityIcons';
-import { getProgram, deleteProgram, clearChatMemory } from '../services/api';
+import { getProgram, deleteProgram } from '../services/api';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
 import { useProgram } from '../contexts/ProgramContext';
@@ -81,27 +81,6 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     }
   }, [programId, navigation]);
 
-  const offerMemoryClear = useCallback(() => {
-    Alert.alert(
-      "Clear Grit's Memory?",
-      "Grit may still remember details from this program. Clear his coaching memory so he starts fresh?",
-      [
-        { text: 'Keep Memory', style: 'cancel' },
-        {
-          text: 'Clear Memory',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearChatMemory();
-            } catch {
-              // non-critical
-            }
-          },
-        },
-      ],
-    );
-  }, []);
-
   const handleDelete = useCallback(() => {
     Alert.alert(
       'Delete Program',
@@ -116,7 +95,6 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
               await deleteProgram(programId);
               navigation.goBack();
               notifyProgramDataChanged();
-              offerMemoryClear();
             } catch {
               Alert.alert('Error', 'Failed to delete program');
             }
@@ -124,7 +102,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
         },
       ],
     );
-  }, [programId, navigation, notifyProgramDataChanged, offerMemoryClear]);
+  }, [programId, navigation, notifyProgramDataChanged]);
 
   useFocusEffect(
     useCallback(() => {

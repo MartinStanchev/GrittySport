@@ -24,7 +24,6 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       MIGRATIONS_PATH: /app/migrations
       PORT: "8080"
-      ENABLE_CHAT_MEMORY: "true"
     volumes:
       - ./db/migrations:/app/migrations
 
