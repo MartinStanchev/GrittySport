@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/grittyfitness/api/internal/ai"
+	"github.com/grittyfitness/api/internal/chat"
 	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
@@ -25,9 +27,12 @@ import (
 
 // sessionState tracks context that persists across WS turns within a single connection.
 type sessionState struct {
-	activeDraftID   string    // current draft program being worked on
-	activeSegmentID string    // current memory segment being tracked
-	lastMessageTime time.Time // when the last message was received
+	activeDraftID     string    // current draft program being worked on
+	activeSegmentID   string    // current memory segment being tracked
+	activeSegmentType string    // cached segment type (avoids DB lookup per turn)
+	lastMessageTime   time.Time // when the last message was received
+	mode              chat.Mode // current conversation mode
+	escalated         bool      // true after a mode escalation retry within the current turn
 }
 
 var upgrader = websocket.Upgrader{
@@ -140,7 +145,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		userName = user.Name
 	}
 
-	assembledMemory, err := h.memoryService.AssembleMemory(r.Context(), userID)
+	assembledMemory, err := h.memoryService.AssembleMemory(r.Context(), userID, "")
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to assemble memory")
 	}
@@ -150,6 +155,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	// Restore active segment if one exists.
 	if activeSeg, err := h.memoryService.GetActiveSegment(r.Context(), userID); err == nil && activeSeg != nil {
 		session.activeSegmentID = activeSeg.ID
+		session.activeSegmentType = activeSeg.SegmentType
 	}
 	// Seed lastMessageTime from DB so gap detection works across reconnects.
 	if lastTime, err := h.memoryService.GetLastMessageTime(r.Context(), userID); err == nil && !lastTime.IsZero() {
@@ -220,19 +226,38 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			segType := h.memoryService.DetectSegmentType(r.Context(), incoming.Content)
 			if seg, err := h.memoryService.StartSegment(r.Context(), userID, segType, userMsg.ID); err == nil {
 				session.activeSegmentID = seg.ID
+				session.activeSegmentType = segType
 			}
 		}
 
 		session.lastMessageTime = time.Now()
 
+		// Detect conversation mode for tool/prompt filtering.
+		h.applyDetectedMode(session, userID)
+
+		// Reassemble memory with mode-aware filtering when in a specialized mode.
+		if session.mode != chat.ModeGeneralCoaching {
+			if mem, err := h.memoryService.AssembleMemory(r.Context(), userID, string(session.mode)); err == nil {
+				assembledMemory = mem
+			}
+		}
+
 		aiMessages := buildAIMessages(recentMsgs, incoming.Content)
-		systemPrompt := h.buildSystemPrompt(userName, assembledMemory, user, session)
-		h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, &recentMsgs, session, remaining)
+		h.handleWithTools(r, ws, userID, userName, assembledMemory, user, aiMessages, userMsg, &recentMsgs, session, remaining)
 	}
 }
 
-func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, systemPrompt string, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState, chatRemaining int) {
-	toolDefs := h.toolRegistry.GeminiTools()
+func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, userName, assembledMemory string, user *models.UserResponse, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState, chatRemaining int) {
+	session.escalated = false // reset per turn
+
+	systemPrompt := h.buildSystemPrompt(r.Context(), userID, userName, assembledMemory, user, session)
+	toolDefs := h.toolRegistry.GeminiToolsForMode(session.mode)
+	log.Debug().
+		Str("user_id", userID).
+		Str("mode", string(session.mode)).
+		Int("tool_count", len(toolDefs[0].FunctionDeclarations)).
+		Int("total_tools", h.toolRegistry.TotalToolCount()).
+		Msg("Tools loaded for turn")
 
 	notifyToolCall := func(toolName, status string) {
 		_ = ws.writeJSON(wsOutgoing{
@@ -243,6 +268,29 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 	}
 
 	executeTool := func(name string, args map[string]any) (any, error) {
+		// Routing tool: switch to program creation mode with segment transition.
+		// This must be checked before the general mode escalation guard below.
+		if name == "begin_program_creation" {
+			h.transitionSegment(r.Context(), userID, "program_creation", session)
+			return nil, &chat.ErrModeEscalation{
+				ToolName:     name,
+				OriginalMode: session.mode,
+				TargetMode:   chat.ModeProgramCreation,
+			}
+		}
+
+		// Mode escalation: detect when the model calls a tool that exists
+		// in the full registry but is not available in the current mode.
+		if !session.escalated && h.toolRegistry.Exists(name) && !h.toolRegistry.ToolInMode(name, session.mode) {
+			if targetMode, ok := h.toolRegistry.ModeForTool(name); ok {
+				return nil, &chat.ErrModeEscalation{
+					ToolName:     name,
+					OriginalMode: session.mode,
+					TargetMode:   targetMode,
+				}
+			}
+		}
+
 		result, err := h.toolRegistry.Execute(r.Context(), name, userID, args)
 		if err != nil {
 			return nil, err
@@ -256,6 +304,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					session.activeDraftID = id
 				}
 			}
+			session.mode = chat.ModeProgramCreation
 			// Transition from general_coaching to program_creation segment.
 			h.transitionSegment(r.Context(), userID, "program_creation", session)
 		case "get_draft_program":
@@ -264,27 +313,24 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 					session.activeDraftID = id
 				}
 			}
-		case "propose_program", "modify_pending_proposal":
+		case "propose_program":
 			if proposal, ok := h.proposalStore.Get(userID); ok {
 				_ = ws.writeJSON(wsOutgoing{Type: "program_proposal", Data: proposal.Program})
 			}
-		case "propose_adjustment":
-			if proposal, ok := h.proposalStore.Get(userID); ok {
-				_ = ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: proposal.Program})
-			}
-		case "propose_program_modification":
+		case "edit_program":
 			if proposal, ok := h.proposalStore.Get(userID); ok {
 				var meta map[string]string
 				_ = json.Unmarshal(proposal.Criteria, &meta)
 				payload, _ := json.Marshal(map[string]any{
-					"type":          "program_modification",
-					"description":   meta["description"],
-					"modifications": proposal.Program,
+					"type":        "program_edit",
+					"description": meta["description"],
+					"edits":       json.RawMessage(proposal.Program),
 				})
-				_ = ws.writeJSON(wsOutgoing{Type: "adjustment_proposal", Data: payload})
+				_ = ws.writeJSON(wsOutgoing{Type: "edit_proposal", Data: payload})
 			}
 		case "confirm_program_save":
 			session.activeDraftID = ""
+			session.mode = chat.ModeGeneralCoaching
 			if resultMap, ok := result.(map[string]any); ok {
 				if programID, ok := resultMap["program_id"].(string); ok {
 					data, _ := json.Marshal(map[string]string{"program_id": programID})
@@ -292,10 +338,9 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 				}
 			}
 			h.closeSessionSegment(r.Context(), session)
-		case "add_week_activity":
-			_ = ws.writeJSON(wsOutgoing{Type: "program_updated"})
-		case "confirm_adjustment", "confirm_program_modification":
-			_ = ws.writeJSON(wsOutgoing{Type: "adjustment_applied"})
+		case "confirm_edit":
+			session.mode = chat.ModeGeneralCoaching
+			_ = ws.writeJSON(wsOutgoing{Type: "edit_applied"})
 			h.closeSessionSegment(r.Context(), session)
 		}
 
@@ -319,8 +364,39 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 		notifyToolCall,
 		sendChunk,
 	)
+
+	// Handle mode escalation: retry with the correct mode's tools and prompt.
+	var escErr *chat.ErrModeEscalation
+	if err != nil && errors.As(err, &escErr) && !session.escalated {
+		session.escalated = true
+		session.mode = escErr.TargetMode
+		log.Info().
+			Str("user_id", userID).
+			Str("from_mode", string(escErr.OriginalMode)).
+			Str("to_mode", string(escErr.TargetMode)).
+			Str("tool", escErr.ToolName).
+			Msg("Mode escalation: retrying with correct mode")
+
+		toolDefs = h.toolRegistry.GeminiToolsForMode(session.mode)
+		systemPrompt = h.buildSystemPrompt(r.Context(), userID, userName, assembledMemory, user, session)
+
+		fullResponse, toolCalls, err = h.aiClient.ChatWithTools(
+			r.Context(),
+			systemPrompt,
+			aiMessages,
+			toolDefs,
+			executeTool,
+			notifyToolCall,
+			sendChunk,
+		)
+	}
 	if err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("ChatWithTools failed")
+		logger := log.Error().Err(err).Str("user_id", userID)
+		if session.escalated {
+			logger.Msg("ChatWithTools failed after mode escalation retry")
+		} else {
+			logger.Msg("ChatWithTools failed")
+		}
 		_ = ws.writeJSON(wsOutgoing{Type: "error", Content: "Failed to get response from Grit"})
 	}
 
@@ -364,7 +440,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, sys
 	}
 }
 
-func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName, memory string, user *models.UserResponse, incoming wsIncoming, recentMsgs *[]models.ChatMessage, session *sessionState) {
+func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName, assembledMemory string, user *models.UserResponse, incoming wsIncoming, recentMsgs *[]models.ChatMessage, session *sessionState) {
 	var userContent string
 	if incoming.Action == "accept" {
 		userContent = "I accept this program, please save it."
@@ -381,10 +457,18 @@ func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, user
 		return
 	}
 
-	aiMessages := buildAIMessages(*recentMsgs, userContent)
-	systemPrompt := h.buildSystemPrompt(userName, memory, user, session)
+	h.applyDetectedMode(session, userID)
 
-	h.handleWithTools(r, ws, userID, systemPrompt, aiMessages, userMsg, recentMsgs, session, -1)
+	// Reassemble memory with mode-aware filtering for specialized modes.
+	if session.mode != chat.ModeGeneralCoaching {
+		if mem, err := h.memoryService.AssembleMemory(r.Context(), userID, string(session.mode)); err == nil {
+			assembledMemory = mem
+		}
+	}
+
+	aiMessages := buildAIMessages(*recentMsgs, userContent)
+
+	h.handleWithTools(r, ws, userID, userName, assembledMemory, user, aiMessages, userMsg, recentMsgs, session, -1)
 }
 
 // handleSegmentBoundary checks for a 2+ hour gap since the last message. If found,
@@ -412,9 +496,10 @@ func (h *ChatHandler) handleSegmentBoundary(ctx context.Context, userID string, 
 	if complete {
 		h.memoryService.CloseAndSummarize(ctx, session.activeSegmentID)
 		session.activeSegmentID = ""
+		session.activeSegmentType = ""
 
 		// Reassemble memory with the new summary.
-		if mem, err := h.memoryService.AssembleMemory(ctx, userID); err == nil {
+		if mem, err := h.memoryService.AssembleMemory(ctx, userID, string(session.mode)); err == nil {
 			return mem
 		}
 	}
@@ -429,6 +514,7 @@ func (h *ChatHandler) closeSessionSegment(ctx context.Context, session *sessionS
 	}
 	h.memoryService.CloseAndSummarize(ctx, session.activeSegmentID)
 	session.activeSegmentID = ""
+	session.activeSegmentType = ""
 }
 
 // transitionSegment closes the current segment (if any) and starts a new one of the given type.
@@ -438,29 +524,85 @@ func (h *ChatHandler) transitionSegment(ctx context.Context, userID, newType str
 	startMsgID := h.memoryService.GetLastMessageID(ctx, userID)
 	if seg, err := h.memoryService.StartSegment(ctx, userID, newType, startMsgID); err == nil {
 		session.activeSegmentID = seg.ID
+		session.activeSegmentType = newType
 	}
 }
 
-func (h *ChatHandler) buildSystemPrompt(userName, memory string, user *models.UserResponse, session *sessionState) string {
+// detectMode builds a ModeContext from session state and determines the conversation mode.
+func (h *ChatHandler) detectMode(session *sessionState, userID string) chat.ModeResult {
+	ctx := chat.ModeContext{
+		ActiveDraftID:     session.activeDraftID,
+		ActiveSegmentType: session.activeSegmentType,
+		CurrentMode:       session.mode,
+	}
+	if proposal, ok := h.proposalStore.Get(userID); ok {
+		ctx.PendingProposal = &chat.ProposalInfo{Type: proposal.Type}
+	}
+	return chat.DetectMode(ctx)
+}
+
+// applyDetectedMode runs detectMode and updates session.mode, logging the result.
+func (h *ChatHandler) applyDetectedMode(session *sessionState, userID string) {
+	result := h.detectMode(session, userID)
+	session.mode = result.Mode
+	log.Debug().
+		Str("user_id", userID).
+		Str("mode", string(result.Mode)).
+		Str("source", result.Source).
+		Msg("Chat mode detected")
+}
+
+func (h *ChatHandler) buildSystemPrompt(ctx context.Context, userID, userName, memory string, user *models.UserResponse, session *sessionState) string {
 	tz := "UTC"
 	if user.Timezone != nil && *user.Timezone != "" {
 		tz = *user.Timezone
 	}
 
-	prompt := h.promptLoader.BuildSystemPrompt(ai.PromptParams{
+	prompt := h.promptLoader.BuildSystemPromptForMode(ai.PromptParams{
 		UserName:        sanitize.SanitizeForPrompt(userName, 100),
 		Timezone:        tz,
 		Units:           user.UnitsPreference,
 		CurrentDateTime: formatCurrentDateTime(tz),
 		Memory:          memory,
-	})
+	}, string(session.mode))
 
-	// Inject active session context so Grit remembers state across turns
+	if session.mode == chat.ModeProgramManagement {
+		prompt += h.buildActiveProgramSettingsSection(ctx, userID)
+	}
+
 	if session.activeDraftID != "" {
 		prompt += fmt.Sprintf("\n\n## Active session context\nYou are currently working on draft program ID: %s. Do NOT call create_draft_program — use this ID for save_draft_criterion and propose_program (as draft_program_id) calls.\n", session.activeDraftID)
+		if n := h.proposalStore.PhaseCount(userID); n > 0 {
+			prompt += fmt.Sprintf("You have saved %d phase(s) via save_draft_phase. Continue saving remaining phases or call propose_program if all phases are ready.\n", n)
+		}
 	}
 
 	return prompt
+}
+
+func (h *ChatHandler) buildActiveProgramSettingsSection(ctx context.Context, userID string) string {
+	program, criteria, err := h.programService.GetActiveProgramSettings(ctx, userID)
+	if err != nil || program == nil {
+		return ""
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\n## Active program settings\n")
+	b.WriteString(fmt.Sprintf("Program: %s\n", program.Name))
+	if program.Sport != nil && *program.Sport != "" {
+		b.WriteString(fmt.Sprintf("Sport: %s\n", *program.Sport))
+	}
+	if program.GoalDescription != nil && *program.GoalDescription != "" {
+		b.WriteString(fmt.Sprintf("Goal: %s\n", *program.GoalDescription))
+	}
+	if len(criteria) > 0 {
+		b.WriteString("\nSettings saved during program creation:\n")
+		for _, c := range criteria {
+			b.WriteString(fmt.Sprintf("- %s: %s\n", c.Label, c.Value))
+		}
+	}
+	b.WriteString("\nThese settings represent the user's preferences and constraints. When making modifications, respect these unless the user explicitly asks to change them. If a requested change contradicts a setting, inform the user of the conflict and ask how they'd like to proceed.\n")
+	return b.String()
 }
 
 func formatCurrentDateTime(tz string) string {
@@ -559,5 +701,29 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 		"messages": responses,
 		"has_more": hasMore,
 	})
+}
+
+// DeleteChat deletes all chat messages for the authenticated user.
+func (h *ChatHandler) DeleteChat(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if err := h.chatService.DeleteAllMessages(r.Context(), userID); err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("Failed to delete chat")
+		writeError(w, http.StatusInternalServerError, "failed to delete chat")
+		return
+	}
+	log.Info().Str("user_id", userID).Msg("Chat history deleted")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// DeleteMemory clears all memory (segments + facts) for the authenticated user.
+func (h *ChatHandler) DeleteMemory(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if err := h.memoryService.ClearAll(r.Context(), userID); err != nil {
+		log.Error().Err(err).Str("user_id", userID).Msg("Failed to clear memory")
+		writeError(w, http.StatusInternalServerError, "failed to clear memory")
+		return
+	}
+	log.Info().Str("user_id", userID).Msg("Grit memory cleared")
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 

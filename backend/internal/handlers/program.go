@@ -118,9 +118,10 @@ func (h *ProgramHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ProgramHandler) GetCriteria(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
 	programID := chi.URLParam(r, "id")
 
-	criteria, err := h.programService.GetCriteria(r.Context(), programID)
+	criteria, err := h.programService.GetCriteria(r.Context(), programID, userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get criteria")
 		return
@@ -138,7 +139,7 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 	programID := chi.URLParam(r, "id")
 
 	// Fetch old criteria for diff before update
-	oldCriteria, _ := h.programService.GetCriteria(r.Context(), programID)
+	oldCriteria, _ := h.programService.GetCriteria(r.Context(), programID, userID)
 
 	var input []models.SaveCriterionInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -146,7 +147,7 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	criteria, err := h.programService.UpsertCriteria(r.Context(), programID, input)
+	criteria, err := h.programService.UpsertCriteria(r.Context(), programID, userID, input)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update criteria")
 		return

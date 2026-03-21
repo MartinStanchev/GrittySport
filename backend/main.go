@@ -117,6 +117,9 @@ func main() {
 	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)
 	go missedChecker.Run(ctx)
 
+	factDecay := memory.NewFactDecayScheduler(memoryService)
+	go factDecay.Run(ctx)
+
 	workoutHandler := handlers.NewWorkoutHandler(workoutService, reviewService, usageService, pool)
 
 	r := chi.NewRouter()
@@ -146,6 +149,8 @@ func main() {
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Get("/users/me/usage", userHandler.GetUsage)
 		r.Get("/chat/history", chatHandler.History)
+		r.Delete("/chat/history", chatHandler.DeleteChat)
+		r.Delete("/chat/memory", chatHandler.DeleteMemory)
 
 		r.Post("/programs", programHandler.Create)
 		r.Get("/programs", programHandler.List)

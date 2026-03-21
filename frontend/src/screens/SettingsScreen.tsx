@@ -21,6 +21,7 @@ import HRSensorModal from '../components/HRSensorModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
+import { deleteChatHistory, deleteGritMemory } from '../services/api';
 import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
 
 function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
@@ -51,6 +52,36 @@ export default function SettingsScreen() {
   const [appleHealthStatus, setAppleHealthStatus] = useState<HealthKitStatus>('not_supported');
   const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
   const [appleHealthLoading, setAppleHealthLoading] = useState(false);
+  const [clearingChat, setClearingChat] = useState(false);
+  const [clearingMemory, setClearingMemory] = useState(false);
+
+  function confirmClearData(
+    title: string,
+    message: string,
+    setLoading: (v: boolean) => void,
+    action: () => Promise<void>,
+    successMessage: string,
+    errorMessage: string,
+  ) {
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await action();
+            Alert.alert('Done', successMessage);
+          } catch {
+            Alert.alert('Error', errorMessage);
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -337,6 +368,53 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Data Management</Text>
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={[styles.dangerRow, { borderColor: colors.border }]}
+            disabled={clearingChat}
+            onPress={() => confirmClearData(
+              'Clear Chat History',
+              'This will permanently delete all your messages with Grit. This cannot be undone.',
+              setClearingChat,
+              deleteChatHistory,
+              'Chat history has been cleared.',
+              'Failed to clear chat history.',
+            )}
+          >
+            <Ionicons name="chatbubbles-outline" size={20} color={colors.error} />
+            <View style={styles.dangerRowInfo}>
+              <Text style={[styles.dangerRowLabel, { color: colors.textPrimary }]}>Clear Chat History</Text>
+              <Text style={[styles.dangerRowHint, { color: colors.textSecondary }]}>
+                Delete all messages with Grit
+              </Text>
+            </View>
+            {clearingChat && <ActivityIndicator size="small" color={colors.textSecondary} />}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.dangerRow, { borderColor: colors.border, marginTop: 8 }]}
+            disabled={clearingMemory}
+            onPress={() => confirmClearData(
+              "Clear Grit's Memory",
+              "This will erase everything Grit remembers about you (injuries, goals, preferences, etc.). Grit will start learning about you again from scratch. This cannot be undone.",
+              setClearingMemory,
+              deleteGritMemory,
+              "Grit's memory has been cleared.",
+              "Failed to clear Grit's memory.",
+            )}
+          >
+            <Ionicons name="bulb-outline" size={20} color={colors.error} />
+            <View style={styles.dangerRowInfo}>
+              <Text style={[styles.dangerRowLabel, { color: colors.textPrimary }]}>Clear Grit's Memory</Text>
+              <Text style={[styles.dangerRowHint, { color: colors.textSecondary }]}>
+                Erase injuries, goals, preferences, and session history
+              </Text>
+            </View>
+            {clearingMemory && <ActivityIndicator size="small" color={colors.textSecondary} />}
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
           <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
         </TouchableOpacity>
@@ -570,5 +648,25 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: 15,
     fontWeight: '500',
+  },
+  dangerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  dangerRowInfo: {
+    flex: 1,
+  },
+  dangerRowLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  dangerRowHint: {
+    fontSize: 13,
+    marginTop: 2,
   },
 });

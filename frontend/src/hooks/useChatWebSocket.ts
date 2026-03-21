@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getValidAccessToken, getWsBaseUrl } from '../services/api';
+import { getValidAccessToken, getWsBaseUrl, onChatCleared } from '../services/api';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
 export interface ChatMessage {
@@ -7,7 +7,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
-  messageType?: 'text' | 'program_proposal' | 'adjustment_proposal' | 'program_modification' | 'tool_action';
+  messageType?: 'text' | 'program_proposal' | 'program_edit' | 'tool_action';
   proposalData?: any;
   toolName?: string;
   toolDone?: boolean;
@@ -217,17 +217,10 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
             return prev;
           });
         }
-      } else if (data.type === 'program_proposal' || data.type === 'adjustment_proposal') {
+      } else if (data.type === 'program_proposal' || data.type === 'edit_proposal') {
         setIsGritTyping(false);
-        const isModification = data.type === 'adjustment_proposal' && data.data?.type === 'program_modification';
-        let messageType: ChatMessage['messageType'];
-        if (data.type === 'program_proposal') {
-          messageType = 'program_proposal';
-        } else if (isModification) {
-          messageType = 'program_modification';
-        } else {
-          messageType = 'adjustment_proposal';
-        }
+        const messageType: ChatMessage['messageType'] =
+          data.type === 'program_proposal' ? 'program_proposal' : 'program_edit';
         setMessages((prev) => [
           ...finalizeToolActions(prev),
           {
@@ -243,7 +236,7 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
         if (programId && optionsRef.current?.onProgramCreated) {
           optionsRef.current.onProgramCreated(programId);
         }
-      } else if (data.type === 'adjustment_applied') {
+      } else if (data.type === 'edit_applied') {
         if (optionsRef.current?.onAdjustmentApplied) {
           optionsRef.current.onAdjustmentApplied();
         }
@@ -373,9 +366,21 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     authFailedRef.current = false; // Reset on mount — user may have logged in
     connect();
 
+    const unsubChatCleared = onChatCleared(() => {
+      setMessages([]);
+      setHasMore(false);
+      setQuickReplies([]);
+      historyLoadedRef.current = false;
+      // Force WebSocket reconnect so backend reloads from the now-empty DB
+      // (the backend caches recent messages in memory for the WS lifetime)
+      reconnectDelayRef.current = 500;
+      wsRef.current?.close();
+    });
+
     return () => {
       mountedRef.current = false;
       disconnect();
+      unsubChatCleared();
     };
   }, [connect, disconnect]);
 

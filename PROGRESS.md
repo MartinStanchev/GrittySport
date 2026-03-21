@@ -47,6 +47,12 @@ Full details for each change are in the `progress/` folder.
 | [home-screen-redesign](progress/home-screen-redesign.md) | Home screen redesign: program arc, Grit chat banner, activity dashboard, weekly effort counter |
 | [configurable-weekly-effort-goal](progress/configurable-weekly-effort-goal.md) | Task 17: User/Grit-configurable weekly effort goal, replacing hardcoded 300 |
 | [segment-based-chat-memory](progress/segment-based-chat-memory.md) | Segment-based chat memory: auto-segmentation, LLM summarization, fact extraction, replaces old chat_memory |
+| [conversation-modes](progress/conversation-modes.md) | Tasks 18-20: Mode-based tool/prompt filtering — 4 modes, composable system prompt, ~65% token savings for coaching |
+| [mode-escalation](progress/mode-escalation.md) | Task 21: Mode escalation safety net — auto-retries with correct tools when mode detection is wrong |
+| [enhanced-memory-retrieval](progress/enhanced-memory-retrieval.md) | Task 22: Mode-aware memory assembly — segment tagging + tag-filtered retrieval per conversation mode |
+| [memory-decay](progress/memory-decay.md) | Task 23: Fact auto-expiry (injury 4mo, schedule 3mo) + 20-fact cap in assembly |
+| [mode-observability-logging](progress/mode-observability-logging.md) | Task 24: Structured logging for mode detection, tool counts, memory assembly, fact decay |
+| [incremental-phase-proposal](progress/incremental-phase-proposal.md) | Incremental phase-based program proposal — save_draft_phase per phase, then lightweight propose_program |
 
 ## Instructions for Agents
 

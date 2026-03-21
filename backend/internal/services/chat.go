@@ -104,6 +104,11 @@ func (s *ChatService) queryMessages(ctx context.Context, query string, args ...i
 	return messages, nil
 }
 
+func (s *ChatService) DeleteAllMessages(ctx context.Context, userID string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM chat_messages WHERE user_id = $1`, userID)
+	return err
+}
+
 func reverseMessages(messages []models.ChatMessage) {
 	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
 		messages[i], messages[j] = messages[j], messages[i]

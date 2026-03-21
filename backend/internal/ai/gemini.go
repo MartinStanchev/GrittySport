@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
+	"github.com/grittyfitness/api/internal/chat"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/genai"
 )
@@ -49,21 +51,32 @@ type criteriaFile struct {
 	Categories []criteriaCategory `json:"categories"`
 }
 
-// PromptLoader loads the unified system prompt template and renders it with parameters.
+// PromptLoader loads composable system prompt templates and renders them per conversation mode.
 type PromptLoader struct {
-	systemTmpl        *template.Template
+	templates         map[string]*template.Template // "base", "program_create", "program_modify", "review"
 	formattedCriteria string
 }
 
-// LoadPrompts reads the unified system prompt and questions.json from the given directory.
+// LoadPrompts reads the composable system prompt templates and questions.json from the given directory.
 func LoadPrompts(dir string) (*PromptLoader, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "system.md"))
-	if err != nil {
-		return nil, fmt.Errorf("read system.md: %w", err)
+	templateFiles := map[string]string{
+		"base":           "system_base.md",
+		"program_create": "system_program_create.md",
+		"program_modify": "system_program_modify.md",
+		"review":         "system_review_context.md",
 	}
-	tmpl, err := template.New("system").Parse(string(data))
-	if err != nil {
-		return nil, fmt.Errorf("parse system.md: %w", err)
+
+	templates := make(map[string]*template.Template, len(templateFiles))
+	for key, filename := range templateFiles {
+		data, err := os.ReadFile(filepath.Join(dir, filename))
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", filename, err)
+		}
+		tmpl, err := template.New(key).Parse(string(data))
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", filename, err)
+		}
+		templates[key] = tmpl
 	}
 
 	// Load questions.json for criteria formatting
@@ -76,19 +89,39 @@ func LoadPrompts(dir string) (*PromptLoader, error) {
 		return nil, fmt.Errorf("parse questions.json: %w", err)
 	}
 
-	log.Info().Str("prompts_dir", dir).Int("criteria_categories", len(cf.Categories)).Msg("System prompt and criteria loaded")
-	return &PromptLoader{systemTmpl: tmpl, formattedCriteria: formatCriteria(cf)}, nil
+	log.Info().Str("prompts_dir", dir).Int("templates", len(templates)).Msg("System prompt templates loaded")
+	return &PromptLoader{templates: templates, formattedCriteria: formatCriteria(cf)}, nil
 }
 
-// BuildSystemPrompt renders the unified system prompt with the given parameters.
-// Criteria is automatically injected from questions.json.
-func (pl *PromptLoader) BuildSystemPrompt(p PromptParams) string {
-	p.Criteria = pl.formattedCriteria
+// BuildSystemPromptForMode renders the base template plus the mode-specific section.
+// For general_coaching, only the base is rendered (saving ~2000 tokens).
+func (pl *PromptLoader) BuildSystemPromptForMode(p PromptParams, mode string) string {
 	var buf bytes.Buffer
-	if err := pl.systemTmpl.Execute(&buf, p); err != nil {
-		log.Error().Err(err).Msg("Failed to render system prompt")
+	if err := pl.templates["base"].Execute(&buf, p); err != nil {
+		log.Error().Err(err).Msg("Failed to render base system prompt")
 		return ""
 	}
+
+	var modeKey string
+	switch mode {
+	case "program_creation":
+		modeKey = "program_create"
+		p.Criteria = pl.formattedCriteria
+	case "program_management":
+		modeKey = "program_modify"
+	case "workout_review":
+		modeKey = "review"
+	default:
+		return buf.String()
+	}
+
+	if tmpl, ok := pl.templates[modeKey]; ok {
+		buf.WriteString("\n\n---\n\n")
+		if err := tmpl.Execute(&buf, p); err != nil {
+			log.Error().Err(err).Str("mode", mode).Msg("Failed to render mode template")
+		}
+	}
+
 	return buf.String()
 }
 
@@ -306,8 +339,10 @@ func (g *GeminiClient) ChatWithTools(
 
 	var toolCalls []ToolCallInfo
 	var hasProposal bool
-	var retried bool
+	var emptyRetries int     // count of retries after empty responses (transient glitch)
+	var retriedMalformed bool // retried after a malformed function call (with simplification hint)
 	maxRounds := 10
+	maxEmptyRetries := 3
 
 	for round := 0; round < maxRounds; round++ {
 		roundChars := 0
@@ -363,11 +398,31 @@ func (g *GeminiClient) ChatWithTools(
 				Bool("empty", isEmpty).
 				Msg("ChatWithTools: empty or malformed content")
 
-			// For empty responses (not malformed), retry once with the same config.
+			// For empty responses (not malformed), retry up to maxEmptyRetries times.
 			// Empty responses with STOP and 0 output tokens are usually transient Gemini glitches.
-			if isEmpty && !isMalformed && !retried {
-				retried = true
-				log.Debug().Int("round", round).Msg("ChatWithTools: retrying same request after empty response")
+			if isEmpty && !isMalformed && emptyRetries < maxEmptyRetries {
+				emptyRetries++
+				log.Debug().Int("round", round).Int("attempt", emptyRetries).Msg("ChatWithTools: retrying same request after empty response")
+				continue
+			}
+
+			// For malformed function calls, retry WITH tools but add a simplification hint.
+			// This gives Gemini a second chance to produce a valid (smaller) function call.
+			if isMalformed && !retriedMalformed {
+				retriedMalformed = true
+				log.Debug().Int("round", round).Msg("ChatWithTools: retrying with simplification hint after malformed function call")
+				contents = append(contents, &genai.Content{
+					Role:  "model",
+					Parts: []*genai.Part{genai.NewPartFromText("Let me try that again with a simpler format.")},
+				})
+				contents = append(contents, &genai.Content{
+					Role: "user",
+					Parts: []*genai.Part{genai.NewPartFromText(
+						"[System: Your previous tool call was malformed (likely too large). " +
+							"Simplify: use minimal prescription objects with only essential keys and short values, " +
+							"omit optional fields like notes and order_index. Retry the tool call now.]",
+					)},
+				})
 				continue
 			}
 
@@ -379,15 +434,19 @@ func (g *GeminiClient) ChatWithTools(
 				MaxOutputTokens:   config.MaxOutputTokens,
 			}
 			fallbackContents := messagesToContents(messages)
-			hint := "[System: Your previous attempt to respond failed (empty or malformed output). " +
-				"Please respond in plain text instead of using tool calls. " +
-				"If you were about to create a program proposal, tell the user you're ready and " +
-				"ask them to confirm so you can try again, or describe what you would include.]"
+			const noToolInstruction = "Respond ONLY in natural language. Do NOT output tool calls, function syntax, " +
+				"code blocks, or |||TOOL_CODE||| markers under any circumstances. "
+			var hint string
 			if isMalformed {
-				hint = "[System: Your previous tool call failed because the output was too large. " +
-					"Please respond in text instead. If you were trying to modify a program proposal, " +
-					"describe what changes you would make and ask the user if they'd like you to save " +
-					"the program first and then apply adjustments.]"
+				hint = "[System: Your tool call failed because the output was too large. " +
+					noToolInstruction +
+					"Tell the user you're putting together their program and ask them to send " +
+					"a message (like 'go ahead') so you can try again with a more concise format.]"
+			} else {
+				hint = "[System: Your previous attempt to respond failed (empty or malformed output). " +
+					noToolInstruction +
+					"If you were about to create a program proposal, tell the user you're ready and " +
+					"ask them to confirm so you can try again.]"
 			}
 			fallbackContents = append(fallbackContents, &genai.Content{
 				Role:  "user",
@@ -395,7 +454,7 @@ func (g *GeminiClient) ChatWithTools(
 			})
 			fallbackResp, fbErr := g.client.Models.GenerateContent(ctx, model, fallbackContents, fallbackConfig)
 			if fbErr == nil && len(fallbackResp.Candidates) > 0 && fallbackResp.Candidates[0].Content != nil {
-				fullText := extractText(fallbackResp.Candidates[0].Content.Parts)
+				fullText := stripToolCode(extractText(fallbackResp.Candidates[0].Content.Parts))
 				if fullText != "" {
 					if sendChunk != nil {
 						_ = sendChunk(fullText)
@@ -432,49 +491,13 @@ func (g *GeminiClient) ChatWithTools(
 		if len(functionCalls) == 0 {
 			fullText := extractText(resp.Candidates[0].Content.Parts)
 
-			// If no tool calls happened (round 0), re-stream for token-by-token UX.
-			// If tool calls happened, we already have the text — send directly to avoid
-			// a second API call and double token usage.
-			if len(toolCalls) == 0 && sendChunk != nil {
-				log.Debug().Msg("ChatWithTools: re-streaming final response (no tool calls)")
-				streamConfig := &genai.GenerateContentConfig{
-					SystemInstruction: config.SystemInstruction,
-				}
-				var streamed strings.Builder
-				var streamChunks int
-				for streamResp, streamErr := range g.client.Models.GenerateContentStream(ctx, model, contents, streamConfig) {
-					if streamErr != nil {
-						log.Error().Err(streamErr).Int("chunks_received", streamChunks).Msg("ChatWithTools: stream error, falling back")
-						if fullText != "" {
-							_ = sendChunk(fullText)
-						}
-						return fullText, toolCalls, nil
-					}
-					chunk := streamResp.Text()
-					if strings.TrimSpace(chunk) != "" {
-						streamChunks++
-						streamed.WriteString(chunk)
-						if err := sendChunk(chunk); err != nil {
-							log.Error().Err(err).Msg("ChatWithTools: failed to send stream chunk")
-						}
-					}
-				}
-				if streamed.Len() > 0 {
-					fullText = streamed.String()
-				}
-				log.Debug().
-					Int("stream_chunks", streamChunks).
-					Str("response", truncate(fullText, 300)).
-					Msg("ChatWithTools completed (streamed)")
-			} else {
-				if sendChunk != nil && fullText != "" {
-					_ = sendChunk(fullText)
-				}
-				log.Debug().
-					Int("tool_calls", len(toolCalls)).
-					Str("response", truncate(fullText, 300)).
-					Msg("ChatWithTools completed (direct send after tools)")
+			if sendChunk != nil && fullText != "" {
+				_ = sendChunk(fullText)
 			}
+			log.Debug().
+				Int("tool_calls", len(toolCalls)).
+				Str("response", truncate(fullText, 300)).
+				Msg("ChatWithTools completed")
 
 			return fullText, toolCalls, nil
 		}
@@ -483,7 +506,7 @@ func (g *GeminiClient) ChatWithTools(
 
 		var functionResponses []*genai.Part
 		for _, fc := range functionCalls {
-			if fc.Name == "propose_program" || fc.Name == "propose_adjustment" {
+			if fc.Name == "propose_program" || fc.Name == "edit_program" {
 				hasProposal = true
 			}
 
@@ -499,6 +522,17 @@ func (g *GeminiClient) ChatWithTools(
 			}
 
 			result, err := executeTool(fc.Name, fc.Args)
+
+			// Mode escalation: abort the turn so the handler can retry with the correct mode.
+			var escErr *chat.ErrModeEscalation
+			if errors.As(err, &escErr) {
+				log.Info().
+					Str("tool", escErr.ToolName).
+					Str("from_mode", string(escErr.OriginalMode)).
+					Str("to_mode", string(escErr.TargetMode)).
+					Msg("ChatWithTools: mode escalation triggered, aborting turn")
+				return "", toolCalls, escErr
+			}
 
 			info := ToolCallInfo{Name: fc.Name}
 			if err != nil {
@@ -619,4 +653,21 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// stripToolCode removes leaked Gemini tool-code syntax from a response.
+// This can happen when the model is retried without tools but still tries
+// to output function calls in its native code execution format.
+func stripToolCode(s string) string {
+	markers := []string{
+		"|||TOOL_CODE|||",
+		"```tool_code",
+		"```python\nprint(",
+	}
+	for _, marker := range markers {
+		if idx := strings.Index(s, marker); idx >= 0 {
+			s = strings.TrimSpace(s[:idx])
+		}
+	}
+	return s
 }

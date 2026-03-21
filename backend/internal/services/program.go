@@ -59,7 +59,7 @@ func (s *ProgramService) GetByID(ctx context.Context, programID, userID string) 
 	if err != nil {
 		return nil, err
 	}
-	criteria, err := s.GetCriteria(ctx, programID)
+	criteria, err := s.GetCriteria(ctx, programID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +79,41 @@ func (s *ProgramService) GetActiveProgram(ctx context.Context, userID string) (*
 		return nil, err
 	}
 	return s.GetByID(ctx, programID, userID)
+}
+
+// GetActiveProgramSettings returns the active program's basic info and criteria
+// without loading phases/weeks/activities. Used for prompt context injection.
+func (s *ProgramService) GetActiveProgramSettings(ctx context.Context, userID string) (*models.Program, []models.ProgramCriterion, error) {
+	var p models.Program
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, user_id, name, sport, goal_description, start_date, end_date, status, created_by, created_at, updated_at
+		 FROM programs WHERE user_id = $1 AND status = 'active' LIMIT 1`, userID,
+	).Scan(&p.ID, &p.UserID, &p.Name, &p.Sport, &p.GoalDescription, &p.StartDate, &p.EndDate, &p.Status, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Query criteria directly — ownership is already proven by the WHERE user_id clause above.
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, program_id, key, label, value, value_type, display_order, created_at, updated_at
+		 FROM program_criteria WHERE program_id = $1 ORDER BY display_order`, p.ID)
+	if err != nil {
+		return &p, nil, err
+	}
+	defer rows.Close()
+
+	var criteria []models.ProgramCriterion
+	for rows.Next() {
+		var c models.ProgramCriterion
+		if err := rows.Scan(&c.ID, &c.ProgramID, &c.Key, &c.Label, &c.Value, &c.ValueType, &c.DisplayOrder, &c.CreatedAt, &c.UpdatedAt); err != nil {
+			return &p, nil, err
+		}
+		criteria = append(criteria, c)
+	}
+	if err := rows.Err(); err != nil {
+		return &p, nil, err
+	}
+	return &p, criteria, nil
 }
 
 func (s *ProgramService) loadPhases(ctx context.Context, programID string) ([]models.Phase, error) {
@@ -341,7 +376,10 @@ func (s *ProgramService) UpdateProgram(ctx context.Context, programID, userID st
 	return &resp, nil
 }
 
-func (s *ProgramService) GetCriteria(ctx context.Context, programID string) ([]models.ProgramCriterion, error) {
+func (s *ProgramService) GetCriteria(ctx context.Context, programID, userID string) ([]models.ProgramCriterion, error) {
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return nil, err
+	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, program_id, key, label, value, value_type, display_order, created_at, updated_at
 		 FROM program_criteria WHERE program_id = $1 ORDER BY display_order`, programID)
@@ -364,7 +402,10 @@ func (s *ProgramService) GetCriteria(ctx context.Context, programID string) ([]m
 	return criteria, rows.Err()
 }
 
-func (s *ProgramService) UpsertCriteria(ctx context.Context, programID string, criteria []models.SaveCriterionInput) ([]models.ProgramCriterion, error) {
+func (s *ProgramService) UpsertCriteria(ctx context.Context, programID, userID string, criteria []models.SaveCriterionInput) ([]models.ProgramCriterion, error) {
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return nil, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -394,35 +435,321 @@ func (s *ProgramService) UpsertCriteria(ctx context.Context, programID string, c
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
-	return s.GetCriteria(ctx, programID)
+	return s.GetCriteria(ctx, programID, userID)
 }
 
-func (s *ProgramService) AdjustActivities(ctx context.Context, adjustments []models.AdjustActivityInput) ([]models.ScheduledActivity, error) {
+// ApplyEdits processes a unified set of program edits within a single transaction.
+// Returns the number of affected rows.
+func (s *ProgramService) ApplyEdits(ctx context.Context, programID, userID string, edits []models.ProgramEdit) (int, error) {
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return 0, err
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var updated []models.ScheduledActivity
-	for _, adj := range adjustments {
-		var a models.ScheduledActivity
-		err := tx.QueryRow(ctx,
-			`UPDATE scheduled_activities SET prescription = $2, updated_at = NOW()
-			 WHERE id = $1
-			 RETURNING id, week_id, day_of_week, activity_type, prescription, notes, order_index, created_at, updated_at`,
-			adj.ActivityID, adj.Prescription,
-		).Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt)
+	affected := 0
+	for _, edit := range edits {
+		n, err := s.applyOneEdit(ctx, tx, programID, userID, edit)
 		if err != nil {
-			return nil, fmt.Errorf("adjust activity %s: %w", adj.ActivityID, err)
+			return 0, err
 		}
-		updated = append(updated, a)
+		affected += n
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return updated, nil
+	return affected, nil
+}
+
+func (s *ProgramService) applyOneEdit(ctx context.Context, tx pgx.Tx, programID, userID string, edit models.ProgramEdit) (int, error) {
+	switch edit.Action {
+	case "update_activity":
+		return s.applyUpdateActivity(ctx, tx, programID, userID, edit)
+	case "remove_activity":
+		return s.applyRemoveActivity(ctx, tx, programID, edit)
+	case "add_activity":
+		return s.applyAddActivity(ctx, tx, programID, edit)
+	case "swap_day":
+		return s.applySwapDay(ctx, tx, programID, edit)
+	case "update_criteria":
+		return s.applyUpdateCriteria(ctx, tx, programID, userID, edit)
+	default:
+		return 0, fmt.Errorf("unknown edit action: %s", edit.Action)
+	}
+}
+
+func (s *ProgramService) applyUpdateActivity(ctx context.Context, tx pgx.Tx, programID, userID string, edit models.ProgramEdit) (int, error) {
+	// By-ID mode: update a single specific activity.
+	if edit.ActivityID != "" {
+		// Verify the activity belongs to this program and user.
+		var ownerID string
+		err := tx.QueryRow(ctx,
+			`SELECT p.user_id FROM scheduled_activities sa
+			 JOIN weeks w ON w.id = sa.week_id
+			 JOIN phases ph ON ph.id = w.phase_id
+			 JOIN programs p ON p.id = ph.program_id
+			 WHERE sa.id = $1 AND p.id = $2`, edit.ActivityID, programID,
+		).Scan(&ownerID)
+		if err != nil {
+			return 0, fmt.Errorf("activity %s not found: %w", edit.ActivityID, err)
+		}
+		if ownerID != userID {
+			return 0, fmt.Errorf("access denied for activity %s", edit.ActivityID)
+		}
+
+		tag, err := tx.Exec(ctx,
+			`UPDATE scheduled_activities SET
+				prescription = COALESCE($2, prescription),
+				notes = COALESCE($3, notes),
+				day_of_week = COALESCE($4, day_of_week),
+				activity_type = COALESCE($5, activity_type),
+				updated_at = NOW()
+			 WHERE id = $1`,
+			edit.ActivityID, edit.Prescription, edit.Notes, edit.DayOfWeek, nilIfEmpty(edit.ActivityType),
+		)
+		if err != nil {
+			return 0, fmt.Errorf("update activity %s: %w", edit.ActivityID, err)
+		}
+		return int(tag.RowsAffected()), nil
+	}
+
+	// Bulk mode: update by day_of_week across weeks.
+	if edit.DayOfWeek == nil {
+		return 0, fmt.Errorf("update_activity requires activity_id or day_of_week")
+	}
+
+	weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, edit.PhaseIndex, "week_id")
+
+	var sets []string
+	if edit.ActivityType != "" {
+		sets = append(sets, fmt.Sprintf(`activity_type = $%d`, argIdx))
+		weekFilterArgs = append(weekFilterArgs, edit.ActivityType)
+		argIdx++
+	}
+	if edit.Prescription != nil {
+		sets = append(sets, fmt.Sprintf(`prescription = $%d`, argIdx))
+		weekFilterArgs = append(weekFilterArgs, edit.Prescription)
+		argIdx++
+	}
+	if edit.Notes != nil {
+		sets = append(sets, fmt.Sprintf(`notes = $%d`, argIdx))
+		weekFilterArgs = append(weekFilterArgs, *edit.Notes)
+		argIdx++
+	}
+	if len(sets) == 0 {
+		return 0, nil
+	}
+
+	dayArgIdx := argIdx
+	weekFilterArgs = append(weekFilterArgs, *edit.DayOfWeek)
+	argIdx++
+
+	typeFilterClause, weekFilterArgs := appendTypeFilter(edit.ActivityTypeFilter, weekFilterArgs, argIdx)
+
+	tag, err := tx.Exec(ctx,
+		fmt.Sprintf(`UPDATE scheduled_activities SET %s, updated_at = NOW()
+		 WHERE day_of_week = $%d%s AND %s`,
+			strings.Join(sets, ", "), dayArgIdx, typeFilterClause, weekFilter),
+		weekFilterArgs...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("update_activity bulk: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (s *ProgramService) applyRemoveActivity(ctx context.Context, tx pgx.Tx, programID string, edit models.ProgramEdit) (int, error) {
+	// By-ID mode: delete a single specific activity.
+	if edit.ActivityID != "" {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM scheduled_activities WHERE id = $1 AND week_id IN (
+				SELECT w.id FROM weeks w JOIN phases ph ON ph.id = w.phase_id WHERE ph.program_id = $2
+			)`,
+			edit.ActivityID, programID,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("remove activity %s: %w", edit.ActivityID, err)
+		}
+		return int(tag.RowsAffected()), nil
+	}
+
+	// Bulk mode: remove by day_of_week across weeks.
+	if edit.DayOfWeek == nil {
+		return 0, fmt.Errorf("remove_activity requires activity_id or day_of_week")
+	}
+
+	weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, edit.PhaseIndex, "week_id")
+	dayArgIdx := argIdx
+	weekFilterArgs = append(weekFilterArgs, *edit.DayOfWeek)
+	argIdx++
+
+	typeFilterClause, weekFilterArgs := appendTypeFilter(edit.ActivityTypeFilter, weekFilterArgs, argIdx)
+
+	tag, err := tx.Exec(ctx,
+		fmt.Sprintf(`DELETE FROM scheduled_activities WHERE day_of_week = $%d%s AND %s`, dayArgIdx, typeFilterClause, weekFilter),
+		weekFilterArgs...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("remove_activity bulk: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (s *ProgramService) applyAddActivity(ctx context.Context, tx pgx.Tx, programID string, edit models.ProgramEdit) (int, error) {
+	if edit.ActivityType == "" {
+		return 0, fmt.Errorf("add_activity requires activity_type")
+	}
+	prescription := edit.Prescription
+	if prescription == nil {
+		prescription = json.RawMessage("{}")
+	}
+
+	// Single-week mode: add to a specific week.
+	if edit.WeekID != "" {
+		if edit.DayOfWeek == nil {
+			return 0, fmt.Errorf("add_activity with week_id requires day_of_week")
+		}
+		// Verify week belongs to program.
+		var exists bool
+		err := tx.QueryRow(ctx,
+			`SELECT EXISTS(
+				SELECT 1 FROM weeks w JOIN phases ph ON ph.id = w.phase_id
+				WHERE w.id = $1 AND ph.program_id = $2
+			)`, edit.WeekID, programID).Scan(&exists)
+		if err != nil || !exists {
+			return 0, fmt.Errorf("week %s does not belong to program %s", edit.WeekID, programID)
+		}
+
+		var orderIdx int
+		_ = tx.QueryRow(ctx,
+			`SELECT COALESCE(MAX(order_index)+1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
+			edit.WeekID, *edit.DayOfWeek).Scan(&orderIdx)
+
+		_, err = tx.Exec(ctx,
+			`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			edit.WeekID, *edit.DayOfWeek, edit.ActivityType, prescription, edit.Notes, orderIdx)
+		if err != nil {
+			return 0, fmt.Errorf("add_activity insert: %w", err)
+		}
+		return 1, nil
+	}
+
+	// Bulk mode: add across all weeks (optionally filtered by phase).
+	if edit.DayOfWeek == nil {
+		return 0, fmt.Errorf("add_activity requires week_id or day_of_week")
+	}
+
+	phaseFilter := ""
+	queryArgs := []any{programID}
+	if edit.PhaseIndex != nil {
+		phaseFilter = ` AND ph.order_index = $2`
+		queryArgs = append(queryArgs, *edit.PhaseIndex)
+	}
+
+	rows, err := tx.Query(ctx,
+		fmt.Sprintf(`SELECT w.id FROM weeks w
+		 JOIN phases ph ON ph.id = w.phase_id
+		 WHERE ph.program_id = $1%s`, phaseFilter),
+		queryArgs...)
+	if err != nil {
+		return 0, fmt.Errorf("add_activity get weeks: %w", err)
+	}
+	var weekIDs []string
+	for rows.Next() {
+		var wid string
+		if err := rows.Scan(&wid); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		weekIDs = append(weekIDs, wid)
+	}
+	rows.Close()
+
+	count := 0
+	for _, wid := range weekIDs {
+		var orderIdx int
+		_ = tx.QueryRow(ctx,
+			`SELECT COALESCE(MAX(order_index)+1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
+			wid, *edit.DayOfWeek).Scan(&orderIdx)
+
+		_, err = tx.Exec(ctx,
+			`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
+			 VALUES ($1, $2, $3, $4, $5, $6)`,
+			wid, *edit.DayOfWeek, edit.ActivityType, prescription, edit.Notes, orderIdx)
+		if err != nil {
+			return 0, fmt.Errorf("add_activity insert: %w", err)
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (s *ProgramService) applySwapDay(ctx context.Context, tx pgx.Tx, programID string, edit models.ProgramEdit) (int, error) {
+	if edit.DayOfWeek == nil || edit.NewDay == nil {
+		return 0, fmt.Errorf("swap_day requires day_of_week and new_day")
+	}
+
+	weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, edit.PhaseIndex, "week_id")
+
+	// Step 1: move day A to sentinel (-1).
+	_, err := tx.Exec(ctx,
+		fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = -1, updated_at = NOW()
+		 WHERE day_of_week = $%d AND %s`, argIdx, weekFilter),
+		append(weekFilterArgs, *edit.DayOfWeek)...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("swap_day step1: %w", err)
+	}
+
+	// Step 2: move day B to day A.
+	tag, err := tx.Exec(ctx,
+		fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = $%d, updated_at = NOW()
+		 WHERE day_of_week = $%d AND %s`, argIdx, argIdx+1, weekFilter),
+		append(weekFilterArgs, *edit.DayOfWeek, *edit.NewDay)...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("swap_day step2: %w", err)
+	}
+	affected := int(tag.RowsAffected())
+
+	// Step 3: move sentinel to day B.
+	_, err = tx.Exec(ctx,
+		fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = $%d, updated_at = NOW()
+		 WHERE day_of_week = -1 AND %s`, argIdx, weekFilter),
+		append(weekFilterArgs, *edit.NewDay)...,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("swap_day step3: %w", err)
+	}
+	return affected, nil
+}
+
+func (s *ProgramService) applyUpdateCriteria(ctx context.Context, tx pgx.Tx, programID, userID string, edit models.ProgramEdit) (int, error) {
+	if len(edit.Criteria) == 0 {
+		return 0, nil
+	}
+	count := 0
+	for _, c := range edit.Criteria {
+		tag, err := tx.Exec(ctx,
+			`INSERT INTO criteria (program_id, key, label, value, value_type, display_order)
+			 VALUES ($1, $2, $3, $4, COALESCE(NULLIF($5,''), 'text'), $6)
+			 ON CONFLICT (program_id, key) DO UPDATE SET
+				label = EXCLUDED.label, value = EXCLUDED.value,
+				value_type = EXCLUDED.value_type, display_order = EXCLUDED.display_order`,
+			programID, c.Key, c.Label, c.Value, c.ValueType, c.DisplayOrder,
+		)
+		if err != nil {
+			return 0, fmt.Errorf("upsert criterion %s: %w", c.Key, err)
+		}
+		count += int(tag.RowsAffected())
+	}
+	return count, nil
 }
 
 // buildWeekFilter constructs a SQL subquery that selects week IDs belonging to
@@ -471,222 +798,6 @@ func (s *ProgramService) VerifyProgramOwnership(ctx context.Context, programID, 
 	return nil
 }
 
-// AddActivityToWeek inserts a single scheduled_activity into a specific week.
-func (s *ProgramService) AddActivityToWeek(ctx context.Context, programID, weekID, userID string, input models.AddWeekActivityInput) (*models.ScheduledActivity, error) {
-	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
-		return nil, err
-	}
-
-	// Verify week belongs to program
-	var exists bool
-	err := s.pool.QueryRow(ctx,
-		`SELECT EXISTS(
-			SELECT 1 FROM weeks w
-			JOIN phases ph ON ph.id = w.phase_id
-			WHERE w.id = $1 AND ph.program_id = $2
-		)`, weekID, programID).Scan(&exists)
-	if err != nil {
-		return nil, fmt.Errorf("check week: %w", err)
-	}
-	if !exists {
-		return nil, fmt.Errorf("week %s does not belong to program %s", weekID, programID)
-	}
-
-	var orderIdx int
-	_ = s.pool.QueryRow(ctx,
-		`SELECT COALESCE(MAX(order_index)+1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
-		weekID, input.DayOfWeek).Scan(&orderIdx)
-
-	prescription := input.Prescription
-	if prescription == nil {
-		prescription = json.RawMessage("{}")
-	}
-
-	var a models.ScheduledActivity
-	err = s.pool.QueryRow(ctx,
-		`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, week_id, day_of_week, activity_type, prescription, notes, order_index, created_at, updated_at`,
-		weekID, input.DayOfWeek, input.ActivityType, prescription, nilIfEmpty(input.Notes), orderIdx,
-	).Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("insert activity: %w", err)
-	}
-	return &a, nil
-}
-
-// ModifyProgram applies structural modifications to a saved program across all weeks
-// (or filtered by phase index). Returns the number of affected rows.
-func (s *ProgramService) ModifyProgram(ctx context.Context, programID, userID string, mods []models.ProgramModificationAction) (int, error) {
-	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
-		return 0, err
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	affected := 0
-
-	for _, mod := range mods {
-		switch mod.Action {
-		case "swap_day":
-			if mod.NewDay == nil {
-				return 0, fmt.Errorf("swap_day requires new_day")
-			}
-			newDay := *mod.NewDay
-
-			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
-
-			// Temporarily set swapped days to a sentinel (-1) to avoid unique constraint conflicts
-			_, err = tx.Exec(ctx,
-				fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = -1, updated_at = NOW()
-				 WHERE day_of_week = $%d AND %s`, argIdx, weekFilter),
-				append(weekFilterArgs, mod.DayOfWeek)...,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("swap_day step1: %w", err)
-			}
-			argIdx++
-
-			tag, err := tx.Exec(ctx,
-				fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = $%d, updated_at = NOW()
-				 WHERE day_of_week = $%d AND %s`, argIdx, argIdx+1, weekFilter),
-				append(weekFilterArgs, mod.DayOfWeek, newDay)...,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("swap_day step2: %w", err)
-			}
-			affected += int(tag.RowsAffected())
-
-			_, err = tx.Exec(ctx,
-				fmt.Sprintf(`UPDATE scheduled_activities SET day_of_week = $%d, updated_at = NOW()
-				 WHERE day_of_week = -1 AND %s`, argIdx, weekFilter),
-				append(weekFilterArgs, newDay)...,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("swap_day step3: %w", err)
-			}
-
-		case "change_activity":
-			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
-
-			sets := []string{}
-			if mod.ActivityType != "" {
-				sets = append(sets, fmt.Sprintf(`activity_type = $%d`, argIdx))
-				weekFilterArgs = append(weekFilterArgs, mod.ActivityType)
-				argIdx++
-			}
-			if mod.Prescription != nil {
-				sets = append(sets, fmt.Sprintf(`prescription = $%d`, argIdx))
-				weekFilterArgs = append(weekFilterArgs, mod.Prescription)
-				argIdx++
-			}
-			if mod.Notes != nil {
-				sets = append(sets, fmt.Sprintf(`notes = $%d`, argIdx))
-				weekFilterArgs = append(weekFilterArgs, *mod.Notes)
-				argIdx++
-			}
-			if len(sets) == 0 {
-				continue
-			}
-
-			dayArgIdx := argIdx
-			weekFilterArgs = append(weekFilterArgs, mod.DayOfWeek)
-			argIdx++
-
-			typeFilterClause, weekFilterArgs := appendTypeFilter(mod.ActivityTypeFilter, weekFilterArgs, argIdx)
-
-			tag, err := tx.Exec(ctx,
-				fmt.Sprintf(`UPDATE scheduled_activities SET %s, updated_at = NOW()
-				 WHERE day_of_week = $%d%s AND %s`,
-					strings.Join(sets, ", "), dayArgIdx, typeFilterClause, weekFilter),
-				weekFilterArgs...,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("change_activity: %w", err)
-			}
-			affected += int(tag.RowsAffected())
-
-		case "add_activity":
-			if mod.ActivityType == "" {
-				return 0, fmt.Errorf("add_activity requires activity_type")
-			}
-			prescription := mod.Prescription
-			if prescription == nil {
-				prescription = []byte("{}")
-			}
-
-			// Get week IDs for the program (optionally filtered by phase)
-			phaseFilter := ""
-			queryArgs := []any{programID}
-			if mod.PhaseIndex != nil {
-				phaseFilter = fmt.Sprintf(` AND ph.order_index = $%d`, 2)
-				queryArgs = append(queryArgs, *mod.PhaseIndex)
-			}
-
-			rows, err := tx.Query(ctx,
-				fmt.Sprintf(`SELECT w.id FROM weeks w
-				 JOIN phases ph ON ph.id = w.phase_id
-				 WHERE ph.program_id = $1%s`, phaseFilter),
-				queryArgs...)
-			if err != nil {
-				return 0, fmt.Errorf("add_activity get weeks: %w", err)
-			}
-			var weekIDs []string
-			for rows.Next() {
-				var wid string
-				if err := rows.Scan(&wid); err != nil {
-					rows.Close()
-					return 0, err
-				}
-				weekIDs = append(weekIDs, wid)
-			}
-			rows.Close()
-
-			for _, wid := range weekIDs {
-				var orderIdx int
-				_ = tx.QueryRow(ctx,
-					`SELECT COALESCE(MAX(order_index)+1, 0) FROM scheduled_activities WHERE week_id = $1 AND day_of_week = $2`,
-					wid, mod.DayOfWeek).Scan(&orderIdx)
-
-				_, err = tx.Exec(ctx,
-					`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
-					 VALUES ($1, $2, $3, $4, $5, $6)`,
-					wid, mod.DayOfWeek, mod.ActivityType, prescription, mod.Notes, orderIdx)
-				if err != nil {
-					return 0, fmt.Errorf("add_activity insert: %w", err)
-				}
-				affected++
-			}
-
-		case "remove_activity":
-			weekFilter, weekFilterArgs, argIdx := buildWeekFilter(programID, mod.PhaseIndex, "week_id")
-
-			dayArgIdx := argIdx
-			weekFilterArgs = append(weekFilterArgs, mod.DayOfWeek)
-			argIdx++
-
-			typeFilterClause, weekFilterArgs := appendTypeFilter(mod.ActivityTypeFilter, weekFilterArgs, argIdx)
-
-			tag, err := tx.Exec(ctx,
-				fmt.Sprintf(`DELETE FROM scheduled_activities WHERE day_of_week = $%d%s AND %s`, dayArgIdx, typeFilterClause, weekFilter),
-				weekFilterArgs...,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("remove_activity: %w", err)
-			}
-			affected += int(tag.RowsAffected())
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, err
-	}
-	return affected, nil
-}
 
 func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID string, limit int) ([]models.UpcomingActivityResponse, error) {
 	if limit <= 0 {
@@ -753,11 +864,15 @@ func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID strin
 	return activities, nil
 }
 
-func (s *ProgramService) GetScheduledActivity(ctx context.Context, activityID string) (*models.ScheduledActivity, error) {
+func (s *ProgramService) GetScheduledActivity(ctx context.Context, activityID, userID string) (*models.ScheduledActivity, error) {
 	var a models.ScheduledActivity
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, week_id, day_of_week, activity_type, prescription, notes, order_index, created_at, updated_at
-		 FROM scheduled_activities WHERE id = $1`, activityID,
+		`SELECT sa.id, sa.week_id, sa.day_of_week, sa.activity_type, sa.prescription, sa.notes, sa.order_index, sa.created_at, sa.updated_at
+		 FROM scheduled_activities sa
+		 JOIN weeks w ON w.id = sa.week_id
+		 JOIN phases ph ON ph.id = w.phase_id
+		 JOIN programs p ON p.id = ph.program_id
+		 WHERE sa.id = $1 AND p.user_id = $2`, activityID, userID,
 	).Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return nil, err

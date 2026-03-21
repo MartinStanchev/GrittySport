@@ -280,23 +280,32 @@ type UpdateProgramInput struct {
 	Status *string `json:"status,omitempty"`
 }
 
-type AdjustActivityInput struct {
-	ActivityID   string          `json:"activity_id"`
-	Prescription json.RawMessage `json:"prescription"`
-}
+// ProgramEdit is a unified edit action for modifying saved programs.
+// The Action field determines which other fields are relevant.
+type ProgramEdit struct {
+	// Action: update_activity, remove_activity, add_activity, swap_day, update_criteria
+	Action string `json:"action"`
 
-// ProgramModificationAction represents a structural change to a saved program
-// applied across all weeks (or filtered weeks/phases).
-type ProgramModificationAction struct {
-	// Action is one of: swap_day, change_activity, add_activity, remove_activity
-	Action             string          `json:"action"`
-	DayOfWeek          int             `json:"day_of_week"`
-	NewDay             *int            `json:"new_day,omitempty"`              // swap_day: target day to swap with
-	ActivityType       string          `json:"activity_type,omitempty"`        // add/change: activity type
-	Prescription       json.RawMessage `json:"prescription,omitempty"`         // add/change: prescription
-	Notes              *string         `json:"notes,omitempty"`                // add/change: notes
-	PhaseIndex         *int            `json:"phase_index,omitempty"`          // nil = all phases
-	ActivityTypeFilter string          `json:"activity_type_filter,omitempty"` // filter to target specific activity type on shared days
+	// Target a specific activity by ID (update_activity, remove_activity)
+	ActivityID string `json:"activity_id,omitempty"`
+	// Target a specific week (add_activity)
+	WeekID string `json:"week_id,omitempty"`
+	// Target by day across weeks (all actions except update_criteria)
+	DayOfWeek *int `json:"day_of_week,omitempty"`
+	// swap_day: the other day to swap with
+	NewDay *int `json:"new_day,omitempty"`
+	// Activity type (update_activity, add_activity)
+	ActivityType string `json:"activity_type,omitempty"`
+	// Prescription details
+	Prescription json.RawMessage `json:"prescription,omitempty"`
+	// Notes
+	Notes *string `json:"notes,omitempty"`
+	// Limit to a specific phase (0-based)
+	PhaseIndex *int `json:"phase_index,omitempty"`
+	// Filter by activity type when multiple exist on the same day
+	ActivityTypeFilter string `json:"activity_type_filter,omitempty"`
+	// For update_criteria
+	Criteria []SaveCriterionInput `json:"criteria,omitempty"`
 }
 
 type UpcomingActivityResponse struct {
@@ -330,14 +339,6 @@ type ActivityDetailResponse struct {
 	LinkedGPSRoute          json.RawMessage `json:"linked_gps_route,omitempty"`
 }
 
-// AddWeekActivityInput is used by the add_week_activity tool to insert
-// a single activity into a specific week.
-type AddWeekActivityInput struct {
-	DayOfWeek    int             `json:"day_of_week"`
-	ActivityType string          `json:"activity_type"`
-	Prescription json.RawMessage `json:"prescription"`
-	Notes        string          `json:"notes"`
-}
 
 type UpdateActivityInput struct {
 	Prescription json.RawMessage `json:"prescription,omitempty"`

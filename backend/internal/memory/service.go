@@ -43,10 +43,10 @@ func (s *Service) GetLastMessageID(ctx context.Context, userID string) string {
 func (s *Service) GetActiveSegment(ctx context.Context, userID string) (*models.ChatSegment, error) {
 	var seg models.ChatSegment
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, user_id, segment_type, status, start_message_id, end_message_id, summary, started_at, completed_at, created_at
+		`SELECT id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, started_at, completed_at, created_at
 		 FROM chat_segments WHERE user_id = $1 AND status = 'active' LIMIT 1`,
 		userID,
-	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
+	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -80,9 +80,9 @@ func (s *Service) StartSegment(ctx context.Context, userID, segmentType, startMe
 	err = tx.QueryRow(ctx,
 		`INSERT INTO chat_segments (user_id, segment_type, status, start_message_id)
 		 VALUES ($1, $2, 'active', $3)
-		 RETURNING id, user_id, segment_type, status, start_message_id, end_message_id, summary, started_at, completed_at, created_at`,
+		 RETURNING id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, started_at, completed_at, created_at`,
 		userID, segmentType, startMessageID,
-	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
+	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert segment: %w", err)
 	}
@@ -187,6 +187,7 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 			Type    string `json:"type"`
 			Content string `json:"content"`
 		} `json:"facts"`
+		Tags []string `json:"tags"`
 	}
 	cleaned := stripCodeFence(raw)
 	if err := json.Unmarshal([]byte(cleaned), &result); err != nil {
@@ -194,11 +195,11 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 		result.Summary = raw
 	}
 
-	// Save summary.
+	// Save summary and tags.
 	if result.Summary != "" {
 		_, err = s.pool.Exec(ctx,
-			`UPDATE chat_segments SET summary = $2 WHERE id = $1`,
-			segmentID, result.Summary,
+			`UPDATE chat_segments SET summary = $2, tags = $3 WHERE id = $1`,
+			segmentID, result.Summary, result.Tags,
 		)
 		if err != nil {
 			return fmt.Errorf("save segment summary: %w", err)
@@ -219,7 +220,7 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 		// Insert the new fact (skip if exact duplicate already exists and is active).
 		_, err = s.pool.Exec(ctx,
 			`INSERT INTO chat_facts (user_id, fact_type, content, source_segment_id)
-			 SELECT $1, $2, $3, $4
+			 SELECT $1::uuid, $2::text, $3::text, $4::uuid
 			 WHERE NOT EXISTS (
 			   SELECT 1 FROM chat_facts WHERE user_id = $1 AND fact_type = $2 AND content = $3 AND active = true
 			 )`,
@@ -288,6 +289,8 @@ func (s *Service) DetectSegmentType(ctx context.Context, messageContent string) 
 	// "injury_health" and "goal_life_change" aren't DB segment types —
 	// they're still general_coaching segments but facts will be extracted during summarization.
 	switch result.Type {
+	case "program_creation":
+		return "program_creation"
 	case "program_modification":
 		return "program_modification"
 	default:
@@ -295,12 +298,52 @@ func (s *Service) DetectSegmentType(ctx context.Context, messageContent string) 
 	}
 }
 
-// GetActiveFacts returns all active facts for a user.
+// RunFactDecay deactivates stale facts based on type-specific expiry periods.
+// Returns the total number of facts deactivated.
+func (s *Service) RunFactDecay(ctx context.Context) (int64, error) {
+	// Injuries and health conditions: 4 months.
+	tag1, err := s.pool.Exec(ctx,
+		`UPDATE chat_facts SET active = false, updated_at = NOW()
+		 WHERE fact_type IN ('injury', 'health_condition')
+		   AND created_at < NOW() - INTERVAL '4 months'
+		   AND active = true`,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("decay injury/health facts: %w", err)
+	}
+
+	// Schedule constraints: 3 months.
+	tag2, err := s.pool.Exec(ctx,
+		`UPDATE chat_facts SET active = false, updated_at = NOW()
+		 WHERE fact_type = 'schedule_constraint'
+		   AND created_at < NOW() - INTERVAL '3 months'
+		   AND active = true`,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("decay schedule facts: %w", err)
+	}
+
+	injuryHealth := tag1.RowsAffected()
+	schedule := tag2.RowsAffected()
+	total := injuryHealth + schedule
+
+	if total > 0 {
+		log.Info().
+			Int64("injury_health", injuryHealth).
+			Int64("schedule_constraint", schedule).
+			Int64("total", total).
+			Msg("Fact decay deactivated stale facts")
+	}
+
+	return total, nil
+}
+
+// GetActiveFacts returns the 20 most recent active facts for a user.
 func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.ChatFact, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
 		 FROM chat_facts WHERE user_id = $1 AND active = true
-		 ORDER BY created_at`,
+		 ORDER BY created_at DESC LIMIT 20`,
 		userID,
 	)
 	if err != nil {
@@ -320,7 +363,8 @@ func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.C
 }
 
 // AssembleMemory builds the complete memory string for injection into the system prompt.
-func (s *Service) AssembleMemory(ctx context.Context, userID string) (string, error) {
+// The mode parameter filters segment summaries by relevance; empty string defaults to general_coaching.
+func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (string, error) {
 	var b strings.Builder
 
 	// 1. Active facts.
@@ -336,48 +380,136 @@ func (s *Service) AssembleMemory(ctx context.Context, userID string) (string, er
 		b.WriteString("\n")
 	}
 
-	// 2. Last 3 completed segment summaries.
-	rows, err := s.pool.Query(ctx,
-		`SELECT segment_type, summary, completed_at
-		 FROM chat_segments
-		 WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
-		 ORDER BY completed_at DESC LIMIT 3`,
-		userID,
-	)
-	if err != nil {
-		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to load segment summaries for memory assembly")
-	} else {
-		defer rows.Close()
-		type segSummary struct {
-			segType     string
-			summary     string
-			completedAt time.Time
+	// 2. Mode-aware segment summaries.
+	summaries := s.getSegmentSummaries(ctx, userID, mode)
+	if len(summaries) > 0 {
+		b.WriteString("### Recent Sessions\n")
+		// Reverse to show oldest first.
+		for i := len(summaries) - 1; i >= 0; i-- {
+			ss := summaries[i]
+			date := ss.completedAt.Format("Jan 2")
+			label := formatSegmentType(ss.segType)
+			b.WriteString(fmt.Sprintf("%d. (%s) %s: %s\n", len(summaries)-i, date, label, ss.summary))
 		}
-		var summaries []segSummary
-		for rows.Next() {
-			var ss segSummary
-			if err := rows.Scan(&ss.segType, &ss.summary, &ss.completedAt); err != nil {
-				continue
-			}
-			summaries = append(summaries, ss)
-		}
-		if len(summaries) > 0 {
-			b.WriteString("### Recent Sessions\n")
-			// Reverse to show oldest first.
-			for i := len(summaries) - 1; i >= 0; i-- {
-				ss := summaries[i]
-				date := ss.completedAt.Format("Jan 2")
-				label := formatSegmentType(ss.segType)
-				b.WriteString(fmt.Sprintf("%d. (%s) %s: %s\n", len(summaries)-i, date, label, ss.summary))
-			}
-			b.WriteString("\n")
-		}
+		b.WriteString("\n")
 	}
+
+	log.Debug().
+		Str("user_id", userID).
+		Str("mode", mode).
+		Int("facts", len(facts)).
+		Int("segments", len(summaries)).
+		Msg("Memory assembled")
 
 	if b.Len() == 0 {
 		return "", nil
 	}
 	return b.String(), nil
+}
+
+type segSummary struct {
+	segType     string
+	summary     string
+	completedAt time.Time
+}
+
+// getSegmentSummaries returns completed segment summaries filtered by mode relevance.
+// For specialized modes (program_creation, program_management, workout_review), it applies
+// tag-based filtering and falls back to the most recent segments if fewer than 3 are found.
+func (s *Service) getSegmentSummaries(ctx context.Context, userID, mode string) []segSummary {
+	// Tags covering sport activities and coaching topics used by all specialized modes.
+	sportAndTopicTags := []string{
+		"running", "cycling", "swimming", "strength", "mobility",
+		"injury", "goal", "program", "review", "nutrition",
+	}
+
+	var query string
+	var args []any
+
+	switch mode {
+	case "program_creation":
+		query = `SELECT segment_type, summary, completed_at
+			FROM chat_segments
+			WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+			  AND tags && $2
+			ORDER BY completed_at DESC LIMIT 5`
+		args = []any{userID, sportAndTopicTags}
+
+	case "program_management":
+		query = `SELECT segment_type, summary, completed_at
+			FROM chat_segments
+			WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+			  AND (segment_type = 'program_modification' OR tags && $2)
+			ORDER BY completed_at DESC LIMIT 5`
+		args = []any{userID, sportAndTopicTags}
+
+	case "workout_review":
+		query = `SELECT segment_type, summary, completed_at
+			FROM chat_segments
+			WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+			  AND tags && $2
+			ORDER BY completed_at DESC LIMIT 3`
+		args = []any{userID, sportAndTopicTags}
+
+	default:
+		// general_coaching or unknown: return last 3 segments unfiltered.
+		query = `SELECT segment_type, summary, completed_at
+			FROM chat_segments
+			WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+			ORDER BY completed_at DESC LIMIT 3`
+		args = []any{userID}
+	}
+
+	summaries := s.querySegmentSummaries(ctx, query, args)
+
+	// Fallback: if a specialized mode returned fewer than 3 segments, pad with the
+	// most recent segments not already included.
+	isSpecializedMode := mode != "" && mode != "general_coaching"
+	if isSpecializedMode && len(summaries) < 3 {
+		existing := make(map[string]bool, len(summaries))
+		for _, ss := range summaries {
+			existing[ss.completedAt.String()+ss.summary] = true
+		}
+
+		needed := 3 - len(summaries)
+		fallbackQuery := `SELECT segment_type, summary, completed_at
+			FROM chat_segments
+			WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+			ORDER BY completed_at DESC LIMIT $2`
+		// Fetch enough candidates to have at least `needed` unseen rows.
+		candidates := s.querySegmentSummaries(ctx, fallbackQuery, []any{userID, needed + len(summaries)})
+		for _, c := range candidates {
+			if !existing[c.completedAt.String()+c.summary] {
+				summaries = append(summaries, c)
+				needed--
+				if needed == 0 {
+					break
+				}
+			}
+		}
+	}
+
+	return summaries
+}
+
+// querySegmentSummaries executes a segment summary query and returns the results.
+func (s *Service) querySegmentSummaries(ctx context.Context, query string, args []any) []segSummary {
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to load segment summaries for memory assembly")
+		return nil
+	}
+	defer rows.Close()
+
+	var summaries []segSummary
+	for rows.Next() {
+		var ss segSummary
+		if err := rows.Scan(&ss.segType, &ss.summary, &ss.completedAt); err != nil {
+			continue
+		}
+		summaries = append(summaries, ss)
+	}
+	return summaries
 }
 
 // CloseAndSummarize closes a segment by ID and triggers async summarization.
@@ -480,6 +612,29 @@ func formatSegmentType(st string) string {
 	default:
 		return strings.ReplaceAll(st, "_", " ")
 	}
+}
+
+// ClearAll deletes all segments and facts for a user, effectively resetting Grit's memory.
+func (s *Service) ClearAll(ctx context.Context, userID string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("clear memory tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, `DELETE FROM chat_facts WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("delete facts: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM chat_segments WHERE user_id = $1`, userID); err != nil {
+		return fmt.Errorf("delete segments: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit clear memory: %w", err)
+	}
+
+	log.Info().Str("user_id", userID).Msg("All memory cleared for user")
+	return nil
 }
 
 // stripCodeFence removes ```json ... ``` wrapping that LLMs sometimes add.

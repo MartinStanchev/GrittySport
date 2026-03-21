@@ -23,7 +23,7 @@ import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
-import { ProgramModificationCard } from '../components/ProgramModificationCard';
+import { ProgramEditCard } from '../components/ProgramEditCard';
 import { ProgramArc } from '../components/ProgramArc';
 import { GritChatBanner } from '../components/GritChatBanner';
 import { ActivityDashboard } from '../components/ActivityDashboard';
@@ -321,7 +321,7 @@ export default function HomeScreen() {
         );
       }
 
-      if (item.messageType === 'program_proposal' || item.messageType === 'adjustment_proposal') {
+      if (item.messageType === 'program_proposal') {
         return (
           <ProgramProposalCard
             data={item.proposalData}
@@ -332,9 +332,9 @@ export default function HomeScreen() {
         );
       }
 
-      if (item.messageType === 'program_modification') {
+      if (item.messageType === 'program_edit') {
         return (
-          <ProgramModificationCard
+          <ProgramEditCard
             data={item.proposalData}
             onAccept={() => handleProposalResponse('accept', item.id)}
             onDeny={() => handleProposalResponse('deny', item.id)}

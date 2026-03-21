@@ -1,22 +1,10 @@
 ## Potential features - To be decided
 
-### Multi-agent Grit
+### Multi-Agent Grit - Planning Complete
 
-1 Agent orchestrates 
+The original brainstorm for multi-agent Grit has been refined into a concrete plan. After research and analysis, the approach is **conversation modes with dynamic context** rather than a full multi-agent system (which would add 4-15x token cost and 10-30s latency).
 
-Sub agents create specific programs based on the skills that we defined. They will get passed the user's info and give some activities planned 
-
-Orchestrator collects these and creates the actual plan 
-
-Separate agent does reviews
-
-Sub agent does edits if needed
-
-Guard agent detects malicious intent
-
-Maybe a entry point agent tries to discover intent and then passes the message to the orchestrator? This entry point agent can identify and load memories for Grit. It can also load up other things automatically
-
-Standardize the LLM output into a JSON. Include actions, questions, user visible text etc in separate fields.
+Implementation tasks: Task 18-24. Full plan: `.claude/plans/cosmic-twirling-horizon.md`
 
 ### Live recording screen fix
 
@@ -28,16 +16,16 @@ The design needs to be overhauled
 
 grit should only have access to the current user enforced by the backend
 
-Implement a guard agent for intent 
+Implement a guard agent for intent
 
 ### Improve Grit's questioning
 
 sometimes he asks questions that were already answered
 
-he asks unnecessary questions sometimes like for additional 
+he asks unnecessary questions sometimes like for additional
 
 he dumps a program overview in the chat rather than a proposal
 
 maybe better explanations on what specifically he should do and implement sub agents for other calls?
 
-experiment with subagents for each 
+experiment with subagents for each

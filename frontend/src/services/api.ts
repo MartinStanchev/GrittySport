@@ -303,6 +303,26 @@ export async function getChatHistory(
   return apiFetch<ChatHistoryResponse>(`/api/v1/chat/history${query ? `?${query}` : ''}`);
 }
 
+type ChatClearedListener = () => void;
+const chatClearedListeners: ChatClearedListener[] = [];
+
+export function onChatCleared(listener: ChatClearedListener): () => void {
+  chatClearedListeners.push(listener);
+  return () => {
+    const idx = chatClearedListeners.indexOf(listener);
+    if (idx >= 0) chatClearedListeners.splice(idx, 1);
+  };
+}
+
+export async function deleteChatHistory(): Promise<void> {
+  await apiFetch<{ status: string }>('/api/v1/chat/history', { method: 'DELETE' });
+  chatClearedListeners.forEach((fn) => fn());
+}
+
+export async function deleteGritMemory(): Promise<void> {
+  await apiFetch<{ status: string }>('/api/v1/chat/memory', { method: 'DELETE' });
+}
+
 export function getWsBaseUrl(): string {
   return API_BASE_URL.replace(/^http/, 'ws');
 }

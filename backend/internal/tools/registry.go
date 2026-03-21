@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grittyfitness/api/internal/chat"
 	"google.golang.org/genai"
 )
 
@@ -14,6 +15,7 @@ type Tool struct {
 	Description string
 	Parameters  *genai.Schema
 	Handler     ToolFunc
+	Modes       []chat.Mode
 }
 
 type Registry struct {
@@ -46,8 +48,27 @@ func (r *Registry) Execute(ctx context.Context, name string, userID string, para
 }
 
 func (r *Registry) GeminiTools() []*genai.Tool {
-	var declarations []*genai.FunctionDeclaration
+	return r.geminiToolsFromNames(r.order)
+}
+
+// GeminiToolsForMode returns only the tools tagged for the given conversation mode.
+// Falls back to all tools if no tools match the mode.
+func (r *Registry) GeminiToolsForMode(mode chat.Mode) []*genai.Tool {
+	var matched []string
 	for _, name := range r.order {
+		if toolHasMode(r.tools[name], mode) {
+			matched = append(matched, name)
+		}
+	}
+	if len(matched) == 0 {
+		return r.geminiToolsFromNames(r.order)
+	}
+	return r.geminiToolsFromNames(matched)
+}
+
+func (r *Registry) geminiToolsFromNames(names []string) []*genai.Tool {
+	declarations := make([]*genai.FunctionDeclaration, 0, len(names))
+	for _, name := range names {
 		tool := r.tools[name]
 		declarations = append(declarations, &genai.FunctionDeclaration{
 			Name:        tool.Name,
@@ -56,4 +77,64 @@ func (r *Registry) GeminiTools() []*genai.Tool {
 		})
 	}
 	return []*genai.Tool{{FunctionDeclarations: declarations}}
+}
+
+// TotalToolCount returns the number of registered tools.
+func (r *Registry) TotalToolCount() int {
+	return len(r.order)
+}
+
+// Exists returns true if a tool with the given name is registered.
+func (r *Registry) Exists(name string) bool {
+	_, ok := r.tools[name]
+	return ok
+}
+
+// ToolInMode returns true if the named tool exists and is tagged for the given mode.
+func (r *Registry) ToolInMode(name string, mode chat.Mode) bool {
+	tool, ok := r.tools[name]
+	if !ok {
+		return false
+	}
+	return toolHasMode(tool, mode)
+}
+
+// ModeForTool returns the best escalation target mode for the named tool.
+// When a tool belongs to multiple modes, the mode with fewer total tools wins.
+func (r *Registry) ModeForTool(name string) (chat.Mode, bool) {
+	tool, ok := r.tools[name]
+	if !ok || len(tool.Modes) == 0 {
+		return "", false
+	}
+	if len(tool.Modes) == 1 {
+		return tool.Modes[0], true
+	}
+	best := tool.Modes[0]
+	bestCount := r.countToolsForMode(best)
+	for _, m := range tool.Modes[1:] {
+		if c := r.countToolsForMode(m); c < bestCount {
+			best = m
+			bestCount = c
+		}
+	}
+	return best, true
+}
+
+func (r *Registry) countToolsForMode(mode chat.Mode) int {
+	count := 0
+	for _, name := range r.order {
+		if toolHasMode(r.tools[name], mode) {
+			count++
+		}
+	}
+	return count
+}
+
+func toolHasMode(t *Tool, mode chat.Mode) bool {
+	for _, m := range t.Modes {
+		if m == mode {
+			return true
+		}
+	}
+	return false
 }

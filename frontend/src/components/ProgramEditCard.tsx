@@ -3,20 +3,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatActivityType } from '../constants/activityIcons';
 
-interface ProgramModificationData {
-  type: 'program_modification';
+interface ProgramEditData {
+  type: 'program_edit';
   description: string;
-  modifications: {
+  edits: {
     action: string;
-    day_of_week: number;
+    activity_id?: string;
+    week_id?: string;
+    day_of_week?: number;
     new_day?: number;
     activity_type?: string;
     phase_index?: number;
+    activity_type_filter?: string;
+    criteria?: { key: string; label: string; value: string }[];
   }[];
 }
 
-interface ProgramModificationCardProps {
-  data: ProgramModificationData;
+interface ProgramEditCardProps {
+  data: ProgramEditData;
   onAccept: () => void;
   onDeny: () => void;
   disabled?: boolean;
@@ -24,24 +28,50 @@ interface ProgramModificationCardProps {
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function describeAction(mod: ProgramModificationData['modifications'][0]): string {
-  const fromDay = DAY_NAMES[mod.day_of_week];
-  switch (mod.action) {
-    case 'swap_day':
-      return `Swap ${fromDay} ↔ ${DAY_NAMES[mod.new_day ?? 0]}`;
-    case 'change_activity':
-      return `Change activity on ${fromDay}${mod.activity_type ? ` to ${formatActivityType(mod.activity_type)}` : ''}`;
-    case 'add_activity':
-      return `Add ${mod.activity_type ? formatActivityType(mod.activity_type) : 'activity'} on ${fromDay}`;
+function dayName(d?: number): string {
+  return d != null ? DAY_NAMES[d] ?? `Day ${d}` : '';
+}
+
+function describeEdit(edit: ProgramEditData['edits'][0]): string {
+  const day = dayName(edit.day_of_week);
+  const type = edit.activity_type ? formatActivityType(edit.activity_type) : '';
+  const filter = edit.activity_type_filter ? ` (${formatActivityType(edit.activity_type_filter)})` : '';
+
+  switch (edit.action) {
+    case 'update_activity':
+      if (edit.activity_id) {
+        return `Update${type ? ` ${type}` : ' activity'}${day ? ` on ${day}` : ''}`;
+      }
+      return `Update${filter || (type ? ` ${type}` : '')} on ${day}`;
     case 'remove_activity':
-      return `Remove activity on ${fromDay} (make rest day)`;
+      if (edit.activity_id) {
+        return `Remove specific activity`;
+      }
+      return `Remove${filter} on ${day}`;
+    case 'add_activity':
+      if (edit.week_id) {
+        return `Add ${type || 'activity'} on ${day} (one week only)`;
+      }
+      return `Add ${type || 'activity'} on ${day}`;
+    case 'swap_day':
+      return `Swap ${day} ↔ ${dayName(edit.new_day)}`;
+    case 'update_criteria':
+      return `Update program settings`;
     default:
-      return `${mod.action} on ${fromDay}`;
+      return `${edit.action}${day ? ` on ${day}` : ''}`;
   }
 }
 
-export function ProgramModificationCard({ data, onAccept, onDeny, disabled }: ProgramModificationCardProps) {
+function scopeNote(edits: ProgramEditData['edits']): string | null {
+  const hasPhaseTarget = edits.some((e) => e.phase_index != null);
+  const hasBulk = edits.some((e) => !e.activity_id && !e.week_id && e.action !== 'update_criteria');
+  if (!hasBulk) return null;
+  return hasPhaseTarget ? 'Applied to matching weeks in the phase' : 'Applied to all weeks';
+}
+
+export function ProgramEditCard({ data, onAccept, onDeny, disabled }: ProgramEditCardProps) {
   const { colors } = useTheme();
+  const note = scopeNote(data.edits || []);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -52,15 +82,15 @@ export function ProgramModificationCard({ data, onAccept, onDeny, disabled }: Pr
 
       <Text style={[styles.description, { color: colors.textPrimary }]}>{data.description}</Text>
 
-      {data.modifications?.length > 0 && (
+      {data.edits?.length > 0 && (
         <View style={[styles.modList, { backgroundColor: colors.background }]}>
-          {data.modifications.map((mod, i) => (
+          {data.edits.map((edit, i) => (
             <View key={i} style={styles.modRow}>
               <Ionicons name="ellipse" size={6} color={colors.textSecondary} style={styles.bullet} />
-              <Text style={[styles.modText, { color: colors.textPrimary }]}>{describeAction(mod)}</Text>
+              <Text style={[styles.modText, { color: colors.textPrimary }]}>{describeEdit(edit)}</Text>
             </View>
           ))}
-          <Text style={[styles.allWeeksNote, { color: colors.textSecondary }]}>Applied to all weeks</Text>
+          {note && <Text style={[styles.allWeeksNote, { color: colors.textSecondary }]}>{note}</Text>}
         </View>
       )}
 
@@ -156,6 +186,5 @@ const styles = StyleSheet.create({
   acceptText: {
     fontSize: 14,
     fontWeight: '600',
-    // color applied inline via theme
   },
 });

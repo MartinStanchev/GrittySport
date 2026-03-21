@@ -10,6 +10,7 @@ type ChatSegment struct {
 	StartMessageID *string    `json:"start_message_id,omitempty"`
 	EndMessageID   *string    `json:"end_message_id,omitempty"`
 	Summary        *string    `json:"summary,omitempty"`
+	Tags           []string   `json:"tags,omitempty"`
 	StartedAt      time.Time  `json:"started_at"`
 	CompletedAt    *time.Time `json:"completed_at,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`

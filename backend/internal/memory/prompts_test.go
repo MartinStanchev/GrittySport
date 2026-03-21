@@ -62,6 +62,12 @@ func TestBuildSummarizePrompt(t *testing.T) {
 	if !strings.Contains(prompt, "facts") {
 		t.Error("prompt should mention fact extraction")
 	}
+	if !strings.Contains(prompt, "tags") {
+		t.Error("prompt should request tags")
+	}
+	if !strings.Contains(prompt, "running") {
+		t.Error("prompt should list example tags like running")
+	}
 }
 
 func TestBuildClassifyPrompt(t *testing.T) {
@@ -72,6 +78,17 @@ func TestBuildClassifyPrompt(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "injury_health") {
 		t.Error("prompt should list injury_health as an option")
+	}
+	if !strings.Contains(prompt, "program_creation") {
+		t.Error("prompt should list program_creation as an option")
+	}
+	// Prompt must not bias the model toward a specific type in the response format.
+	if strings.HasSuffix(strings.TrimSpace(prompt), `{"type": "general_coaching"}`) {
+		t.Error("prompt should not end with a hardcoded general_coaching response")
+	}
+	// Prompt should include few-shot examples to guide classification.
+	if !strings.Contains(prompt, "Examples:") {
+		t.Error("prompt should include few-shot examples")
 	}
 }
 
