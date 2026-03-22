@@ -124,11 +124,15 @@ If only one phase needs changes, only regenerate that phase. If the change appli
 
 The prescription field in each activity should be a JSON object. Use structured `sets` arrays for interval/structured workouts, flat fields for simple sessions.
 
-- **Running (simple)**: `{"distance": "8km", "pace": "5:30/km"}`
-- **Running (structured)**: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "800m", "pace": "3:40/km", "rest": "400m jog"}], "cooldown": "1.5km easy", "total_distance": "10km"}`
-- **Strength**: `{"exercises": [{"name": "Squat", "sets": 4, "reps": 8, "weight": "70kg"}]}`
-- **Swimming**: `{"warmup": "400m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "1:45/100m", "rest": "10s"}], "cooldown": "200m easy", "total_distance": "2500m"}`
-- **Cycling (simple)**: `{"duration": "2h", "intensity": "Zone 2"}`
-- **Cycling (structured)**: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "rest": "5min easy"}], "cooldown": "10min easy"}`
-- **Mobility**: `{"duration": "20min", "focus": "hips", "instructions": "Hold gently", "exercises": [{"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge"}]}`
-- **Yoga**: `{"duration": "30min", "style": "vinyasa", "focus": "recovery", "instructions": "Slow transitions"}`
+When the user has provided performance benchmarks, calculate specific values from them and include an `effort` field describing the intensity context (e.g. "85% 1RM", "5K goal pace", "Sweet spot 220-232W"). When no benchmarks are available, use RPE or descriptive effort in the `effort` field instead (e.g. "RPE 7-8", "conversational pace").
+
+Always include an `rpe` field (integer 6-10) on every activity and on individual exercises/sets where applicable. This applies to ALL sports, not just strength. RPE helps the user gauge whether the prescribed intensity matched how it actually felt.
+
+- **Running (simple)**: `{"distance": "8km", "pace": "5:30/km", "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}`
+- **Running (structured)**: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "800m", "pace": "3:40/km", "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}], "cooldown": "1.5km easy", "total_distance": "10km"}`
+- **Strength**: `{"exercises": [{"name": "Squat", "sets": 4, "reps": 8, "weight": "85kg", "effort": "85% 1RM", "rpe": 8}]}`
+- **Swimming**: `{"warmup": "400m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "1:45/100m", "effort": "CSS pace", "rpe": 7, "rest": "10s"}], "cooldown": "200m easy", "total_distance": "2500m"}`
+- **Cycling (simple)**: `{"duration": "2h", "intensity": "Zone 2", "effort": "Easy endurance, conversational", "rpe": 6}`
+- **Cycling (structured)**: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}], "cooldown": "10min easy"}`
+- **Mobility**: `{"duration": "20min", "focus": "hips", "instructions": "Hold gently", "rpe": 3, "exercises": [{"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge"}]}`
+- **Yoga**: `{"duration": "30min", "style": "vinyasa", "focus": "recovery", "instructions": "Slow transitions", "rpe": 4}`

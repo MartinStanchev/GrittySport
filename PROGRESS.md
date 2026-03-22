@@ -53,6 +53,7 @@ Full details for each change are in the `progress/` folder.
 | [memory-decay](progress/memory-decay.md) | Task 23: Fact auto-expiry (injury 4mo, schedule 3mo) + 20-fact cap in assembly |
 | [mode-observability-logging](progress/mode-observability-logging.md) | Task 24: Structured logging for mode detection, tool counts, memory assembly, fact decay |
 | [incremental-phase-proposal](progress/incremental-phase-proposal.md) | Incremental phase-based program proposal — save_draft_phase per phase, then lightweight propose_program |
+| [benchmark-driven-prescriptions](progress/benchmark-driven-prescriptions.md) | Benchmark collection (1RM/race times/FTP/CSS) + effort context and standardized RPE across all sport prescriptions |
 
 ## Instructions for Agents
 

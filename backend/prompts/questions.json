@@ -17,6 +17,12 @@
       ]
     },
     {
+      "name": "Performance Benchmarks",
+      "criteria": [
+        {"id": "benchmarks", "description": "Ask for current performance benchmarks ONLY if the user is intermediate or advanced. For beginners, skip entirely and use RPE-based prescriptions. What to ask depends on the sport: Strength sports: current 1RM or working weights for key lifts (squat, deadlift, bench, OHP). Running: a recent race time or current easy pace. Cycling: FTP in watts. Swimming: CSS pace or recent test times. Save each as a separate criterion with a descriptive key (e.g. squat_1rm, ftp_watts, five_k_time, css_pace). If the user doesn't know exact numbers, ask for recent training examples and estimate.", "required": false}
+      ]
+    },
+    {
       "name": "Schedule",
       "criteria": [
         {"id": "days_per_week", "description": "How many days per week the user can commit to training", "required": true},

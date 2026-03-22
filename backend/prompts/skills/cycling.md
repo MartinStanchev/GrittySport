@@ -40,7 +40,7 @@
 
 **Endurance rides** — flat format:
 ```json
-{"duration": "2h", "intensity": "Zone 2", "cadence": "85-95 RPM"}
+{"duration": "2h", "intensity": "Zone 2", "cadence": "85-95 RPM", "effort": "Easy endurance, conversational", "rpe": 6}
 ```
 
 **Structured workouts** (sweet spot, threshold, VO2max, sprints) — use `sets` array:
@@ -48,12 +48,13 @@
 {
   "warmup": "15min Zone 2",
   "sets": [
-    {"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "rest": "5min easy"}
+    {"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}
   ],
   "cooldown": "10min easy"
 }
 ```
 
 More examples:
-- VO2max: `{"warmup": "15min progressive", "sets": [{"reps": 5, "duration": "4min", "intensity": "106-120% FTP", "rest": "3min easy"}], "cooldown": "10min easy"}`
-- Sprints: `{"warmup": "20min Zone 2", "sets": [{"reps": 8, "duration": "30s", "intensity": "all-out", "rest": "4min easy"}], "cooldown": "10min easy"}`
+- VO2max: `{"warmup": "15min progressive", "sets": [{"reps": 5, "duration": "4min", "intensity": "106-120% FTP", "effort": "VO2max — very hard", "rpe": 9, "rest": "3min easy"}], "cooldown": "10min easy"}`
+- Sprints: `{"warmup": "20min Zone 2", "sets": [{"reps": 8, "duration": "30s", "intensity": "all-out", "effort": "Maximum sprint", "rpe": 10, "rest": "4min easy"}], "cooldown": "10min easy"}`
+- Threshold: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "95-105% FTP", "effort": "Threshold — sustainable hard", "rpe": 8, "rest": "5min easy"}], "cooldown": "10min easy"}`

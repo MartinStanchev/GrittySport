@@ -45,8 +45,8 @@ Always use structured `sets` array format:
 {
   "warmup": "400m easy",
   "sets": [
-    {"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rest": "15s"},
-    {"reps": 10, "distance": "100m", "pace": "1:45/100m", "rest": "10s"}
+    {"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rpe": 5, "rest": "15s"},
+    {"reps": 10, "distance": "100m", "pace": "1:45/100m", "effort": "CSS pace", "rpe": 7, "rest": "10s"}
   ],
   "cooldown": "200m easy",
   "total_distance": "2500m"
@@ -56,5 +56,6 @@ Always use structured `sets` array format:
 Set `type` field values: `"drill"`, `"kick"`, `"pull"`, `"swim"` (default if omitted).
 
 More examples:
-- Threshold: `{"warmup": "500m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "CSS", "rest": "10s"}], "cooldown": "300m easy", "total_distance": "2500m"}`
-- Drills + main: `{"warmup": "400m easy", "sets": [{"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rest": "15s"}, {"reps": 4, "distance": "50m", "type": "drill", "description": "fingertip drag", "rest": "15s"}, {"reps": 8, "distance": "50m", "pace": "descend 1-4", "rest": "15s"}], "cooldown": "200m easy", "total_distance": "1500m"}`
+- Threshold: `{"warmup": "500m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "CSS", "effort": "CSS pace — threshold", "rpe": 7, "rest": "10s"}], "cooldown": "300m easy", "total_distance": "2500m"}`
+- Speed: `{"warmup": "500m easy", "sets": [{"reps": 8, "distance": "50m", "pace": "CSS-5s", "effort": "VO2max — fast", "rpe": 9, "rest": "30s"}], "cooldown": "300m easy", "total_distance": "1500m"}`
+- Drills + main: `{"warmup": "400m easy", "sets": [{"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rpe": 5, "rest": "15s"}, {"reps": 4, "distance": "50m", "type": "drill", "description": "fingertip drag", "rpe": 5, "rest": "15s"}, {"reps": 8, "distance": "50m", "effort": "Descend 1-4", "rpe": 7, "rest": "15s"}], "cooldown": "200m easy", "total_distance": "1500m"}`

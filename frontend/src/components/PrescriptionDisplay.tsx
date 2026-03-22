@@ -18,6 +18,15 @@ function LabeledRow({ label, value, colors }: { label: string; value: string | n
   );
 }
 
+function EffortBadge({ effort, colors }: { effort?: string; colors: ThemeColors }) {
+  if (!effort) return null;
+  return (
+    <View style={[styles.effortBadge, { backgroundColor: colors.surfaceAlt }]}>
+      <Text style={[styles.effortText, { color: colors.primary }]}>{effort}</Text>
+    </View>
+  );
+}
+
 function SetCard({ set, index, fields, colors }: { set: any; index: number; fields: { key: string; label: string }[]; colors: ThemeColors }) {
   return (
     <View style={[styles.setCard, { backgroundColor: colors.surfaceAlt }]}>
@@ -27,7 +36,9 @@ function SetCard({ set, index, fields, colors }: { set: any; index: number; fiel
         {fields.map(({ key, label }) =>
           set[key] ? <Text key={key} style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>{label}: {set[key]}</Text> : null,
         )}
+        {set.rpe && <Text style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>RPE {set.rpe}</Text>}
       </View>
+      {set.effort && <Text style={[styles.inlineEffort, { color: colors.primary }]}>{set.effort}</Text>}
       {set.description && <Text style={[styles.setDescription, { color: colors.textSecondary }]}>{set.description}</Text>}
     </View>
   );
@@ -81,6 +92,8 @@ function RunDisplay({ prescription, colors }: { prescription: Record<string, any
       <LabeledRow label="HR Zone" value={prescription.heart_rate_zone} colors={colors} />
       <LabeledRow label="Terrain" value={prescription.terrain} colors={colors} />
       <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
+      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
+      <EffortBadge effort={prescription.effort} colors={colors} />
     </View>
   );
 }
@@ -99,9 +112,10 @@ function StrengthDisplay({ prescription, colors }: { prescription: Record<string
             {ex.sets && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.sets} sets</Text>}
             {ex.reps && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.reps} reps</Text>}
             {ex.weight && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.weight}</Text>}
-            {ex.rpe && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.rpe && `RPE ${ex.rpe}`}</Text>}
+            {ex.rpe && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>RPE {ex.rpe}</Text>}
             {ex.rest && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>Rest: {ex.rest}</Text>}
           </View>
+          {ex.effort && <Text style={[styles.inlineEffort, { color: colors.primary }]}>{ex.effort}</Text>}
           {ex.notes && <Text style={[styles.exerciseNotes, { color: colors.textSecondary }]}>{ex.notes}</Text>}
         </View>
       ))}
@@ -139,6 +153,8 @@ function SwimDisplay({ prescription, colors }: { prescription: Record<string, an
       <LabeledRow label="Stroke" value={prescription.stroke} colors={colors} />
       <LabeledRow label="Pace" value={prescription.pace} colors={colors} />
       <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
+      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
+      <EffortBadge effort={prescription.effort} colors={colors} />
     </View>
   );
 }
@@ -170,6 +186,8 @@ function CyclingDisplay({ prescription, colors }: { prescription: Record<string,
       <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
       <LabeledRow label="Intensity" value={prescription.intensity} colors={colors} />
       <LabeledRow label="Cadence" value={prescription.cadence} colors={colors} />
+      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
+      <EffortBadge effort={prescription.effort} colors={colors} />
     </View>
   );
 }
@@ -181,6 +199,7 @@ function MobilityDisplay({ prescription, colors }: { prescription: Record<string
       <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
       <LabeledRow label="Style" value={prescription.style} colors={colors} />
       <LabeledRow label="Focus" value={prescription.focus} colors={colors} />
+      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
       {prescription.instructions && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Instructions</Text>
@@ -318,6 +337,12 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
   },
+  inlineEffort: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
   setDescription: {
     fontSize: 12,
     fontStyle: 'italic',
@@ -366,6 +391,18 @@ const styles = StyleSheet.create({
   restSubtext: {
     fontSize: 14,
     marginTop: 6,
+  },
+  effortBadge: {
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  effortText: {
+    fontSize: 12,
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
   empty: {
     fontSize: 14,

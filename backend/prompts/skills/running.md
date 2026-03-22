@@ -29,7 +29,7 @@
 
 **Simple runs** (easy, long, tempo, fartlek) — flat format:
 ```json
-{"distance": "8km", "pace": "5:30/km"}
+{"distance": "8km", "pace": "5:30/km", "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}
 ```
 
 **Structured workouts** (intervals, hill repeats, strides) — use `sets` array:
@@ -37,7 +37,7 @@
 {
   "warmup": "1.5km easy",
   "sets": [
-    {"reps": 6, "distance": "800m", "pace": "3:40/km", "rest": "400m jog"}
+    {"reps": 6, "distance": "800m", "pace": "3:40/km", "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}
   ],
   "cooldown": "1.5km easy",
   "total_distance": "10km"
@@ -45,5 +45,7 @@
 ```
 
 More examples:
-- Hill repeats: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "200m", "pace": "hard uphill", "rest": "jog down"}], "cooldown": "1.5km easy"}`
-- Strides after easy run: `{"distance": "8km", "pace": "5:30/km", "sets": [{"reps": 6, "distance": "100m", "pace": "fast", "rest": "60s walk"}]}`
+- Hill repeats: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "200m", "effort": "Hard uphill", "rpe": 8, "rest": "jog down"}], "cooldown": "1.5km easy"}`
+- Strides after easy run: `{"distance": "8km", "pace": "5:30/km", "effort": "Easy with strides", "rpe": 6, "sets": [{"reps": 6, "distance": "100m", "effort": "Near-sprint", "rpe": 9, "rest": "60s walk"}]}`
+- Tempo: `{"distance": "10km", "pace": "4:45/km", "effort": "Comfortably hard — 15-20s/km slower than 5K pace", "rpe": 7}`
+- Long run: `{"distance": "16km", "pace": "6:00/km", "effort": "Easy — conversational throughout", "rpe": 6}`
