@@ -28,6 +28,20 @@ export function formatFullDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+/**
+ * Format a date relative to today: "Today", "Yesterday", "X days ago", or "Jan 5".
+ */
+export function formatRelativeDate(dateStr: string): string {
+  const now = new Date();
+  const d = new Date(dateStr);
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 export function formatDateRange(start: string, end?: string): string {
   const s = new Date(start + 'T00:00:00');
   const startStr = s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

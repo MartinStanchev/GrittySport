@@ -9,10 +9,12 @@ interface ProgramContextType {
   isLoading: boolean;
   openChatRequest: boolean;
   programDataVersion: number;
+  chatUnreadCount: number;
   refreshUpcoming: () => Promise<void>;
   notifyProgramDataChanged: () => Promise<void>;
   requestOpenChat: () => void;
   clearOpenChatRequest: () => void;
+  setChatUnreadCount: (count: number) => void;
 }
 
 const ProgramContext = createContext<ProgramContextType | undefined>(undefined);
@@ -24,6 +26,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [openChatRequest, setOpenChatRequest] = useState(false);
   const [programDataVersion, setProgramDataVersion] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const refreshProgram = useCallback(async () => {
     try {
@@ -81,10 +84,12 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         isLoading,
         openChatRequest,
         programDataVersion,
+        chatUnreadCount,
         refreshUpcoming,
         notifyProgramDataChanged,
         requestOpenChat,
         clearOpenChatRequest,
+        setChatUnreadCount,
       }}
     >
       {children}

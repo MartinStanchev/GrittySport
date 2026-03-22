@@ -22,6 +22,7 @@ import {
   formatPrescriptionSummary,
   isManualActivity,
   dayAbbrev,
+  WEEK_DAYS_MON_SUN,
 } from '../constants/activityIcons';
 import { getProgram, deleteProgram } from '../services/api';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
@@ -495,7 +496,7 @@ function WeekView({ week, today, onActivityPress, onRecordActivity, onAddActivit
         {formatWeekRange(weekMonday)}
       </Text>
 
-      {[1, 2, 3, 4, 5, 6, 0].map((dayIndex) => {
+      {WEEK_DAYS_MON_SUN.map((dayIndex) => {
         const activities = byDay.get(dayIndex) ?? [];
         const offset = dayIndex === 0 ? 6 : dayIndex - 1;
         const dayDate = new Date(weekMonday);

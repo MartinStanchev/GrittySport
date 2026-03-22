@@ -1,7 +1,9 @@
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatActivityType } from '../constants/activityIcons';
+import { Fonts } from '../constants/fonts';
+import { dayAbbrev, formatActivityType } from '../constants/activityIcons';
+import type { ThemeColors } from '../constants/colors';
 
 interface ProgramEditData {
   type: 'program_edit';
@@ -26,14 +28,18 @@ interface ProgramEditCardProps {
   disabled?: boolean;
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+type EditAction = 'add' | 'remove' | 'update' | 'swap' | 'other';
 
-function dayName(d?: number): string {
-  return d != null ? DAY_NAMES[d] ?? `Day ${d}` : '';
+function getEditAction(action: string): EditAction {
+  if (action === 'add_activity') return 'add';
+  if (action === 'remove_activity') return 'remove';
+  if (action === 'update_activity' || action === 'update_criteria') return 'update';
+  if (action === 'swap_day') return 'swap';
+  return 'other';
 }
 
 function describeEdit(edit: ProgramEditData['edits'][0]): string {
-  const day = dayName(edit.day_of_week);
+  const day = edit.day_of_week != null ? dayAbbrev(edit.day_of_week) : '';
   const type = edit.activity_type ? formatActivityType(edit.activity_type) : '';
   const filter = edit.activity_type_filter ? ` (${formatActivityType(edit.activity_type_filter)})` : '';
 
@@ -54,7 +60,7 @@ function describeEdit(edit: ProgramEditData['edits'][0]): string {
       }
       return `Add ${type || 'activity'} on ${day}`;
     case 'swap_day':
-      return `Swap ${day} ↔ ${dayName(edit.new_day)}`;
+      return `Swap ${day} ↔ ${edit.new_day != null ? dayAbbrev(edit.new_day) : ''}`;
     case 'update_criteria':
       return `Update program settings`;
     default:
@@ -69,46 +75,95 @@ function scopeNote(edits: ProgramEditData['edits']): string | null {
   return hasPhaseTarget ? 'Applied to matching weeks in the phase' : 'Applied to all weeks';
 }
 
+function getActionColor(action: EditAction, colors: ThemeColors): string {
+  switch (action) {
+    case 'add': return colors.secondary;
+    case 'remove': return colors.error;
+    case 'update': return colors.tertiary;
+    case 'swap': return colors.primary;
+    default: return colors.textSecondary;
+  }
+}
+
+function getActionIcon(action: EditAction): keyof typeof Ionicons.glyphMap {
+  switch (action) {
+    case 'add': return 'add-circle-outline';
+    case 'remove': return 'remove-circle-outline';
+    case 'update': return 'create-outline';
+    case 'swap': return 'swap-horizontal-outline';
+    default: return 'ellipse-outline';
+  }
+}
+
 export function ProgramEditCard({ data, onAccept, onDeny, disabled }: ProgramEditCardProps) {
   const { colors } = useTheme();
   const note = scopeNote(data.edits || []);
+  const editCount = data.edits?.length || 0;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.border }]}>
+      {/* Header */}
       <View style={styles.header}>
-        <Ionicons name="calendar-outline" size={22} color={colors.primary} />
-        <Text style={[styles.title, { color: colors.textPrimary }]}>Program Change</Text>
+        <View style={[styles.headerIcon, { backgroundColor: colors.primaryLight }]}>
+          <Ionicons name="construct-outline" size={16} color={colors.primary} />
+        </View>
+        <View style={styles.headerText}>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Program Adjustment</Text>
+          {editCount > 0 && (
+            <Text style={[styles.changeCount, { color: colors.textSecondary }]}>
+              {editCount} change{editCount !== 1 ? 's' : ''} proposed
+            </Text>
+          )}
+        </View>
       </View>
 
+      {/* Description */}
       <Text style={[styles.description, { color: colors.textPrimary }]}>{data.description}</Text>
 
+      {/* Edit List */}
       {data.edits?.length > 0 && (
-        <View style={[styles.modList, { backgroundColor: colors.background }]}>
-          {data.edits.map((edit, i) => (
-            <View key={i} style={styles.modRow}>
-              <Ionicons name="ellipse" size={6} color={colors.textSecondary} style={styles.bullet} />
-              <Text style={[styles.modText, { color: colors.textPrimary }]}>{describeEdit(edit)}</Text>
-            </View>
-          ))}
-          {note && <Text style={[styles.allWeeksNote, { color: colors.textSecondary }]}>{note}</Text>}
+        <View style={[styles.editList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {data.edits.map((edit, i) => {
+            const action = getEditAction(edit.action);
+            const color = getActionColor(action, colors);
+            const icon = getActionIcon(action);
+
+            return (
+              <View key={i} style={styles.editRow}>
+                <Ionicons name={icon} size={16} color={color} />
+                <Text style={[styles.editText, { color: colors.textPrimary }]}>{describeEdit(edit)}</Text>
+              </View>
+            );
+          })}
         </View>
       )}
 
-      <View style={styles.buttons}>
+      {/* Scope Note */}
+      {note && (
+        <View style={styles.scopeRow}>
+          <Ionicons name="information-circle-outline" size={14} color={colors.textSecondary} />
+          <Text style={[styles.scopeText, { color: colors.textSecondary }]}>{note}</Text>
+        </View>
+      )}
+
+      {/* Actions */}
+      <View style={styles.actions}>
         <TouchableOpacity
-          style={[styles.button, styles.denyButton, { backgroundColor: colors.background }, disabled && styles.buttonDisabled]}
-          onPress={onDeny}
-          disabled={disabled}
-        >
-          <Text style={[styles.denyText, { color: colors.textSecondary }]}>No changes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.acceptButton, { backgroundColor: colors.primary }, disabled && styles.buttonDisabled]}
+          style={[styles.acceptBtn, { backgroundColor: colors.primary }, disabled && styles.disabled]}
           onPress={onAccept}
           disabled={disabled}
+          activeOpacity={0.8}
         >
-          <Ionicons name="checkmark" size={16} color={colors.surface} />
-          <Text style={[styles.acceptText, { color: colors.surface }]}>Apply changes</Text>
+          <Ionicons name="checkmark" size={18} color={colors.background} />
+          <Text style={[styles.acceptText, { color: colors.background }]}>Apply Changes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.denyBtn, disabled && styles.disabled]}
+          onPress={onDeny}
+          disabled={disabled}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.denyText, { color: colors.textSecondary }]}>Let&apos;s Discuss</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -118,73 +173,97 @@ export function ProgramEditCard({ data, onAccept, onDeny, disabled }: ProgramEdi
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    padding: 16,
-    marginVertical: 6,
-    alignSelf: 'stretch',
+    padding: 18,
+    marginVertical: 8,
+    marginHorizontal: 4,
     borderWidth: 1,
+    gap: 12,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
+    gap: 10,
+  },
+  headerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: {
+    flex: 1,
+    gap: 1,
   },
   title: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
+  },
+  changeCount: {
+    fontSize: 12,
+    fontFamily: Fonts.body,
   },
   description: {
     fontSize: 14,
+    fontFamily: Fonts.body,
     lineHeight: 20,
-    marginBottom: 12,
   },
-  modList: {
-    borderRadius: 10,
+  editList: {
+    borderRadius: 12,
     padding: 12,
-    marginBottom: 16,
-    gap: 6,
+    gap: 8,
+    borderWidth: 1,
   },
-  modRow: {
+  editRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  bullet: {
-    marginTop: 1,
-  },
-  modText: {
-    fontSize: 13,
-    flex: 1,
-  },
-  allWeeksNote: {
-    fontSize: 11,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  buttons: {
-    flexDirection: 'row',
     gap: 10,
   },
-  button: {
+  editText: {
+    fontSize: 13,
+    fontFamily: Fonts.bodyMedium,
+    flex: 1,
+  },
+  scopeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  scopeText: {
+    fontSize: 12,
+    fontFamily: Fonts.body,
+    fontStyle: 'italic',
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 2,
+  },
+  acceptBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
+    paddingVertical: 13,
     gap: 6,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  denyButton: {},
-  acceptButton: {},
-  denyText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
   acceptText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
+  },
+  denyBtn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+  },
+  denyText: {
+    fontSize: 14,
+    fontFamily: Fonts.bodyMedium,
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

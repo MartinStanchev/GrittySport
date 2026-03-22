@@ -27,6 +27,8 @@
 - Outdoor: More varied terrain, better bike handling, more fun. Use RPE or HR if no power meter.
 - Cadence targets: 85-95 RPM for most riding. Low cadence (60-70) for strength work. High cadence (100-110) for efficiency drills.
 
+Ask the user whether they prefer Indoor or Outdoor and include a mix of those if requested. If the user doesn't mind, you can suggest they can choose to do a session either ways.  
+
 ## Weekly Structure (Example: 4 days)
 - Day 1: Endurance ride (Zone 2, longest ride of the week)
 - Day 2: Rest or cross-training

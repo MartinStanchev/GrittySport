@@ -59,7 +59,7 @@ func toolNames(tools []*genai.Tool) []string {
 func TestProposalStoreAddPhase(t *testing.T) {
 	store := NewProposalStore()
 
-	if store.PhaseCount("user1") != 0 {
+	if len(store.GetPhases("user1")) != 0 {
 		t.Error("PhaseCount should be 0 for unknown user")
 	}
 
@@ -73,8 +73,8 @@ func TestProposalStoreAddPhase(t *testing.T) {
 		t.Errorf("AddPhase returned %d, want 2", count)
 	}
 
-	if store.PhaseCount("user1") != 2 {
-		t.Errorf("PhaseCount = %d, want 2", store.PhaseCount("user1"))
+	if len(store.GetPhases("user1")) != 2 {
+		t.Errorf("PhaseCount = %d, want 2", len(store.GetPhases("user1")))
 	}
 
 	// Phases should be accessible via Get
@@ -111,8 +111,8 @@ func TestProposalStoreAddPhase(t *testing.T) {
 	if remaining != 1 {
 		t.Errorf("DeletePhase returned remaining=%d, want 1", remaining)
 	}
-	if store.PhaseCount("user1") != 1 {
-		t.Errorf("PhaseCount after delete = %d, want 1", store.PhaseCount("user1"))
+	if len(store.GetPhases("user1")) != 1 {
+		t.Errorf("PhaseCount after delete = %d, want 1", len(store.GetPhases("user1")))
 	}
 
 	// DeletePhase with nonexistent order_index
@@ -127,7 +127,7 @@ func TestProposalStoreAddPhase(t *testing.T) {
 
 	// Set (used by propose_program) replaces the proposal, clearing DraftPhases
 	store.Set("user1", &PendingProposal{Type: "program_creation", Program: []byte(`{}`)})
-	if store.PhaseCount("user1") != 0 {
+	if len(store.GetPhases("user1")) != 0 {
 		t.Error("Set should replace the proposal, clearing DraftPhases")
 	}
 }
@@ -147,8 +147,8 @@ func TestProposalStoreDecompose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdatePhase after propose: %v", err)
 	}
-	if store.PhaseCount("user1") != 2 {
-		t.Errorf("PhaseCount after decompose+update = %d, want 2", store.PhaseCount("user1"))
+	if len(store.GetPhases("user1")) != 2 {
+		t.Errorf("PhaseCount after decompose+update = %d, want 2", len(store.GetPhases("user1")))
 	}
 	p, _ := store.Get("user1")
 	if p.DraftPhases[0].Name != "Base v2" {
@@ -168,6 +168,40 @@ func TestProposalStoreDecompose(t *testing.T) {
 	}
 	if remaining != 1 {
 		t.Errorf("DeletePhase returned remaining=%d, want 1", remaining)
+	}
+}
+
+func TestProposalStoreGetPhases(t *testing.T) {
+	store := NewProposalStore()
+
+	// Unknown user returns nil.
+	if phases := store.GetPhases("user1"); phases != nil {
+		t.Error("GetPhases should return nil for unknown user")
+	}
+
+	// Returns DraftPhases when available.
+	store.AddPhase("user1", models.TemplatePhaseInput{Name: "Base", OrderIndex: 0, DurationWeeks: 4})
+	store.AddPhase("user1", models.TemplatePhaseInput{Name: "Build", OrderIndex: 1, DurationWeeks: 3})
+	phases := store.GetPhases("user1")
+	if len(phases) != 2 {
+		t.Fatalf("GetPhases len = %d, want 2", len(phases))
+	}
+	if phases[0].Name != "Base" || phases[1].Name != "Build" {
+		t.Error("GetPhases should return phases in order")
+	}
+
+	// After propose_program (Set replaces proposal), decomposes from Program JSON.
+	programJSON := `{"name":"Test","phases":[{"name":"Alpha","order_index":0,"duration_weeks":2,"template_week":{"activities":[{"day_of_week":1,"activity_type":"Run"}]}},{"name":"Beta","order_index":1,"duration_weeks":3,"template_week":{"activities":[]}}]}`
+	store.Set("user1", &PendingProposal{
+		Type:    "program_creation",
+		Program: []byte(programJSON),
+	})
+	phases = store.GetPhases("user1")
+	if len(phases) != 2 {
+		t.Fatalf("GetPhases after propose len = %d, want 2", len(phases))
+	}
+	if phases[0].Name != "Alpha" || phases[1].Name != "Beta" {
+		t.Errorf("GetPhases after propose = [%s, %s], want [Alpha, Beta]", phases[0].Name, phases[1].Name)
 	}
 }
 

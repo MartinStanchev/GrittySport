@@ -43,6 +43,17 @@ func intFromAny(v any, defaultVal int) int {
 	return defaultVal
 }
 
+// ActivityTypes is the canonical set of activity types the LLM must choose from.
+// Human-readable format — stored as-is in the DB. The frontend normalizes to snake_case for icon/display lookup.
+var ActivityTypes = []string{
+	"Easy Run", "Long Run", "Tempo Run", "Interval Run", "Trail Run", "Indoor Run", "Run",
+	"Walk", "Swim", "Open Water Swim",
+	"Strength Training", "Cycling", "Indoor Cycling",
+	"Mobility", "Yoga", "Recovery", "Rest",
+	"Drill", "Cross Training",
+	"Outdoor Activity", "Indoor Activity",
+}
+
 // phaseSchema returns the genai.Schema for a single phase used by save_draft_phase and update_draft_phase.
 func phaseSchema() map[string]*genai.Schema {
 	return map[string]*genai.Schema{
@@ -63,9 +74,9 @@ func phaseSchema() map[string]*genai.Schema {
 						Required: []string{"day_of_week", "activity_type", "prescription"},
 						Properties: map[string]*genai.Schema{
 							"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
-							"activity_type": {Type: genai.TypeString, Description: "e.g. Easy Run, Interval Training, Strength, Rest"},
+							"activity_type": {Type: genai.TypeString, Description: "The activity type. Use notes for descriptive detail.", Enum: ActivityTypes},
 							"prescription":  {Type: genai.TypeObject, Description: "Activity details like distance, pace, sets, reps"},
-							"notes":         {Type: genai.TypeString},
+							"notes":         {Type: genai.TypeString, Description: "Descriptive context (e.g. Squat focus, Hill repeats, Upper body)"},
 							"order_index":   {Type: genai.TypeInteger},
 						},
 					},
@@ -501,11 +512,11 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 							"week_id":             {Type: genai.TypeString, Description: "Target a specific week (add_activity to one week only)"},
 							"day_of_week":         {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
 							"new_day":             {Type: genai.TypeInteger, Description: "For swap_day: the other day to swap with"},
-							"activity_type":       {Type: genai.TypeString, Description: "Activity type (add_activity, update_activity)"},
+							"activity_type":       {Type: genai.TypeString, Description: "Activity type (add_activity, update_activity)", Enum: ActivityTypes},
 							"prescription":        {Type: genai.TypeObject, Description: "Prescription details"},
 							"notes":               {Type: genai.TypeString, Description: "Notes for the activity"},
 							"phase_index":         {Type: genai.TypeInteger, Description: "0-based phase index. Omit to apply to all phases."},
-							"activity_type_filter": {Type: genai.TypeString, Description: "Filter by activity type when multiple exist on the same day"},
+							"activity_type_filter": {Type: genai.TypeString, Description: "Filter by activity type when multiple exist on the same day", Enum: ActivityTypes},
 							"criteria": {
 								Type:        genai.TypeArray,
 								Description: "For update_criteria action",
@@ -618,7 +629,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 						Required: []string{"day_of_week", "activity_type", "prescription"},
 						Properties: map[string]*genai.Schema{
 							"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
-							"activity_type": {Type: genai.TypeString},
+							"activity_type": {Type: genai.TypeString, Enum: ActivityTypes},
 							"prescription":  {Type: genai.TypeObject},
 							"notes":         {Type: genai.TypeString},
 							"order_index":   {Type: genai.TypeInteger},

@@ -572,8 +572,11 @@ func (h *ChatHandler) buildSystemPrompt(ctx context.Context, userID, userName, m
 
 	if session.activeDraftID != "" {
 		prompt += fmt.Sprintf("\n\n## Active session context\nYou are currently working on draft program ID: %s. Do NOT call create_draft_program — use this ID for save_draft_criterion and propose_program (as draft_program_id) calls.\n", session.activeDraftID)
-		if n := h.proposalStore.PhaseCount(userID); n > 0 {
-			prompt += fmt.Sprintf("You have saved %d phase(s) via save_draft_phase. Continue saving remaining phases or call propose_program if all phases are ready.\n", n)
+		if phases := h.proposalStore.GetPhases(userID); len(phases) > 0 {
+			prompt += fmt.Sprintf("You have saved %d phase(s) via save_draft_phase. Continue saving remaining phases or call propose_program if all phases are ready.\n", len(phases))
+			if phasesJSON, err := json.Marshal(phases); err == nil {
+				prompt += fmt.Sprintf("\n### Current phase data\nBelow is the exact JSON of each saved phase. When calling `update_draft_phase`, you MUST preserve all field values exactly as shown — only change what the user explicitly asked to change. Copy exercise names, prescriptions, RPE values, and notes verbatim.\n\n```json\n%s\n```\n", string(phasesJSON))
+			}
 		}
 	}
 

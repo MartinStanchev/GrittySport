@@ -16,7 +16,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.grittyfitness.app",
-      "backgroundModes": ["location"],
+      "backgroundModes": [
+        "location"
+      ],
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Gritty Fitness uses your location to track your workout route, distance, and pace.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Gritty Fitness uses background location to continue tracking your workout when the app is in the background.",
@@ -58,7 +60,8 @@
         {
           "NSHealthShareUsageDescription": "Gritty Fitness reads your Apple Health workouts, heart rate, and route data to import them into the app."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

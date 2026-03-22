@@ -16,21 +16,28 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
-import { getChatHistory } from '../services/api';
+import { getChatHistory, getWorkouts } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
+import type { ProgramProposalData } from '../components/ProgramProposalCard';
 import { ProgramEditCard } from '../components/ProgramEditCard';
-import { ProgramArc } from '../components/ProgramArc';
-import { GritChatBanner } from '../components/GritChatBanner';
-import { ActivityDashboard } from '../components/ActivityDashboard';
+import { ProposalReviewView } from '../components/ProposalReviewView';
+import { TodayWorkoutCard } from '../components/TodayWorkoutCard';
+import { GritInsightCard } from '../components/GritInsightCard';
+import { QuickStatsRow } from '../components/QuickStatsRow';
 import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
-import { FABActionSheet } from '../components/FABActionSheet';
+import { LastWorkoutCard } from '../components/LastWorkoutCard';
+import { StreakDots } from '../components/StreakDots';
+import { QuickStartSection } from '../components/QuickStartSection';
+import { useAuth } from '../contexts/AuthContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
 const TOOL_CALL_RE = /^\[System: Grit called tools?: ([^\]]+?)(?:\. .*)?\]$/;
@@ -53,7 +60,6 @@ function mapHistoryMessages(messages: { id: string; role: string; content: strin
           });
         }
       }
-      // Skip system messages that don't match the tool pattern (internal context)
       continue;
     }
     result.push({
@@ -95,30 +101,31 @@ function getMarkdownStyles(colors: ThemeColors) {
       fontSize: 15,
       lineHeight: 21,
       color: colors.textPrimary,
+      fontFamily: Fonts.body,
     },
     heading1: {
       fontSize: 20,
-      fontWeight: '700' as const,
+      fontFamily: Fonts.heading,
       color: colors.textPrimary,
       marginBottom: 4,
       marginTop: 8,
     },
     heading2: {
       fontSize: 17,
-      fontWeight: '700' as const,
+      fontFamily: Fonts.heading,
       color: colors.textPrimary,
       marginBottom: 4,
       marginTop: 6,
     },
     heading3: {
       fontSize: 15,
-      fontWeight: '700' as const,
+      fontFamily: Fonts.heading,
       color: colors.textPrimary,
       marginBottom: 2,
       marginTop: 4,
     },
     strong: {
-      fontWeight: '700' as const,
+      fontFamily: Fonts.bodyBold,
     },
     bullet_list: {
       marginVertical: 4,
@@ -151,27 +158,74 @@ function getMarkdownStyles(colors: ThemeColors) {
   };
 }
 
+/** Compute which days (Mon=0 .. Sun=6) had workouts this week. */
+function useWeeklyCompletedDays(): Set<number> {
+  const [days, setDays] = useState<Set<number>>(new Set());
+
+  useFetchOnFocus(
+    useCallback(async () => {
+      const now = new Date();
+      // Monday of current week
+      const dayOfWeek = now.getDay(); // 0=Sun
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      monday.setHours(0, 0, 0, 0);
+
+      const startDate = monday.toISOString().split('T')[0];
+      const workouts = await getWorkouts({ start_date: startDate, limit: 50 });
+      const completed = new Set<number>();
+      for (const w of workouts) {
+        const d = new Date(w.started_at);
+        const jsDay = d.getDay(); // 0=Sun
+        // Convert to Mon=0 .. Sun=6
+        const monIdx = jsDay === 0 ? 6 : jsDay - 1;
+        completed.add(monIdx);
+      }
+      setDays(completed);
+    }, []),
+  );
+
+  return days;
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function HomeScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const keyboardHeight = useKeyboardHeight();
+  const { user } = useAuth();
   const {
     activeProgram, upcomingActivities, notifyProgramDataChanged,
     openChatRequest, clearOpenChatRequest, refreshUpcoming,
+    setChatUnreadCount,
   } = useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [inputText, setInputText] = useState('');
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
-  const [fabSheetVisible, setFabSheetVisible] = useState(false);
+  const [reviewingProposal, setReviewingProposal] = useState<{ data: ProgramProposalData; messageId: string } | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const didInitialScrollRef = useRef(false);
 
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
+
+  const completedDays = useWeeklyCompletedDays();
+
+  const todayActivity = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    return upcomingActivities.find((a) => a.date === today) ?? null;
+  }, [upcomingActivities]);
 
   const handleProgramCreated = useCallback(() => {
     notifyProgramDataChanged();
@@ -194,6 +248,11 @@ export default function HomeScreen() {
     onProgramCreated: handleProgramCreated,
     onAdjustmentApplied: handleAdjustmentApplied,
   });
+
+  // Sync unread count to shared context for tab badge
+  useEffect(() => {
+    setChatUnreadCount(unreadCount);
+  }, [unreadCount, setChatUnreadCount]);
 
   const uniqueMessages = useMemo(() => {
     const seen = new Set<string>();
@@ -253,7 +312,6 @@ export default function HomeScreen() {
     }, 100);
   }, []);
 
-  // When chat open state changes, reset so we scroll to bottom on next open (long history)
   useEffect(() => {
     didInitialScrollRef.current = false;
   }, [chatOpen]);
@@ -267,7 +325,6 @@ export default function HomeScreen() {
     [messages.length],
   );
 
-  // Stop forcing scroll to bottom after a short window (list may report content size multiple times)
   useEffect(() => {
     if (!chatOpen) return;
     const t = setTimeout(() => {
@@ -325,8 +382,7 @@ export default function HomeScreen() {
         return (
           <ProgramProposalCard
             data={item.proposalData}
-            onAccept={() => handleProposalResponse('accept', item.id)}
-            onDeny={() => handleProposalResponse('deny', item.id)}
+            onReview={() => setReviewingProposal({ data: item.proposalData, messageId: item.id })}
             disabled={respondedProposals.has(item.id)}
           />
         );
@@ -355,7 +411,7 @@ export default function HomeScreen() {
         >
           {!isUser && <Text style={[styles.gritLabel, { color: colors.primary }]}>Grit</Text>}
           {isUser ? (
-            <Text style={[styles.messageText, { color: colors.surface }]}>
+            <Text style={[styles.messageText, { color: colors.background }]}>
               {item.content}
             </Text>
           ) : (
@@ -367,21 +423,32 @@ export default function HomeScreen() {
     [handleProposalResponse, respondedProposals, colors, markdownStyles],
   );
 
-  // Refresh upcoming activities each time the home tab gains focus
+  const handleReviewAccept = useCallback(() => {
+    if (!reviewingProposal) return;
+    handleProposalResponse('accept', reviewingProposal.messageId);
+    setReviewingProposal(null);
+  }, [reviewingProposal, handleProposalResponse]);
+
+  const handleReviewDeny = useCallback(() => {
+    if (!reviewingProposal) return;
+    handleProposalResponse('deny', reviewingProposal.messageId);
+    setReviewingProposal(null);
+  }, [reviewingProposal, handleProposalResponse]);
+
   useFocusEffect(
     useCallback(() => {
       refreshUpcoming();
     }, [refreshUpcoming]),
   );
 
-  // Auto-open chat when another screen requests it (e.g. after saving program edits)
   useFocusEffect(
     useCallback(() => {
       if (openChatRequest) {
         clearOpenChatRequest();
+        markRead();
         setChatOpen(true);
       }
-    }, [openChatRequest, clearOpenChatRequest]),
+    }, [openChatRequest, clearOpenChatRequest, markRead]),
   );
 
   const inputBottomPadding = keyboardHeight > 0 ? 4 : Math.max(insets.bottom, 8);
@@ -397,52 +464,68 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.primary }]}>GRITTY FITNESS</Text>
+          <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+            {getGreeting()}, {user?.name?.split(' ')[0] || 'Athlete'}
+          </Text>
+          <Text style={[styles.greetingSub, { color: colors.textSecondary }]}>
+            READY FOR THE GRIND?
+          </Text>
         </View>
 
-        {/* Program Progress Arc */}
-        <ProgramArc program={activeProgram} onCreateProgram={openProgramCreation} />
-
-        {/* Grit Chat Banner */}
-        <GritChatBanner onOpenChat={openChat} unreadCount={unreadCount} />
-
-        {/* Activity Dashboard */}
-        <ActivityDashboard
-          upcomingActivities={upcomingActivities}
-          onWorkoutPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })}
-          onActivityPress={(activityId) => navigation.navigate('ActivityDetail', { activityId })}
+        {/* Quick Stats */}
+        <QuickStatsRow
+          workoutCount={completedDays.size}
+          streakDays={completedDays.size}
         />
+
+        {/* Today's Workout Hero */}
+        <TodayWorkoutCard
+          activity={todayActivity}
+          program={activeProgram}
+          onStartWorkout={() => navigation.navigate('RecordManual')}
+          onCreateProgram={openProgramCreation}
+        />
+
+        {/* Grit Insight */}
+        <GritInsightCard onOpenChat={openChat} />
 
         {/* Weekly Effort */}
         <WeeklyEffortCounter />
+
+        {/* Last Workout */}
+        <LastWorkoutCard onPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })} />
+
+        {/* Streak Dots */}
+        <StreakDots completedDays={completedDays} />
+
+        {/* Quick Start */}
+        <QuickStartSection
+          onRepeatLast={(activityType) => navigation.navigate('RecordManual', { activityType })}
+          onStartWorkout={() => navigation.navigate('RecordManual')}
+          onLogActivity={() => navigation.navigate('LogActivity')}
+          onImportFile={async () => {
+            const file = await pickWorkoutFile();
+            if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+          }}
+        />
       </ScrollView>
-
-      {/* FAB */}
-      <Pressable
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: Math.max(insets.bottom, 16) }]}
-        onPress={() => setFabSheetVisible(true)}
-        hitSlop={8}
-      >
-        <Ionicons name="add" size={28} color={colors.surface} />
-      </Pressable>
-
-      <FABActionSheet
-        visible={fabSheetVisible}
-        onClose={() => setFabSheetVisible(false)}
-        onStartWorkout={() => navigation.navigate('RecordManual')}
-        onLogActivity={() => navigation.navigate('LogActivity')}
-        onImportFile={async () => {
-          const file = await pickWorkoutFile();
-          if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
-        }}
-      />
 
       {/* Chat Modal */}
       <Modal
         visible={chatOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={closeChat}
+        onRequestClose={reviewingProposal ? () => setReviewingProposal(null) : closeChat}
       >
+        {reviewingProposal ? (
+          <ProposalReviewView
+            data={reviewingProposal.data}
+            onAccept={handleReviewAccept}
+            onDeny={handleReviewDeny}
+            onBack={() => setReviewingProposal(null)}
+            disabled={respondedProposals.has(reviewingProposal.messageId)}
+          />
+        ) : (
         <KeyboardAvoidingView
           style={[styles.chatScreen, { backgroundColor: colors.background }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -606,7 +689,7 @@ export default function HomeScreen() {
             </View>
           )}
         </KeyboardAvoidingView>
-
+        )}
       </Modal>
     </View>
   );
@@ -619,31 +702,29 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
+    paddingBottom: 8,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 1.5,
+  },
+  greeting: {
+    fontSize: 24,
+    fontFamily: Fonts.heading,
+    marginTop: 4,
+  },
+  greetingSub: {
+    fontSize: 11,
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 1.2,
+    marginTop: 2,
   },
   scrollContent: {
     flex: 1,
   },
   scrollContentContainer: {
-    paddingBottom: 100,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
+    paddingBottom: 16,
   },
   sendButton: {
     width: 32,
@@ -685,12 +766,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerAvatarText: {
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
     fontSize: 16,
   },
   chatHeaderTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
   },
   statusRow: {
     flexDirection: 'row',
@@ -705,6 +786,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
+    fontFamily: Fonts.body,
   },
   messageList: {
     flex: 1,
@@ -732,11 +814,12 @@ const styles = StyleSheet.create({
   },
   gritLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     marginBottom: 3,
   },
   messageText: {
     fontSize: 15,
+    fontFamily: Fonts.body,
     lineHeight: 21,
   },
   typingContainer: {
@@ -766,6 +849,7 @@ const styles = StyleSheet.create({
   },
   toolActionLabel: {
     fontSize: 12,
+    fontFamily: Fonts.body,
   },
   loadMoreContainer: {
     alignItems: 'center',
@@ -782,6 +866,7 @@ const styles = StyleSheet.create({
   chatInput: {
     flex: 1,
     fontSize: 15,
+    fontFamily: Fonts.body,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'ios' ? 10 : 8,
@@ -805,7 +890,7 @@ const styles = StyleSheet.create({
   },
   quickReplyText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   keyboardDismissButton: {
     width: 32,
@@ -840,6 +925,6 @@ const styles = StyleSheet.create({
   },
   upgradeButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
 });

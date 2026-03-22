@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatActivityType } from '../constants/activityIcons';
+import { formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { ApiError, createProgram } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import StepIndicator from '../components/StepIndicator';
@@ -111,7 +111,7 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
             dayActivities.set(act.day_of_week, list);
           }
 
-          const orderedDays = [1, 2, 3, 4, 5, 6, 0]; // Mon-Sun
+          const orderedDays = WEEK_DAYS_MON_SUN;
 
           return (
             <View key={pi} style={[styles.phaseCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>

@@ -17,6 +17,8 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   indoor_cycling: 'bicycle-outline',
   indoor_run: 'walk-outline',
   drill: 'flag-outline',
+  outdoor_activity: 'sunny-outline',
+  indoor_activity: 'home-outline',
 };
 
 export function getActivityIcon(type: string): keyof typeof Ionicons.glyphMap {
@@ -42,6 +44,9 @@ export function formatPrescriptionSummary(prescription: Record<string, any>): st
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Day-of-week indices ordered Monday→Sunday. Use for rendering weekly schedules. */
+export const WEEK_DAYS_MON_SUN = [1, 2, 3, 4, 5, 6, 0] as const;
 
 export function dayAbbrev(dayOfWeek: number): string {
   return DAY_NAMES[dayOfWeek] ?? `Day ${dayOfWeek}`;
@@ -80,6 +85,8 @@ export const ACTIVITY_DISPLAY_NAMES: Record<string, string> = {
   drill: 'Drill',
   cross_training: 'Cross Training',
   bike: 'Cycling',
+  outdoor_activity: 'Outdoor Activity',
+  indoor_activity: 'Indoor Activity',
 };
 
 export function formatActivityType(type: string): string {
@@ -100,10 +107,12 @@ export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
   { type: 'strength', label: 'Strength' },
   { type: 'mobility', label: 'Mobility' },
   { type: 'drill', label: 'Drill' },
+  { type: 'outdoor_activity', label: 'Outdoor Activity' },
+  { type: 'indoor_activity', label: 'Indoor Activity' },
 ];
 
-const GPS_ROOTS = ['run', 'walk', 'swim', 'cycling', 'open_water_swim'];
-const MANUAL_ROOTS = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling'];
+const GPS_ROOTS = ['run', 'walk', 'swim', 'cycling', 'open_water_swim', 'outdoor_activity'];
+const MANUAL_ROOTS = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling', 'indoor_activity'];
 
 export function isGPSActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');

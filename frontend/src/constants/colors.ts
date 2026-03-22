@@ -1,9 +1,12 @@
 export interface ThemeColors {
   primary: string;
   primaryLight: string;
+  secondary: string;
+  tertiary: string;
   background: string;
   surface: string;
   surfaceAlt: string;
+  glass: string;
   textPrimary: string;
   textSecondary: string;
   border: string;
@@ -21,48 +24,53 @@ export interface ThemeColors {
 }
 
 export const LightColors: ThemeColors = {
-  primary: '#E63946',
-  primaryLight: '#FEE2E5',
-  background: '#F8F8F8',
+  primary: '#7C5CFC',
+  primaryLight: '#EDE9FF',
+  secondary: '#0EA5B0',
+  tertiary: '#E68A2E',
+  background: '#F5F3FF',
   surface: '#FFFFFF',
-  surfaceAlt: '#F0F0F0',
-  textPrimary: '#1A1A1A',
-  textSecondary: '#666666',
-  border: '#E0E0E0',
-  tabActive: '#E63946',
-  tabInactive: '#999999',
-  tabBarBorder: '#E0E0E0',
+  surfaceAlt: '#EDE9FF',
+  glass: 'rgba(124, 92, 252, 0.06)',
+  textPrimary: '#1A1A2E',
+  textSecondary: '#6B6B7B',
+  border: '#DDD8F0',
+  tabActive: '#7C5CFC',
+  tabInactive: '#9E9EAE',
+  tabBarBorder: '#DDD8F0',
   tabBarBackground: '#FFFFFF',
   inputBackground: '#FFFFFF',
   messageBubble: '#FFFFFF',
-  overlay: 'rgba(0,0,0,0.35)',
-  success: '#4CAF50',
-  warning: '#FF9800',
-  error: '#F44336',
-  info: '#2196F3',
+  overlay: 'rgba(26, 26, 46, 0.35)',
+  success: '#34C759',
+  warning: '#E68A2E',
+  error: '#DC3545',
+  info: '#0EA5B0',
 };
 
 export const DarkColors: ThemeColors = {
-  primary: '#E63946',
-  primaryLight: '#3D1A1E',
-  background: '#121212',
-  surface: '#1E1E1E',
-  surfaceAlt: '#2A2A2A',
-  textPrimary: '#F0F0F0',
-  textSecondary: '#9E9E9E',
-  border: '#333333',
-  tabActive: '#E63946',
-  tabInactive: '#777777',
-  tabBarBorder: '#333333',
-  tabBarBackground: '#1A1A1A',
-  inputBackground: '#2A2A2A',
-  messageBubble: '#2A2A2A',
-  overlay: 'rgba(0,0,0,0.55)',
-  success: '#66BB6A',
-  warning: '#FFA726',
-  error: '#EF5350',
-  info: '#42A5F5',
+  primary: '#cebdff',
+  primaryLight: '#2A2440',
+  secondary: '#46eaed',
+  tertiary: '#ffb868',
+  background: '#12121d',
+  surface: '#1f1e2a',
+  surfaceAlt: '#383845',
+  glass: 'rgba(31, 30, 42, 0.6)',
+  textPrimary: '#e3e0f1',
+  textSecondary: '#cbc3d9',
+  border: '#2e2d3a',
+  tabActive: '#cebdff',
+  tabInactive: '#6B6B7B',
+  tabBarBorder: '#2e2d3a',
+  tabBarBackground: '#181723',
+  inputBackground: '#383845',
+  messageBubble: '#1f1e2a',
+  overlay: 'rgba(0, 0, 0, 0.55)',
+  success: '#46eaed',
+  warning: '#ffb868',
+  error: '#ffb4ab',
+  info: '#46eaed',
 };
 
-// Default export for backwards compatibility during migration
 export const Colors = LightColors;

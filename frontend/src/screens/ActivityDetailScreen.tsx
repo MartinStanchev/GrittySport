@@ -23,9 +23,12 @@ import { useProgram } from '../contexts/ProgramContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 
 const ACTIVITY_TYPES = [
-  'Easy Run', 'Interval Run', 'Long Run',
-  'Strength Training', 'Swim', 'Cycling',
-  'Mobility', 'Yoga', 'Rest', 'Drill',
+  'Easy Run', 'Long Run', 'Tempo Run', 'Interval Run', 'Trail Run', 'Indoor Run', 'Run',
+  'Walk', 'Swim', 'Open Water Swim',
+  'Strength Training', 'Cycling', 'Indoor Cycling',
+  'Mobility', 'Yoga', 'Recovery', 'Rest',
+  'Drill', 'Cross Training',
+  'Outdoor Activity', 'Indoor Activity',
 ];
 
 export default function ActivityDetailScreen({ route, navigation }: any) {

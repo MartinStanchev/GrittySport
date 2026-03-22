@@ -14,17 +14,19 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatActivityType } from '../constants/activityIcons';
+import { formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const DAY_VALUES = [1, 2, 3, 4, 5, 6, 0]; // Mon=1 .. Sat=6, Sun=0
 
 const ACTIVITY_TYPES = [
-  'Easy Run', 'Long Run', 'Tempo Run', 'Interval Training',
-  'Strength', 'Cycling', 'Swimming', 'Yoga',
-  'Mobility', 'Recovery', 'Cross Training', 'Rest',
+  'Easy Run', 'Long Run', 'Tempo Run', 'Interval Run', 'Trail Run', 'Indoor Run', 'Run',
+  'Walk', 'Swim', 'Open Water Swim',
+  'Strength Training', 'Cycling', 'Indoor Cycling',
+  'Mobility', 'Yoga', 'Recovery', 'Rest',
+  'Drill', 'Cross Training',
+  'Outdoor Activity', 'Indoor Activity',
 ];
 
 interface TemplateActivity {
@@ -302,7 +304,7 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
         <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>This pattern repeats for {selectedPhase.duration_weeks} weeks</Text>
 
         {DAY_LABELS.map((dayLabel, i) => {
-          const dayValue = DAY_VALUES[i];
+          const dayValue = WEEK_DAYS_MON_SUN[i];
           const dayActivities = getActivitiesForDay(dayValue);
           return (
             <View key={dayLabel} style={[styles.dayRow, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
@@ -382,7 +384,7 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                 {editing?.activityIndex !== null ? 'Edit Activity' : 'Add Activity'}
               </Text>
               <Text style={[styles.sheetDay, { color: colors.textSecondary }]}>
-                {editing ? DAY_LABELS[DAY_VALUES.indexOf(editing.dayOfWeek)] : ''}
+                {editing ? DAY_LABELS[WEEK_DAYS_MON_SUN.indexOf(editing.dayOfWeek)] : ''}
               </Text>
 
               <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Activity Type</Text>

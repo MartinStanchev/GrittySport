@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { getWeeklyEffort } from '../services/api';
 
@@ -30,9 +31,9 @@ export function WeeklyEffortCounter() {
   const barColor = getBarColor(progress, colors);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.headerRow}>
-        <Ionicons name="flame-outline" size={20} color={barColor} />
+        <Ionicons name="flame-outline" size={18} color={barColor} />
         <Text style={[styles.title, { color: colors.textPrimary }]}>Weekly Effort</Text>
         <Text style={[styles.count, { color: colors.textSecondary }]}>
           {workoutCount} workout{workoutCount !== 1 ? 's' : ''}
@@ -51,22 +52,26 @@ export function WeeklyEffortCounter() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginBottom: 6,
   },
   title: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontFamily: Fonts.headingMedium,
   },
   count: {
     fontSize: 12,
+    fontFamily: Fonts.body,
   },
   valueRow: {
     flexDirection: 'row',
@@ -74,12 +79,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   value: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 26,
+    fontFamily: Fonts.heading,
   },
   goal: {
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 14,
+    fontFamily: Fonts.bodyMedium,
   },
   barTrack: {
     height: 6,

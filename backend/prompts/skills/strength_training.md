@@ -43,3 +43,17 @@
 - Strength: `{"exercises": [{"name": "Back Squat", "sets": 4, "reps": 5, "weight": "85kg", "effort": "85% 1RM", "rpe": 8, "rest": "3min"}, {"name": "Bench Press", "sets": 4, "reps": 5, "weight": "72.5kg", "effort": "85% 1RM", "rpe": 8, "rest": "3min"}]}`
 - Hypertrophy: `{"exercises": [{"name": "Goblet Squat", "sets": 3, "reps": 12, "weight": "24kg", "effort": "70% 1RM", "rpe": 7}, {"name": "Romanian Deadlift", "sets": 3, "reps": 10, "weight": "60kg", "effort": "65% 1RM", "rpe": 8}]}`
 - Sport-specific: `{"exercises": [{"name": "Bulgarian Split Squat", "sets": 3, "reps": 10, "effort": "Bodyweight or light", "rpe": 7, "notes": "each leg"}, {"name": "Single-leg Calf Raise", "sets": 3, "reps": 15, "rpe": 6}, {"name": "Plank", "sets": 3, "duration": "45s", "rpe": 6}]}`
+
+## How many exercises to choose
+
+Depending on the experience level of the user and especially how many strength sessions they will do, you should choose more or less exercises and time spent in the gym. 
+
+For users with fewer sessions per week, prioritise more exercises. Aim for about 1 to 1.5 hour sessions.
+
+For users that have 3+ session per week, you can prioritise 45-90 minutes of training with a respective number of exercises and sets.
+
+## Scheduling 
+
+Think about all the workouts during the week for the user and the type of strength session that you will use for them. It generally is not recommended to stack 2 identical strength training workout one day after the other, for example two upper body days. 
+
+It also is not recommended to add a strength session that might heavily affect the user in their next activity. For example a heavy leg day before a cycling session might cause the user to not have enough leg strength. 

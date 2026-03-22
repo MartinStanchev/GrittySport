@@ -54,6 +54,8 @@ Full details for each change are in the `progress/` folder.
 | [mode-observability-logging](progress/mode-observability-logging.md) | Task 24: Structured logging for mode detection, tool counts, memory assembly, fact decay |
 | [incremental-phase-proposal](progress/incremental-phase-proposal.md) | Incremental phase-based program proposal — save_draft_phase per phase, then lightweight propose_program |
 | [benchmark-driven-prescriptions](progress/benchmark-driven-prescriptions.md) | Benchmark collection (1RM/race times/FTP/CSS) + effort context and standardized RPE across all sport prescriptions |
+| [aura-kinetic-proposals-redesign](progress/aura-kinetic-proposals-redesign.md) | Aura Kinetic theme overhaul (both modes) + redesigned proposal cards with full-screen review + Space Grotesk/Inter fonts |
+| [home-screen-aura-kinetic-redesign](progress/home-screen-aura-kinetic-redesign.md) | Home screen redesign: hero workout card, quick stats, insight card, streak dots, bottom action bar replacing FAB |
 
 ## Instructions for Agents
 

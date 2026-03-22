@@ -71,16 +71,6 @@ func (s *ProposalStore) AddPhase(userID string, phase models.TemplatePhaseInput)
 	return len(p.DraftPhases)
 }
 
-func (s *ProposalStore) PhaseCount(userID string) int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	p, ok := s.pending[userID]
-	if !ok {
-		return 0
-	}
-	return len(p.DraftPhases)
-}
-
 // decomposeProgram extracts phases from the assembled Program JSON back into DraftPhases.
 // This is needed after propose_program has been called and the user rejects — the assembled
 // Program replaces DraftPhases, so we decompose it to allow phase-level edits.
@@ -140,4 +130,19 @@ func (s *ProposalStore) DeletePhase(userID string, orderIndex int) (int, error) 
 		}
 	}
 	return len(p.DraftPhases), fmt.Errorf("no phase with order_index %d", orderIndex)
+}
+
+// GetPhases returns the current draft phases for a user. If phases were assembled
+// into a Program (after propose_program), they are decomposed back. Returns nil if
+// no proposal or phases exist.
+func (s *ProposalStore) GetPhases(userID string) []models.TemplatePhaseInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.pending[userID]
+	if !ok {
+		return nil
+	}
+	p.decomposeProgram()
+	// Return a copy to avoid races with concurrent UpdatePhase/DeletePhase calls.
+	return append([]models.TemplatePhaseInput(nil), p.DraftPhases...)
 }
