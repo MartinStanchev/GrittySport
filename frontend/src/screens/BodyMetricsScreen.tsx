@@ -10,8 +10,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
 import { ageBasedMaxHR, cmToInches, inchesToCm, kgToLbs, lbsToKg } from '../utils/units';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 function displayHeight(heightCm: number | undefined, isImperial: boolean): string {
   if (!heightCm) return '';
@@ -113,6 +115,14 @@ export default function BodyMetricsScreen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+        <KineticHeader
+          eyebrow="Body Metrics"
+          title="Heart rate and physiology"
+          subtitle="These numbers power zones, effort scoring, and recovery context."
+          style={styles.header}
+        />
+
+        <KineticPanel>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Age</Text>
         <TextInput
           style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
@@ -173,6 +183,7 @@ export default function BodyMetricsScreen() {
             </Text>
           </TouchableOpacity>
         )}
+        </KineticPanel>
 
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: colors.primary }, (!hasChanges || isSaving) && styles.disabled]}
@@ -191,26 +202,32 @@ export default function BodyMetricsScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
     paddingBottom: 40,
   },
   sectionHeader: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginBottom: 8,
     marginTop: 28,
     marginLeft: 4,
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
     marginBottom: 6,
     marginTop: 12,
   },
   helpText: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     lineHeight: 18,
     marginTop: 4,
     marginBottom: 12,
@@ -218,7 +235,8 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 16,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
+    fontFamily: Fonts.body,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -227,10 +245,10 @@ const styles = StyleSheet.create({
   },
   resetText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodySemiBold,
   },
   saveButton: {
-    borderRadius: 8,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 32,
@@ -240,6 +258,6 @@ const styles = StyleSheet.create({
   },
   saveText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
 });

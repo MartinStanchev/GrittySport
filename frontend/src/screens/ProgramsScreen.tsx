@@ -11,10 +11,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { getPrograms, updateProgram, deleteProgram } from '../services/api';
 import type { ProgramSummary } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { formatDateRange } from '../utils/dates';
+import { KineticBadge, KineticHeader, KineticPanel } from '../components/Kinetic';
 
 interface ProgramsScreenProps {
   navigation: any;
@@ -122,10 +124,7 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
   const renderItem = useCallback(
     ({ item }: { item: ProgramSummary }) => (
       <Pressable
-        style={[
-          styles.programCard,
-          { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
-        ]}
+        style={styles.programCardWrap}
         onPress={() => navigation.navigate('ProgramDetail', { programId: item.id })}
         onLongPress={() => {
           const options = [
@@ -137,21 +136,23 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
           Alert.alert('Program Options', undefined, options);
         }}
       >
-        <View style={styles.programCardHeader}>
-          <Text style={[styles.programName, { color: colors.textPrimary }]} numberOfLines={1}>{item.name}</Text>
-          {item.status === 'active' && (
-            <View style={styles.activeBadge}>
-              <Text style={styles.activeBadgeText}>ACTIVE</Text>
-            </View>
-          )}
-          {item.status === 'archived' && (
-            <View style={[styles.archivedBadge, { backgroundColor: colors.surfaceAlt }]}>
-              <Text style={[styles.archivedBadgeText, { color: colors.textSecondary }]}>ARCHIVED</Text>
-            </View>
-          )}
-        </View>
-        {item.sport && <Text style={[styles.programSport, { color: colors.primary }]}>{item.sport}</Text>}
-        <Text style={[styles.programDates, { color: colors.textSecondary }]}>{formatDateRange(item.start_date, item.end_date)}</Text>
+        <KineticPanel tone={item.status === 'active' ? 'accent' : 'surface'} style={styles.programCard}>
+          <View style={styles.programCardHeader}>
+            <Text style={[styles.programName, { color: colors.textPrimary }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.status === 'active' ? <KineticBadge label="Active" /> : null}
+            {item.status === 'archived' ? <KineticBadge label="Archived" tone="neutral" /> : null}
+          </View>
+          <View style={styles.programMeta}>
+            {item.sport ? (
+              <Text style={[styles.programSport, { color: colors.primary }]}>{item.sport}</Text>
+            ) : null}
+            <Text style={[styles.programDates, { color: colors.textSecondary }]}>
+              {formatDateRange(item.start_date, item.end_date)}
+            </Text>
+          </View>
+        </KineticPanel>
       </Pressable>
     ),
     [navigation, handleSetActive, handleArchive, handleDelete, colors],
@@ -167,15 +168,28 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Programs</Text>
-        <Pressable
-          style={[styles.createButton, { backgroundColor: colors.primary }]}
-          onPress={() => navigation.navigate('CreateProgramBasics')}
-        >
-          <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.createButtonText}>Create</Text>
-        </Pressable>
+      <KineticHeader
+        eyebrow="Programs"
+        title="Training library"
+        subtitle="Your active plans, archived blocks, and manual builds all live here."
+        right={
+          <Pressable
+            style={[styles.createButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('CreateProgramBasics')}
+          >
+            <Ionicons name="add" size={18} color={colors.background} />
+            <Text style={[styles.createButtonText, { color: colors.background }]}>Create</Text>
+          </Pressable>
+        }
+      />
+
+      <View style={styles.summaryRow}>
+        <KineticBadge label={`${programs.length} total`} tone="neutral" />
+        {programs.some((program) => program.status === 'active') ? (
+          <KineticBadge label="Active plan set" />
+        ) : (
+          <KineticBadge label="No active plan" tone="tertiary" />
+        )}
       </View>
 
       <FlatList
@@ -187,20 +201,24 @@ export default function ProgramsScreen({ navigation }: ProgramsScreenProps) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="barbell-outline" size={48} color={colors.textSecondary} />
+          <KineticPanel style={styles.emptyContainer}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+              <Ionicons name="barbell-outline" size={32} color={colors.primary} />
+            </View>
             <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No programs yet</Text>
             <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
-              Create your first training program
+              Create a structured plan or let Grit build one from chat.
             </Text>
             <Pressable
               style={[styles.emptyCreateButton, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('CreateProgramBasics')}
             >
-              <Ionicons name="add-circle-outline" size={20} color="#FFF" />
-              <Text style={styles.emptyCreateButtonText}>Create Program</Text>
+              <Ionicons name="add-circle-outline" size={20} color={colors.background} />
+              <Text style={[styles.emptyCreateButtonText, { color: colors.background }]}>
+                Create Program
+              </Text>
             </Pressable>
-          </View>
+          </KineticPanel>
         }
       />
     </View>
@@ -215,107 +233,100 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-  },
   createButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    borderRadius: 12,
+    gap: 6,
+    borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   createButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFF',
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  programCardWrap: {
+    marginBottom: 12,
   },
   programCard: {
-    padding: 16,
-    marginBottom: 0,
+    gap: 12,
   },
   programCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    gap: 10,
   },
   programName: {
-    fontSize: 16,
-    fontWeight: '700',
     flex: 1,
+    fontSize: 20,
+    lineHeight: 24,
+    fontFamily: Fonts.heading,
   },
-  activeBadge: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginLeft: 8,
-  },
-  activeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  archivedBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginLeft: 8,
-  },
-  archivedBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
+  programMeta: {
+    gap: 4,
   },
   programSport: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   programDates: {
-    fontSize: 12,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Fonts.body,
   },
   loadingText: {
     fontSize: 16,
+    fontFamily: Fonts.body,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingTop: 60,
-    gap: 8,
+    marginTop: 16,
+    gap: 10,
+    paddingVertical: 28,
+  },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontFamily: Fonts.heading,
   },
   emptySubtext: {
     fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Fonts.body,
     textAlign: 'center',
   },
   emptyCreateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 14,
-    paddingHorizontal: 24,
+    borderRadius: 999,
+    paddingHorizontal: 20,
     paddingVertical: 14,
-    marginTop: 16,
+    marginTop: 10,
   },
   emptyCreateButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFF',
+    fontSize: 15,
+    fontFamily: Fonts.bodySemiBold,
   },
 });

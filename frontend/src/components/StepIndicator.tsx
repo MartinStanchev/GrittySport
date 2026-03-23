@@ -16,7 +16,11 @@ export default function StepIndicator({ current, total }: StepIndicatorProps) {
           key={i}
           style={[
             styles.dot,
-            { backgroundColor: i < current ? colors.primary : colors.border },
+            {
+              backgroundColor: i < current ? colors.primary : colors.surfaceAlt,
+              borderColor: i < current ? colors.primary : colors.border,
+            },
+            i + 1 === current && styles.activeDot,
           ]}
         />
       ))}
@@ -25,6 +29,7 @@ export default function StepIndicator({ current, total }: StepIndicatorProps) {
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  container: { flexDirection: 'row', justifyContent: 'center', gap: 10, paddingVertical: 20 },
+  dot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1 },
+  activeDot: { width: 28 },
 });

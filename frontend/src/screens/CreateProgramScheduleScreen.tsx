@@ -15,8 +15,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
+import { Fonts } from '../constants/fonts';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
+import { KineticHeader } from '../components/Kinetic';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -234,6 +236,12 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent}>
+        <KineticHeader
+          eyebrow="Program Builder"
+          title="Build the week"
+          subtitle="Shape the repeating template for each phase and adjust the total duration."
+          style={styles.header}
+        />
         <StepIndicator current={2} total={3} />
 
         {/* Phase tabs */}
@@ -453,24 +461,26 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
   scrollContent: { padding: 20, paddingBottom: 100 },
+  header: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
 
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginBottom: 8,
   },
   sectionHint: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginBottom: 12,
     marginTop: -4,
   },
 
   // Phase section
   phaseSection: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 24,
+    padding: 18,
     marginBottom: 20,
   },
   phaseHeader: {
@@ -486,7 +496,7 @@ const styles = StyleSheet.create({
   },
   presetButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   phaseTabs: {
     flexDirection: 'row',
@@ -496,14 +506,14 @@ const styles = StyleSheet.create({
   phaseTab: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   phaseTabText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   phaseTabTextActive: {
     color: '#FFF',
@@ -550,7 +560,7 @@ const styles = StyleSheet.create({
   },
   stepperValue: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     minWidth: 70,
     textAlign: 'center',
   },
@@ -558,8 +568,8 @@ const styles = StyleSheet.create({
   // Day rows
   dayRow: {
     flexDirection: 'row',
-    borderRadius: 12,
-    marginBottom: 6,
+    borderRadius: 18,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   dayLabelContainer: {
@@ -570,7 +580,7 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
   },
   dayContent: {
     flex: 1,
@@ -583,14 +593,14 @@ const styles = StyleSheet.create({
   activityChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 4,
   },
   activityChipText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   addActivityButton: {
     flexDirection: 'row',
@@ -601,7 +611,7 @@ const styles = StyleSheet.create({
   },
   addActivityText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
 
   // Footer
@@ -615,13 +625,13 @@ const styles = StyleSheet.create({
   },
   footerInfo: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   reviewButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 14,
     paddingHorizontal: 24,
   },
@@ -630,7 +640,7 @@ const styles = StyleSheet.create({
   },
   reviewButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 
@@ -641,8 +651,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   bottomSheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
     paddingTop: 12,
     maxHeight: '85%',
@@ -661,7 +671,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
     marginBottom: 4,
   },
   sheetDay: {
@@ -670,9 +680,9 @@ const styles = StyleSheet.create({
   },
   sheetLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginBottom: 8,
     marginTop: 16,
   },
@@ -684,20 +694,21 @@ const styles = StyleSheet.create({
   typeChip: {
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 14,
   },
   typeChipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   typeChipTextActive: {
     color: '#FFF',
   },
   notesInput: {
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
+    fontFamily: Fonts.body,
     borderWidth: 1,
     minHeight: 50,
     textAlignVertical: 'top',
@@ -715,26 +726,26 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
   },
   deleteButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   saveButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 18,
   },
   saveButtonDisabled: {
     opacity: 0.4,
   },
   saveButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 
@@ -753,14 +764,15 @@ const styles = StyleSheet.create({
   },
   renameTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     marginBottom: 16,
   },
   renameInput: {
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    fontFamily: Fonts.body,
     borderWidth: 1,
     marginBottom: 16,
   },
@@ -771,7 +783,7 @@ const styles = StyleSheet.create({
   },
   renameButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 });

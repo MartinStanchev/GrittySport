@@ -6,11 +6,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 import { getWorkouts } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
 import { pickWorkoutFile } from '../services/workoutFileParser';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 const PAGE_SIZE = 20;
 
@@ -103,24 +105,32 @@ function WorkoutRow({ workout, colors }: { workout: WorkoutResponse; colors: The
   const badge = sourceBadge(workout.source);
 
   return (
-    <View style={[styles.row, { borderBottomColor: colors.border }]}>
-      <View style={[styles.rowIcon, { backgroundColor: colors.primaryLight }]}>
-        <Ionicons name={icon} size={20} color={colors.primary} />
-      </View>
-      <View style={styles.rowContent}>
-        <View style={styles.rowTypeRow}>
-          <Text style={[styles.rowType, { color: colors.textPrimary }]}>{formatActivityType(workout.activity_type)}</Text>
-          {badge && (
-            <Ionicons name={badge.icon as any} size={14} color={badge.color} style={{ marginLeft: 6 }} />
-          )}
+    <KineticPanel style={styles.row}>
+      <View style={styles.rowInner}>
+        <View style={[styles.rowIcon, { backgroundColor: colors.primaryLight }]}>
+          <Ionicons name={icon} size={20} color={colors.primary} />
         </View>
-        <Text style={[styles.rowDate, { color: colors.textSecondary }]}>{formatShortDate(workout.started_at)}</Text>
+        <View style={styles.rowContent}>
+          <View style={styles.rowTypeRow}>
+            <Text style={[styles.rowType, { color: colors.textPrimary }]}>
+              {formatActivityType(workout.activity_type)}
+            </Text>
+            {badge ? (
+              <Ionicons name={badge.icon as any} size={14} color={badge.color} style={{ marginLeft: 6 }} />
+            ) : null}
+          </View>
+          <Text style={[styles.rowDate, { color: colors.textSecondary }]}>
+            {formatShortDate(workout.started_at)}
+          </Text>
+        </View>
+        <View style={styles.rowRight}>
+          <Text style={[styles.rowDuration, { color: colors.textPrimary }]}>
+            {formatDuration(workout.started_at, workout.finished_at)}
+          </Text>
+          {stat ? <Text style={[styles.rowStat, { color: colors.textSecondary }]}>{stat}</Text> : null}
+        </View>
       </View>
-      <View style={styles.rowRight}>
-        <Text style={[styles.rowDuration, { color: colors.textPrimary }]}>{formatDuration(workout.started_at, workout.finished_at)}</Text>
-        {stat ? <Text style={[styles.rowStat, { color: colors.textSecondary }]}>{stat}</Text> : null}
-      </View>
-    </View>
+    </KineticPanel>
   );
 }
 
@@ -219,24 +229,30 @@ export default function HistoryScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.primary }]}>HISTORY</Text>
-        <Pressable onPress={() => navigation.navigate('Import')} style={styles.addBtn}>
-          <Ionicons name="download-outline" size={24} color={colors.primary} />
-        </Pressable>
-        <Pressable
-          onPress={async () => {
-            const file = await pickWorkoutFile();
-            if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
-          }}
-          style={styles.addBtn}
-        >
-          <Ionicons name="cloud-upload-outline" size={24} color={colors.primary} />
-        </Pressable>
-        <Pressable onPress={() => navigation.navigate('LogActivity')} style={styles.addBtn}>
-          <Ionicons name="add" size={28} color={colors.primary} />
-        </Pressable>
-      </View>
+      <KineticHeader
+        eyebrow="History"
+        title="Workout archive"
+        subtitle="Filter past sessions, import external files, and jump back into analysis."
+        right={
+          <View style={styles.headerActions}>
+            <Pressable onPress={() => navigation.navigate('Import')} style={[styles.addBtn, { backgroundColor: colors.surface }]}>
+              <Ionicons name="download-outline" size={18} color={colors.primary} />
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                const file = await pickWorkoutFile();
+                if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+              }}
+              style={[styles.addBtn, { backgroundColor: colors.surface }]}
+            >
+              <Ionicons name="cloud-upload-outline" size={18} color={colors.primary} />
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate('LogActivity')} style={[styles.addBtn, { backgroundColor: colors.primary }]}>
+              <Ionicons name="add" size={18} color={colors.background} />
+            </Pressable>
+          </View>
+        }
+      />
 
       {/* Filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow} contentContainerStyle={styles.chipScroll}>
@@ -291,11 +307,15 @@ export default function HistoryScreen({ navigation }: Props) {
             ) : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="fitness-outline" size={48} color={colors.textSecondary} />
+            <KineticPanel style={styles.emptyState}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+                <Ionicons name="fitness-outline" size={28} color={colors.primary} />
+              </View>
               <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No workouts yet</Text>
-              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>Tap the + button to log your first workout</Text>
-            </View>
+              <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+                Log a session, import a file, or sync Apple Health to start building your archive.
+              </Text>
+            </KineticPanel>
           }
         />
       )}
@@ -330,22 +350,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: 1,
+    gap: 8,
   },
   addBtn: {
-    padding: 6,
-    marginLeft: 8,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipRow: {
     flexGrow: 0,
@@ -354,7 +369,7 @@ const styles = StyleSheet.create({
   chipScroll: {
     paddingLeft: 16,
     paddingRight: 16,
-    paddingBottom: 8,
+    paddingBottom: 12,
     gap: 6,
   },
   chip: {
@@ -365,7 +380,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   chipTextActive: {
     color: '#FFF',
@@ -377,25 +392,33 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   emptyContainer: {
     flex: 1,
     paddingHorizontal: 16,
   },
   emptyState: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 80,
+    marginTop: 20,
+    paddingVertical: 28,
     gap: 12,
   },
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 22,
+    fontFamily: Fonts.heading,
   },
   emptySubtext: {
     fontSize: 14,
+    fontFamily: Fonts.body,
     textAlign: 'center',
     paddingHorizontal: 24,
     lineHeight: 20,
@@ -405,16 +428,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   row: {
+    marginBottom: 12,
+    padding: 16,
+  },
+  rowInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -428,10 +452,11 @@ const styles = StyleSheet.create({
   },
   rowType: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   rowDate: {
     fontSize: 12,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   rowRight: {
@@ -439,10 +464,11 @@ const styles = StyleSheet.create({
   },
   rowDuration: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   rowStat: {
     fontSize: 12,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   modalBackdrop: {
@@ -459,7 +485,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     marginBottom: 16,
   },
   modalOption: {
@@ -472,5 +498,6 @@ const styles = StyleSheet.create({
   },
   modalOptionText: {
     fontSize: 15,
+    fontFamily: Fonts.body,
   },
 });

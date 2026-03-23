@@ -108,10 +108,7 @@ func main() {
 
 	workoutService := services.NewWorkoutService(pool)
 
-	// Load review prompts
-	reviewPrompt, _ := skillLoader.GetSkill("post_workout_review")
-	missedPrompt, _ := skillLoader.GetSkill("missed_workout_review")
-	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, memoryService, reviewPrompt, missedPrompt)
+	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, memoryService, promptLoader.ReviewPrompt(), promptLoader.MissedPrompt())
 
 	// Start missed workout checker
 	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)

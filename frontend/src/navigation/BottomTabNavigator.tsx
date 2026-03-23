@@ -33,11 +33,18 @@ export default function BottomTabNavigator() {
           backgroundColor: colors.tabBarBackground,
           borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
         },
         headerStyle: {
           backgroundColor: colors.surface,
         },
         headerTintColor: colors.textPrimary,
+        headerTitleStyle: {
+          fontFamily: Fonts.headingMedium,
+          fontSize: 18,
+        },
       }}
     >
       <Tab.Screen

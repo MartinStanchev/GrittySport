@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 import { formatTime } from '../constants/workoutUtils';
 import { getActivity, saveWorkout } from '../services/api';
 import { isGPSActivity } from '../constants/activityIcons';
@@ -856,10 +857,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  timerLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
-  timerValue: { fontSize: 28, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  timerLabel: { fontSize: 10, fontFamily: Fonts.bodySemiBold, letterSpacing: 1 },
+  timerValue: { fontSize: 28, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'] },
   finishBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
-  finishBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  finishBtnText: { color: '#FFF', fontFamily: Fonts.headingMedium, fontSize: 14 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   activityBanner: {
@@ -872,7 +873,7 @@ const styles = StyleSheet.create({
   activityBannerName: { fontSize: 14, fontWeight: '600', marginTop: 2 },
 
   typeSelectorContainer: { paddingTop: 4 },
-  typeSectionHeader: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
+  typeSectionHeader: { fontSize: 12, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, marginTop: 4 },
   typeOption: {
     flexDirection: 'row', alignItems: 'center', borderRadius: 0,
     padding: 16, marginBottom: 0,
@@ -880,10 +881,10 @@ const styles = StyleSheet.create({
   typeIconCircle: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   typeOptionText: { flex: 1 },
   typeOptionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typeOptionLabel: { fontSize: 16, fontWeight: '600' },
-  typeOptionDesc: { fontSize: 13, marginTop: 2 },
+  typeOptionLabel: { fontSize: 16, fontFamily: Fonts.headingMedium },
+  typeOptionDesc: { fontSize: 13, fontFamily: Fonts.body, marginTop: 2 },
   gpsBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  gpsBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  gpsBadgeText: { fontSize: 10, fontFamily: Fonts.bodySemiBold, letterSpacing: 0.5 },
 
   exerciseBlock: {
     borderRadius: 0, padding: 14, marginBottom: 0,
@@ -891,14 +892,14 @@ const styles = StyleSheet.create({
   exerciseBlockDone: { opacity: 0.6 },
   exerciseHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   exerciseNameInput: {
-    flex: 1, fontSize: 16, fontWeight: '600',
+    flex: 1, fontSize: 16, fontFamily: Fonts.headingMedium,
     borderBottomWidth: 1, paddingBottom: 4,
   },
   removeBtn: { padding: 6, marginLeft: 8 },
-  targetLabel: { fontSize: 12, marginBottom: 8, fontStyle: 'italic' },
+  targetLabel: { fontSize: 12, fontFamily: Fonts.body, marginBottom: 8, fontStyle: 'italic' },
 
   setTableHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  setHeaderText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  setHeaderText: { fontSize: 11, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase' },
   setRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   setCell: { flex: 1, fontSize: 14 },
   setInput: {
@@ -910,52 +911,52 @@ const styles = StyleSheet.create({
   removeMiniBtn: { padding: 4, marginLeft: 2 },
   exerciseFooter: { flexDirection: 'row', marginTop: 10, gap: 8 },
   addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
-  addSetText: { fontSize: 13, fontWeight: '600' },
+  addSetText: { fontSize: 13, fontFamily: Fonts.bodySemiBold },
   restBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
-  restBtnText: { fontSize: 13, fontWeight: '600' },
+  restBtnText: { fontSize: 13, fontFamily: Fonts.bodySemiBold },
   addExerciseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', marginTop: 4 },
-  addExerciseText: { fontSize: 15, fontWeight: '600' },
+  addExerciseText: { fontSize: 15, fontFamily: Fonts.bodySemiBold },
 
   mobilityTimerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 12 },
-  mobilityTimerText: { fontSize: 24, fontWeight: '700', fontVariant: ['tabular-nums'], minWidth: 70 },
+  mobilityTimerText: { fontSize: 24, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'], minWidth: 70 },
   startTimerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  startTimerBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
+  startTimerBtnText: { color: '#FFF', fontFamily: Fonts.headingMedium, fontSize: 14 },
   doneExBtn: { marginLeft: 'auto' },
 
   drillCard: { borderRadius: 0, padding: 14, marginBottom: 16 },
-  drillName: { fontSize: 18, fontWeight: '700' },
-  drillDesc: { fontSize: 14, marginTop: 6, lineHeight: 20 },
+  drillName: { fontSize: 18, fontFamily: Fonts.headingMedium },
+  drillDesc: { fontSize: 14, fontFamily: Fonts.body, marginTop: 6, lineHeight: 20 },
 
-  sectionLabel: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 },
-  notesInput: { borderRadius: 12, padding: 14, fontSize: 15, minHeight: 100, borderWidth: 1 },
+  sectionLabel: { fontSize: 13, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 8 },
+  notesInput: { borderRadius: 12, padding: 14, fontSize: 15, fontFamily: Fonts.body, minHeight: 100, borderWidth: 1 },
 
   restModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   restModalBox: {
     borderRadius: 20, padding: 32, alignItems: 'center', width: 260,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
-  restModalTitle: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
-  restModalTimer: { fontSize: 56, fontWeight: '700', fontVariant: ['tabular-nums'], marginBottom: 24 },
+  restModalTitle: { fontSize: 14, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 },
+  restModalTimer: { fontSize: 56, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'], marginBottom: 24 },
   restModalActions: { gap: 10, width: '100%' },
   restModalPause: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  restModalPauseText: { fontSize: 15, fontWeight: '600' },
+  restModalPauseText: { fontSize: 15, fontFamily: Fonts.headingMedium },
   restModalSkip: { borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-  restModalSkipText: { fontSize: 15, fontWeight: '600', color: '#FFF' },
+  restModalSkipText: { fontSize: 15, fontFamily: Fonts.headingMedium, color: '#FFF' },
 
   summaryHeader: { alignItems: 'center', paddingVertical: 24 },
-  summaryTitle: { fontSize: 24, fontWeight: '700', marginTop: 12 },
-  summaryTime: { fontSize: 40, fontWeight: '700', marginTop: 8, fontVariant: ['tabular-nums'] },
-  summaryTimeLabel: { fontSize: 13, marginTop: 4 },
+  summaryTitle: { fontSize: 24, fontFamily: Fonts.heading, marginTop: 12 },
+  summaryTime: { fontSize: 40, fontFamily: Fonts.heading, marginTop: 8, fontVariant: ['tabular-nums'] },
+  summaryTimeLabel: { fontSize: 13, fontFamily: Fonts.body, marginTop: 4 },
   summarySection: { borderRadius: 0, padding: 16, marginBottom: 16 },
-  summarySectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  summarySectionTitle: { fontSize: 12, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
   summaryExRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
-  summaryExName: { fontSize: 15, fontWeight: '500' },
-  summaryExDetail: { fontSize: 14 },
-  summaryNotePreview: { fontSize: 14, lineHeight: 20 },
+  summaryExName: { fontSize: 15, fontFamily: Fonts.headingMedium },
+  summaryExDetail: { fontSize: 14, fontFamily: Fonts.body },
+  summaryNotePreview: { fontSize: 14, fontFamily: Fonts.body, lineHeight: 20 },
   summaryBtns: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 16 },
   discardBtn: { flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, alignItems: 'center' },
-  discardBtnText: { fontSize: 15, fontWeight: '600' },
+  discardBtnText: { fontSize: 15, fontFamily: Fonts.headingMedium },
   saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  saveBtnText: { fontSize: 15, fontFamily: Fonts.headingMedium, color: '#FFF' },
 });

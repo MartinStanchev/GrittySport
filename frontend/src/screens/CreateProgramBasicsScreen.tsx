@@ -12,7 +12,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import StepIndicator from '../components/StepIndicator';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 const SPORT_CHIPS = ['Running', 'Swimming', 'Cycling', 'Strength', 'Triathlon', 'Yoga', 'CrossFit'];
 
@@ -91,61 +93,69 @@ export default function CreateProgramBasicsScreen({ navigation, route }: Props) 
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
         keyboardShouldPersistTaps="handled"
       >
+        <KineticHeader
+          eyebrow="Program Builder"
+          title="Shape the basics"
+          subtitle="Set the sport, objective, and kickoff date before we build the weekly structure."
+          style={styles.header}
+        />
         <StepIndicator current={1} total={3} />
 
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Program Name *</Text>
-        <TextInput
-          style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-          placeholder="e.g. Marathon Training Plan"
-          placeholderTextColor={colors.textSecondary}
-          value={name}
-          onChangeText={setName}
-          autoFocus
-        />
+        <KineticPanel>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Program Name *</Text>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
+            placeholder="e.g. Marathon Training Plan"
+            placeholderTextColor={colors.textSecondary}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+          />
 
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Sport</Text>
-        <TextInput
-          style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-          placeholder="e.g. Running"
-          placeholderTextColor={colors.textSecondary}
-          value={sport}
-          onChangeText={setSport}
-        />
-        <View style={styles.chipRow}>
-          {SPORT_CHIPS.map(s => (
-            <Pressable
-              key={s}
-              style={[styles.chip, { backgroundColor: colors.surface, borderColor: colors.border }, sport === s && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-              onPress={() => setSport(sport === s ? '' : s)}
-            >
-              <Text style={[styles.chipText, { color: colors.textSecondary }, sport === s && styles.chipTextActive]}>{s}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Goal (optional)</Text>
-        <TextInput
-          style={[styles.textInput, styles.textArea, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-          placeholder="e.g. Complete a sub-4 hour marathon"
-          placeholderTextColor={colors.textSecondary}
-          value={goal}
-          onChangeText={setGoal}
-          multiline
-          numberOfLines={2}
-        />
-
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Start Date</Text>
-        <View style={styles.dateRow}>
-          <Pressable style={[styles.dateArrow, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => shiftDate(-7)}>
-            <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
-          </Pressable>
-          <View style={[styles.dateDisplay, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.dateText, { color: colors.textPrimary }]}>{formatDisplayDate(startDate)}</Text>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Sport</Text>
+          <TextInput
+            style={[styles.textInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
+            placeholder="e.g. Running"
+            placeholderTextColor={colors.textSecondary}
+            value={sport}
+            onChangeText={setSport}
+          />
+          <View style={styles.chipRow}>
+            {SPORT_CHIPS.map(s => (
+              <Pressable
+                key={s}
+                style={[styles.chip, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }, sport === s && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                onPress={() => setSport(sport === s ? '' : s)}
+              >
+                <Text style={[styles.chipText, { color: colors.textSecondary }, sport === s && styles.chipTextActive]}>{s}</Text>
+              </Pressable>
+            ))}
           </View>
-          <Pressable style={[styles.dateArrow, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => shiftDate(7)}>
-            <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
-          </Pressable>
-        </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Goal (optional)</Text>
+          <TextInput
+            style={[styles.textInput, styles.textArea, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
+            placeholder="e.g. Complete a sub-4 hour marathon"
+            placeholderTextColor={colors.textSecondary}
+            value={goal}
+            onChangeText={setGoal}
+            multiline
+            numberOfLines={2}
+          />
+
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Start Date</Text>
+          <View style={styles.dateRow}>
+            <Pressable style={[styles.dateArrow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]} onPress={() => shiftDate(-7)}>
+              <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
+            </Pressable>
+            <View style={[styles.dateDisplay, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+              <Text style={[styles.dateText, { color: colors.textPrimary }]}>{formatDisplayDate(startDate)}</Text>
+            </View>
+            <Pressable style={[styles.dateArrow, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]} onPress={() => shiftDate(7)}>
+              <Ionicons name="chevron-forward" size={20} color={colors.textPrimary} />
+            </Pressable>
+          </View>
+        </KineticPanel>
 
         <Pressable
           style={[styles.nextButton, { backgroundColor: colors.primary }, !canProceed && styles.nextButtonDisabled]}
@@ -163,19 +173,21 @@ export default function CreateProgramBasicsScreen({ navigation, route }: Props) 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 20 },
+  header: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginTop: 20,
     marginBottom: 8,
   },
   textInput: {
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    fontFamily: Fonts.body,
     borderWidth: 1,
   },
   textArea: {
@@ -196,7 +208,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   chipTextActive: {
     color: '#FFF',
@@ -209,28 +221,28 @@ const styles = StyleSheet.create({
   dateArrow: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   dateDisplay: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
     borderWidth: 1,
   },
   dateText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 16,
     marginTop: 32,
   },
@@ -239,7 +251,7 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 });

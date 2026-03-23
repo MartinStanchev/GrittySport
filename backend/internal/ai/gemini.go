@@ -53,17 +53,20 @@ type criteriaFile struct {
 
 // PromptLoader loads composable system prompt templates and renders them per conversation mode.
 type PromptLoader struct {
-	templates         map[string]*template.Template // "base", "program_create", "program_modify", "review"
+	templates         map[string]*template.Template // "base", "general_coaching", "program_create", "program_modify", "review"
 	formattedCriteria string
+	reviewPrompt      string // raw template for post-workout reviews (filled via strings.ReplaceAll)
+	missedPrompt      string // raw template for missed workout check-ins
 }
 
 // LoadPrompts reads the composable system prompt templates and questions.json from the given directory.
 func LoadPrompts(dir string) (*PromptLoader, error) {
 	templateFiles := map[string]string{
-		"base":           "system_base.md",
-		"program_create": "system_program_create.md",
-		"program_modify": "system_program_modify.md",
-		"review":         "system_review_context.md",
+		"base":              "system_base.md",
+		"general_coaching":  "system_general_coaching.md",
+		"program_create":    "system_program_create.md",
+		"program_modify":    "system_program_modify.md",
+		"review":            "system_review_context.md",
 	}
 
 	templates := make(map[string]*template.Template, len(templateFiles))
@@ -89,12 +92,32 @@ func LoadPrompts(dir string) (*PromptLoader, error) {
 		return nil, fmt.Errorf("parse questions.json: %w", err)
 	}
 
+	// Load review prompt templates (raw strings, not Go templates)
+	reviewPromptBytes, err := os.ReadFile(filepath.Join(dir, "review_post_workout.md"))
+	if err != nil {
+		return nil, fmt.Errorf("read review_post_workout.md: %w", err)
+	}
+	missedPromptBytes, err := os.ReadFile(filepath.Join(dir, "review_missed_workout.md"))
+	if err != nil {
+		return nil, fmt.Errorf("read review_missed_workout.md: %w", err)
+	}
+
 	log.Info().Str("prompts_dir", dir).Int("templates", len(templates)).Msg("System prompt templates loaded")
-	return &PromptLoader{templates: templates, formattedCriteria: formatCriteria(cf)}, nil
+	return &PromptLoader{
+		templates:         templates,
+		formattedCriteria: formatCriteria(cf),
+		reviewPrompt:      string(reviewPromptBytes),
+		missedPrompt:      string(missedPromptBytes),
+	}, nil
 }
 
+// ReviewPrompt returns the raw post-workout review prompt template.
+func (pl *PromptLoader) ReviewPrompt() string { return pl.reviewPrompt }
+
+// MissedPrompt returns the raw missed-workout check-in prompt template.
+func (pl *PromptLoader) MissedPrompt() string { return pl.missedPrompt }
+
 // BuildSystemPromptForMode renders the base template plus the mode-specific section.
-// For general_coaching, only the base is rendered (saving ~2000 tokens).
 func (pl *PromptLoader) BuildSystemPromptForMode(p PromptParams, mode string) string {
 	var buf bytes.Buffer
 	if err := pl.templates["base"].Execute(&buf, p); err != nil {
@@ -104,6 +127,8 @@ func (pl *PromptLoader) BuildSystemPromptForMode(p PromptParams, mode string) st
 
 	var modeKey string
 	switch mode {
+	case "general_coaching":
+		modeKey = "general_coaching"
 	case "program_creation":
 		modeKey = "program_create"
 		p.Criteria = pl.formattedCriteria
@@ -112,7 +137,7 @@ func (pl *PromptLoader) BuildSystemPromptForMode(p PromptParams, mode string) st
 	case "workout_review":
 		modeKey = "review"
 	default:
-		return buf.String()
+		modeKey = "general_coaching"
 	}
 
 	if tmpl, ok := pl.templates[modeKey]; ok {

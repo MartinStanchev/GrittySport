@@ -11,11 +11,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { ApiError, createProgram } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import StepIndicator from '../components/StepIndicator';
 import { formatDateRange } from '../utils/dates';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -83,10 +85,16 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingBottom: insets.bottom }]}>
       <ScrollView contentContainerStyle={styles.content}>
+        <KineticHeader
+          eyebrow="Program Builder"
+          title="Review the blueprint"
+          subtitle="Give the full plan one last pass before it becomes your active program."
+          style={styles.header}
+        />
         <StepIndicator current={3} total={3} />
 
         {/* Summary header */}
-        <View style={[styles.summaryCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+        <KineticPanel style={styles.summaryCard}>
           <Text style={[styles.programName, { color: colors.textPrimary }]}>{name}</Text>
           {sport ? <Text style={[styles.programSport, { color: colors.primary }]}>{sport}</Text> : null}
           {goal ? <Text style={[styles.programGoal, { color: colors.textSecondary }]}>{goal}</Text> : null}
@@ -100,7 +108,7 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
               <Text style={[styles.metaText, { color: colors.textSecondary }]}>{totalWeeks} weeks</Text>
             </View>
           </View>
-        </View>
+        </KineticPanel>
 
         {/* Phase cards */}
         {phases.map((phase: any, pi: number) => {
@@ -114,7 +122,7 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
           const orderedDays = WEEK_DAYS_MON_SUN;
 
           return (
-            <View key={pi} style={[styles.phaseCard, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
+            <KineticPanel key={pi} style={styles.phaseCard}>
               <View style={[styles.phaseHeader, { borderBottomColor: colors.border }]}>
                 <Text style={[styles.phaseName, { color: colors.textPrimary }]}>{phase.name}</Text>
                 <Text style={[styles.phaseDuration, { color: colors.textSecondary, backgroundColor: colors.surfaceAlt }]}>
@@ -142,7 +150,7 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
                   );
                 })}
               </View>
-            </View>
+            </KineticPanel>
           );
         })}
       </ScrollView>
@@ -171,25 +179,25 @@ export default function CreateProgramReviewScreen({ navigation, route }: Props) 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 20, paddingBottom: 100 },
+  header: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
 
   // Summary
   summaryCard: {
-    borderRadius: 16,
-    padding: 20,
     marginBottom: 16,
   },
   programName: {
     fontSize: 22,
-    fontWeight: '800',
+    fontFamily: Fonts.heading,
     marginBottom: 4,
   },
   programSport: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     marginBottom: 4,
   },
   programGoal: {
     fontSize: 14,
+    fontFamily: Fonts.body,
     marginBottom: 12,
   },
   summaryMeta: {
@@ -205,44 +213,43 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
 
   // Phase cards
   phaseCard: {
-    borderRadius: 16,
     marginBottom: 12,
-    overflow: 'hidden',
   },
   phaseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingBottom: 16,
     borderBottomWidth: 1,
+    marginBottom: 12,
   },
   phaseName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
   },
   phaseDuration: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
   phaseActivities: {
-    padding: 12,
+    gap: 10,
   },
   dayRow: {
     flexDirection: 'row',
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   dayLabel: {
     width: 40,
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     paddingTop: 2,
   },
   dayActivities: {
@@ -256,11 +263,12 @@ const styles = StyleSheet.create({
   },
   activityType: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   activityDetail: {
     flex: 1,
     fontSize: 12,
+    fontFamily: Fonts.body,
   },
 
   // Footer
@@ -274,7 +282,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 14,
+    borderRadius: 20,
     paddingVertical: 16,
   },
   createButtonSaving: {
@@ -282,7 +290,7 @@ const styles = StyleSheet.create({
   },
   createButtonText: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 });

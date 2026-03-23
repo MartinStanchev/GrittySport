@@ -56,6 +56,12 @@ Full details for each change are in the `progress/` folder.
 | [benchmark-driven-prescriptions](progress/benchmark-driven-prescriptions.md) | Benchmark collection (1RM/race times/FTP/CSS) + effort context and standardized RPE across all sport prescriptions |
 | [aura-kinetic-proposals-redesign](progress/aura-kinetic-proposals-redesign.md) | Aura Kinetic theme overhaul (both modes) + redesigned proposal cards with full-screen review + Space Grotesk/Inter fonts |
 | [home-screen-aura-kinetic-redesign](progress/home-screen-aura-kinetic-redesign.md) | Home screen redesign: hero workout card, quick stats, insight card, streak dots, bottom action bar replacing FAB |
+| [live-workout-screen-redesign](progress/live-workout-screen-redesign.md) | Live GPS workout screen redesign with dominant map, HUD metrics, and refreshed recording controls |
+| [kinetic-design-language-rollout](progress/kinetic-design-language-rollout.md) | Rolled the newer home/proposal visual system across the rest of the authenticated app and creation flows |
+| [activity-edit-screen-refresh](progress/activity-edit-screen-refresh.md) | Refreshed edit/create activity panels so prescription fields and nested cards have clearer surface contrast |
+| [gps-map-recenter-north-up](progress/gps-map-recenter-north-up.md) | Live GPS recenter now restores north-up orientation and recenters within the visible map area |
+| [collapsed-metric-carousel](progress/collapsed-metric-carousel.md) | Swipeable metric carousel in collapsed GPS pill — time fixed, companion metrics paginate |
+| [gps-controls-dock-fix](progress/gps-controls-dock-fix.md) | Always-visible controls dock in collapsed/expanded sheet + hide banner on recording screens |
 
 ## Instructions for Agents
 

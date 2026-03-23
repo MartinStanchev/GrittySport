@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { formatDuration, formatFullDate } from '../utils/dates';
 import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
@@ -597,15 +598,16 @@ const styles = StyleSheet.create({
   },
   activityLabel: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
   },
   dateLabel: {
     fontSize: 14,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   durationLabel: {
     fontSize: 32,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
     marginTop: 16,
     letterSpacing: -0.5,
   },
@@ -619,7 +621,7 @@ const styles = StyleSheet.create({
   },
   sourceBadgeText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
   separator: {
     height: StyleSheet.hairlineWidth,
@@ -644,15 +646,16 @@ const styles = StyleSheet.create({
   },
   statTileValue: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
     letterSpacing: -0.3,
   },
   statTileUnit: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
   statTileLabel: {
     fontSize: 12,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
 
@@ -662,7 +665,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -674,7 +677,7 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
     marginBottom: 8,
   },
   setsTable: {
@@ -687,7 +690,7 @@ const styles = StyleSheet.create({
   },
   setColLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -712,10 +715,12 @@ const styles = StyleSheet.create({
   },
   mobilityDuration: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   notesText: {
     fontSize: 15,
+    fontFamily: Fonts.body,
     lineHeight: 22,
   },
   gpsMap: {
@@ -744,7 +749,7 @@ const styles = StyleSheet.create({
   },
   lapCellLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
 
   // Link button
@@ -753,14 +758,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     paddingVertical: 14,
     marginTop: 4,
   },
   linkBtnText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
 
   // Bottom sheet
@@ -787,10 +792,11 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
   },
   sheetSubtitle: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 3,
   },
   sheetSeparator: {
@@ -812,12 +818,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sheetRowText: { flex: 1 },
-  sheetRowTitle: { fontSize: 16, fontWeight: '600' },
-  sheetRowSubtitle: { fontSize: 13, marginTop: 1 },
+  sheetRowTitle: { fontSize: 16, fontFamily: Fonts.headingMedium },
+  sheetRowSubtitle: { fontSize: 13, fontFamily: Fonts.body, marginTop: 1 },
   sheetCancelRow: { justifyContent: 'center' },
   sheetCancelText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
     textAlign: 'center',
     flex: 1,
   },

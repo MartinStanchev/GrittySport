@@ -13,12 +13,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import { RouteMapPreview } from '../components/RouteMapPreview';
+import { KineticPanel } from '../components/Kinetic';
 import { useProgram } from '../contexts/ProgramContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 
@@ -193,7 +195,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
               <View style={[styles.contextBadge, { backgroundColor: colors.primaryLight }]}>
                 <Text style={[styles.contextBadgeText, { color: colors.primary }]}>{activity.phase_name}</Text>
               </View>
-              <Text style={[styles.contextSep, { color: colors.textSecondary }]}>·</Text>
+              <Text style={[styles.contextSep, { color: colors.textSecondary }]}>|</Text>
               <Text style={[styles.contextText, { color: colors.textSecondary }]}>Week {activity.week_number}</Text>
             </View>
             <Text style={[styles.programName, { color: colors.textSecondary }]}>{activity.program_name}</Text>
@@ -202,7 +204,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 
         {/* Day of Week (visible in edit and create mode) */}
         {editing && (
-          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <KineticPanel style={styles.sectionPanel}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Day of Week</Text>
             <View style={styles.dayPicker}>
               {[0, 1, 2, 3, 4, 5, 6].map((i) => (
@@ -210,8 +212,8 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                   key={i}
                   style={[
                     styles.dayButton,
-                    { backgroundColor: colors.surfaceAlt },
-                    editDayOfWeek === i && { backgroundColor: colors.primary },
+                    { backgroundColor: colors.primaryLight, borderColor: colors.border },
+                    editDayOfWeek === i && { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
                   onPress={() => setEditDayOfWeek(i)}
                 >
@@ -225,12 +227,12 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                 </Pressable>
               ))}
             </View>
-          </View>
+          </KineticPanel>
         )}
 
         {/* Activity Type picker (create mode only) */}
         {isCreateMode && (
-          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+          <KineticPanel style={styles.sectionPanel}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Activity Type</Text>
             <View style={styles.typePicker}>
               {ACTIVITY_TYPES.map((type) => (
@@ -238,8 +240,8 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                   key={type}
                   style={[
                     styles.typeChip,
-                    { backgroundColor: colors.surfaceAlt },
-                    editActivityType === type && { backgroundColor: colors.primary },
+                    { backgroundColor: colors.primaryLight, borderColor: colors.border },
+                    editActivityType === type && { backgroundColor: colors.primary, borderColor: colors.primary },
                   ]}
                   onPress={() => {
                     setEditActivityType(type);
@@ -261,30 +263,33 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                 </Pressable>
               ))}
             </View>
-          </View>
+          </KineticPanel>
         )}
 
         {/* Prescription */}
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Prescription</Text>
-          {editing ? (
+        {editing ? (
+          <KineticPanel style={styles.sectionPanel}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Prescription</Text>
             <PrescriptionEditor
               activityType={currentActivityType}
               prescription={editPrescription}
               onChange={setEditPrescription}
             />
-          ) : (
+          </KineticPanel>
+        ) : (
+          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Prescription</Text>
             <PrescriptionDisplay
               activityType={activity!.activity_type}
               prescription={activity!.prescription}
             />
-          )}
-        </View>
+          </View>
+        )}
 
         {/* Notes */}
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notes</Text>
-          {editing ? (
+        {editing ? (
+          <KineticPanel style={styles.sectionPanel}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notes</Text>
             <TextInput
               style={[
                 styles.notesInput,
@@ -301,12 +306,15 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
               placeholderTextColor={colors.textSecondary}
               textAlignVertical="top"
             />
-          ) : (
+          </KineticPanel>
+        ) : (
+          <View style={[styles.section, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notes</Text>
             <Text style={[styles.notesText, { color: colors.textPrimary }]}>
               {activity!.notes || 'No notes'}
             </Text>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* GPS Route Preview (linked workout) */}
         {!editing && activity?.linked_gps_route && (
@@ -451,10 +459,11 @@ const styles = StyleSheet.create({
   },
   activityType: {
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
   },
   date: {
     fontSize: 15,
+    fontFamily: Fonts.body,
     marginTop: 4,
   },
   contextRow: {
@@ -470,28 +479,33 @@ const styles = StyleSheet.create({
   },
   contextBadgeText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   contextSep: {
     fontSize: 12,
+    fontFamily: Fonts.body,
   },
   contextText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
   programName: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 4,
   },
   section: {
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  sectionPanel: {
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginBottom: 12,
   },
   dayPicker: {
@@ -501,12 +515,13 @@ const styles = StyleSheet.create({
   dayButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   dayButtonText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   dayButtonTextActive: {
     color: '#FFF',
@@ -521,26 +536,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   typeChipText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   typeChipTextActive: {
     color: '#FFF',
   },
   notesInput: {
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 80,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    fontFamily: Fonts.body,
+    minHeight: 110,
     textAlignVertical: 'top',
     borderWidth: 1,
   },
   notesText: {
     fontSize: 14,
+    fontFamily: Fonts.body,
     lineHeight: 20,
   },
   routeMapCard: {
@@ -555,7 +574,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 18,
     gap: 8,
   },
   actionButtonDisabled: {
@@ -563,11 +582,11 @@ const styles = StyleSheet.create({
   },
   actionButtonTextLight: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
   actionButtonTextDark: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
 });

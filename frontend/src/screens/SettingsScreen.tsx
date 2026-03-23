@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
 import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
@@ -23,6 +24,7 @@ import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
 import { deleteChatHistory, deleteGritMemory } from '../services/api';
 import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
   if (status === 'not_supported') return 'Not available on this device';
@@ -142,8 +144,15 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+        <KineticHeader
+          eyebrow="Settings"
+          title="Preferences"
+          subtitle="Account details, devices, recovery metrics, and premium controls."
+          style={styles.header}
+        />
+
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Account</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
           <Text style={[styles.readOnly, { color: colors.textPrimary }]}>{user?.email}</Text>
 
@@ -155,10 +164,10 @@ export default function SettingsScreen() {
             placeholder="Your name"
             placeholderTextColor={colors.textSecondary}
           />
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Preferences</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Units</Text>
           <View style={styles.toggleRow}>
             <TouchableOpacity
@@ -187,10 +196,10 @@ export default function SettingsScreen() {
             placeholder="e.g. America/New_York"
             placeholderTextColor={colors.textSecondary}
           />
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Training</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Weekly Effort Goal</Text>
           <Text style={[styles.helpText, { color: colors.textSecondary }]}>
             Your target effort score for the week. Grit can also adjust this when creating or modifying programs.
@@ -204,10 +213,10 @@ export default function SettingsScreen() {
             keyboardType="number-pad"
             maxLength={4}
           />
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Body & Heart Rate</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <TouchableOpacity
             style={[styles.navRow, { borderColor: colors.border }]}
             onPress={() => navigation.navigate('BodyMetrics')}
@@ -253,10 +262,10 @@ export default function SettingsScreen() {
             </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
           </TouchableOpacity>
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Connected Devices</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <View style={styles.deviceRow}>
             <Ionicons name="heart" size={20} color="#FF2D55" />
             <View style={styles.deviceInfo}>
@@ -298,7 +307,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </KineticPanel>
 
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: colors.primary }, (!hasChanges || isSaving) && styles.saveButtonDisabled]}
@@ -309,7 +318,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <View style={styles.settingRow}>
             <View style={styles.settingInfo}>
               <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Dark Mode</Text>
@@ -328,10 +337,10 @@ export default function SettingsScreen() {
               ]} />
             </TouchableOpacity>
           </View>
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Subscription</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <View style={styles.tierRow}>
             <Text style={[styles.tierLabel, { color: colors.textPrimary }]}>Current Plan</Text>
             <View style={[styles.tierBadge, { backgroundColor: colors.background }, usage?.tier === 'premium' && { backgroundColor: colors.primary }]}>
@@ -366,10 +375,10 @@ export default function SettingsScreen() {
               {usage?.tier === 'premium' ? 'Manage Subscription' : 'Upgrade to Premium'}
             </Text>
           </TouchableOpacity>
-        </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Data Management</Text>
-        <View style={styles.section}>
+        <KineticPanel style={styles.section}>
           <TouchableOpacity
             style={[styles.dangerRow, { borderColor: colors.border }]}
             disabled={clearingChat}
@@ -406,14 +415,14 @@ export default function SettingsScreen() {
           >
             <Ionicons name="bulb-outline" size={20} color={colors.error} />
             <View style={styles.dangerRowInfo}>
-              <Text style={[styles.dangerRowLabel, { color: colors.textPrimary }]}>Clear Grit's Memory</Text>
+              <Text style={[styles.dangerRowLabel, { color: colors.textPrimary }]}>Clear Grit&apos;s Memory</Text>
               <Text style={[styles.dangerRowHint, { color: colors.textSecondary }]}>
                 Erase injuries, goals, preferences, and session history
               </Text>
             </View>
             {clearingMemory && <ActivityIndicator size="small" color={colors.textSecondary} />}
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+        </KineticPanel>
 
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
           <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
@@ -434,14 +443,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   container: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  header: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
     paddingBottom: 40,
   },
   sectionHeader: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
     marginBottom: 8,
     marginTop: 24,
     marginLeft: 4,
@@ -451,18 +465,20 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
     marginBottom: 6,
     marginTop: 12,
   },
   readOnly: {
     fontSize: 16,
+    fontFamily: Fonts.body,
     paddingVertical: 4,
   },
   input: {
     fontSize: 16,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 14,
+    fontFamily: Fonts.body,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -473,16 +489,16 @@ const styles = StyleSheet.create({
   toggleButton: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
   },
   toggleText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
   saveButton: {
-    borderRadius: 8,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 32,
@@ -492,16 +508,17 @@ const styles = StyleSheet.create({
   },
   saveText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   helpText: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     lineHeight: 18,
     marginTop: 4,
     marginBottom: 12,
   },
   logoutButton: {
-    borderRadius: 8,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,
@@ -509,7 +526,7 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   navRow: {
     flexDirection: 'row',
@@ -517,7 +534,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 12,
   },
   navRowInfo: {
@@ -525,10 +542,11 @@ const styles = StyleSheet.create({
   },
   navRowLabel: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.headingMedium,
   },
   navRowHint: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   hrDeviceRow: {
@@ -537,12 +555,13 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 12,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 12,
   },
   hrDeviceText: {
     flex: 1,
     fontSize: 15,
+    fontFamily: Fonts.body,
   },
   deviceRow: {
     flexDirection: 'row',
@@ -555,14 +574,15 @@ const styles = StyleSheet.create({
   },
   deviceName: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.headingMedium,
   },
   deviceStatus: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
   deviceActionButton: {
-    borderRadius: 8,
+    borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -571,7 +591,7 @@ const styles = StyleSheet.create({
   },
   deviceActionText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   tierRow: {
     flexDirection: 'row',
@@ -581,7 +601,7 @@ const styles = StyleSheet.create({
   },
   tierLabel: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.headingMedium,
   },
   tierBadge: {
     paddingHorizontal: 12,
@@ -590,7 +610,7 @@ const styles = StyleSheet.create({
   },
   tierBadgeText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   tierBadgeTextPremium: {
     color: '#FFFFFF',
@@ -604,12 +624,14 @@ const styles = StyleSheet.create({
   },
   usageLabel: {
     fontSize: 14,
+    fontFamily: Fonts.body,
   },
   usageValue: {
     fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
   },
   upgradeSettingsButton: {
-    borderRadius: 8,
+    borderRadius: 16,
     paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
@@ -617,7 +639,7 @@ const styles = StyleSheet.create({
   },
   upgradeSettingsText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   themeToggle: {
     width: 50,
@@ -647,7 +669,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.headingMedium,
   },
   dangerRow: {
     flexDirection: 'row',
@@ -655,7 +677,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 14,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 12,
   },
   dangerRowInfo: {
@@ -663,10 +685,11 @@ const styles = StyleSheet.create({
   },
   dangerRowLabel: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: Fonts.headingMedium,
   },
   dangerRowHint: {
     fontSize: 13,
+    fontFamily: Fonts.body,
     marginTop: 2,
   },
 });

@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { Fonts } from '../constants/fonts';
 import {
   getActivityIcon,
   formatActivityType,
@@ -687,7 +688,7 @@ const styles = StyleSheet.create({
   },
   programName: {
     fontSize: 20,
-    fontWeight: '800',
+    fontFamily: Fonts.heading,
     letterSpacing: -0.3,
   },
   headerMeta: {
@@ -704,7 +705,7 @@ const styles = StyleSheet.create({
   },
   sportBadgeText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
   },
 
   settingsSection: {
@@ -729,11 +730,11 @@ const styles = StyleSheet.create({
   },
   settingsTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   settingsCount: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 8,
@@ -759,13 +760,14 @@ const styles = StyleSheet.create({
   },
   criterionLabel: {
     fontSize: 11,
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 2,
   },
   criterionValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   editBtnFull: {
     flexDirection: 'row',
@@ -782,9 +784,9 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 24,
+    fontFamily: Fonts.heading,
+    marginBottom: 8,
   },
 
   weekSelectorContent: {
@@ -802,10 +804,11 @@ const styles = StyleSheet.create({
   },
   weekPillNumber: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
   },
   weekPillDate: {
     fontSize: 10,
+    fontFamily: Fonts.body,
     marginTop: 1,
   },
 
@@ -818,7 +821,7 @@ const styles = StyleSheet.create({
   },
   weekNavLabel: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
   },
 
   weekContent: {
@@ -826,12 +829,13 @@ const styles = StyleSheet.create({
   },
   weekDateRange: {
     fontSize: 12,
+    fontFamily: Fonts.body,
     marginBottom: 4,
     textAlign: 'center',
   },
 
   dayCard: {
-    borderRadius: 12,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   dayCardHeader: {
@@ -848,10 +852,11 @@ const styles = StyleSheet.create({
   },
   dayCardName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
   },
   dayCardDate: {
     fontSize: 12,
+    fontFamily: Fonts.body,
   },
   todayBadge: {
     backgroundColor: 'rgba(255,255,255,0.25)',
@@ -861,7 +866,7 @@ const styles = StyleSheet.create({
   },
   todayBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     color: '#FFF',
   },
   restLabel: {
@@ -894,10 +899,11 @@ const styles = StyleSheet.create({
   },
   activityType: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   activityPrescription: {
     fontSize: 12,
+    fontFamily: Fonts.body,
     marginTop: 1,
   },
   recordBtn: {
@@ -929,13 +935,14 @@ const styles = StyleSheet.create({
   },
   addActivityText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: Fonts.bodyMedium,
   },
 
   swipeHint: {
     fontSize: 11,
     textAlign: 'center',
     marginTop: 16,
+    fontFamily: Fonts.body,
     fontStyle: 'italic',
   },
 });

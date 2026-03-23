@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 
 interface Props {
   activityType: string;
@@ -31,7 +32,15 @@ function FieldInput({
     <View style={styles.field}>
       <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>{label}</Text>
       <TextInput
-        style={[styles.fieldInput, { backgroundColor: colors.surfaceAlt, color: colors.textPrimary, borderColor: colors.border }, multiline && styles.fieldInputMultiline]}
+        style={[
+          styles.fieldInput,
+          {
+            backgroundColor: colors.inputBackground,
+            color: colors.textPrimary,
+            borderColor: colors.border,
+          },
+          multiline && styles.fieldInputMultiline,
+        ]}
         value={value}
         onChangeText={onChangeText}
         keyboardType={keyboardType}
@@ -77,14 +86,16 @@ function SetsEditor({
   };
 
   return (
-    <View>
+    <View style={styles.editorGroup}>
       <FieldInput label="Warmup" value={prescription.warmup || ''} onChangeText={v => updateField(prescription, 'warmup', v, onChange)} colors={colors} />
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
       {sets.map((set: any, i: number) => (
-        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.primaryLight, borderColor: `${colors.primary}22` }]}>
           <View style={styles.setHeader}>
-            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Set {i + 1}</Text>
-            <Pressable onPress={() => removeSet(i)} hitSlop={8}>
+            <View style={[styles.cardIndexBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardIndexBadgeText, { color: colors.textPrimary }]}>Set {i + 1}</Text>
+            </View>
+            <Pressable style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => removeSet(i)} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
@@ -101,7 +112,7 @@ function SetsEditor({
           <FieldInput label="Rest" value={set.rest || ''} onChangeText={v => updateSet(i, 'rest', v)} colors={colors} />
         </View>
       ))}
-      <Pressable style={styles.addButton} onPress={addSet}>
+      <Pressable style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={addSet}>
         <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
         <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Set</Text>
       </Pressable>
@@ -132,13 +143,16 @@ function RunEditor({ prescription, onChange, colors }: Omit<Props, 'activityType
   }
 
   return (
-    <View>
+    <View style={styles.editorGroup}>
       <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} colors={colors} />
       <FieldInput label="Pace" value={prescription.pace || ''} onChangeText={v => updateField(prescription, 'pace', v, onChange)} colors={colors} />
       <FieldInput label="HR Zone" value={prescription.heart_rate_zone || ''} onChangeText={v => updateField(prescription, 'heart_rate_zone', v, onChange)} colors={colors} />
       <FieldInput label="Terrain" value={prescription.terrain || ''} onChangeText={v => updateField(prescription, 'terrain', v, onChange)} colors={colors} />
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
-      <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', distance: '', pace: '', rest: '' }] })}>
+      <Pressable
+        style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() => onChange({ ...prescription, sets: [{ reps: '', distance: '', pace: '', rest: '' }] })}
+      >
         <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
         <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Sets</Text>
       </Pressable>
@@ -164,12 +178,14 @@ function StrengthEditor({ prescription, onChange, colors }: Omit<Props, 'activit
   };
 
   return (
-    <View>
+    <View style={styles.editorGroup}>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.primaryLight, borderColor: `${colors.primary}22` }]}>
           <View style={styles.setHeader}>
-            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
-            <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
+            <View style={[styles.cardIndexBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardIndexBadgeText, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
+            </View>
+            <Pressable style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => removeExercise(i)} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
@@ -193,7 +209,7 @@ function StrengthEditor({ prescription, onChange, colors }: Omit<Props, 'activit
           <FieldInput label="Rest" value={ex.rest || ''} onChangeText={v => updateExercise(i, 'rest', v)} colors={colors} />
         </View>
       ))}
-      <Pressable style={styles.addButton} onPress={addExercise}>
+      <Pressable style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={addExercise}>
         <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
         <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
@@ -204,7 +220,7 @@ function StrengthEditor({ prescription, onChange, colors }: Omit<Props, 'activit
 
 function SwimEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   return (
-    <View>
+    <View style={styles.editorGroup}>
       <SetsEditor
         prescription={prescription}
         onChange={onChange}
@@ -240,12 +256,15 @@ function CyclingEditor({ prescription, onChange, colors }: Omit<Props, 'activity
   }
 
   return (
-    <View>
+    <View style={styles.editorGroup}>
       <FieldInput label="Distance" value={prescription.distance || ''} onChangeText={v => updateField(prescription, 'distance', v, onChange)} colors={colors} />
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
       <FieldInput label="Intensity" value={prescription.intensity || ''} onChangeText={v => updateField(prescription, 'intensity', v, onChange)} colors={colors} />
       <FieldInput label="Cadence" value={prescription.cadence || ''} onChangeText={v => updateField(prescription, 'cadence', v, onChange)} colors={colors} />
-      <Pressable style={styles.addButton} onPress={() => onChange({ ...prescription, sets: [{ reps: '', duration: '', intensity: '', rest: '' }] })}>
+      <Pressable
+        style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() => onChange({ ...prescription, sets: [{ reps: '', duration: '', intensity: '', rest: '' }] })}
+      >
         <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
         <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Sets</Text>
       </Pressable>
@@ -271,17 +290,19 @@ function MobilityEditor({ prescription, onChange, colors }: Omit<Props, 'activit
   };
 
   return (
-    <View>
+    <View style={styles.editorGroup}>
       <FieldInput label="Duration" value={prescription.duration || ''} onChangeText={v => updateField(prescription, 'duration', v, onChange)} colors={colors} />
       <FieldInput label="Style" value={prescription.style || ''} onChangeText={v => updateField(prescription, 'style', v, onChange)} colors={colors} />
       <FieldInput label="Focus" value={prescription.focus || ''} onChangeText={v => updateField(prescription, 'focus', v, onChange)} colors={colors} />
       <FieldInput label="Instructions" value={prescription.instructions || ''} onChangeText={v => updateField(prescription, 'instructions', v, onChange)} multiline colors={colors} />
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Exercises</Text>
       {exercises.map((ex: any, i: number) => (
-        <View key={i} style={[styles.setCard, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}>
+        <View key={i} style={[styles.setCard, { backgroundColor: colors.primaryLight, borderColor: `${colors.primary}22` }]}>
           <View style={styles.setHeader}>
-            <Text style={[styles.setLabel, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
-            <Pressable onPress={() => removeExercise(i)} hitSlop={8}>
+            <View style={[styles.cardIndexBadge, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardIndexBadgeText, { color: colors.textPrimary }]}>Exercise {i + 1}</Text>
+            </View>
+            <Pressable style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => removeExercise(i)} hitSlop={8}>
               <Ionicons name="close-circle" size={20} color={colors.primary} />
             </Pressable>
           </View>
@@ -298,7 +319,7 @@ function MobilityEditor({ prescription, onChange, colors }: Omit<Props, 'activit
           <FieldInput label="Description" value={ex.description || ''} onChangeText={v => updateExercise(i, 'description', v)} multiline colors={colors} />
         </View>
       ))}
-      <Pressable style={styles.addButton} onPress={addExercise}>
+      <Pressable style={[styles.addButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={addExercise}>
         <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
         <Text style={[styles.addButtonText, { color: colors.primary }]}>Add Exercise</Text>
       </Pressable>
@@ -308,7 +329,7 @@ function MobilityEditor({ prescription, onChange, colors }: Omit<Props, 'activit
 
 function GenericEditor({ prescription, onChange, colors }: Omit<Props, 'activityType'> & { colors: ThemeColors }) {
   return (
-    <View>
+    <View style={styles.editorGroup}>
       {Object.entries(prescription).map(([key, value]) => {
         if (typeof value === 'object') return null;
         return (
@@ -340,50 +361,70 @@ export function PrescriptionEditor({ activityType, prescription, onChange }: Pro
 }
 
 const styles = StyleSheet.create({
+  editorGroup: {
+    gap: 2,
+  },
   field: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   fieldLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontFamily: Fonts.bodySemiBold,
+    marginBottom: 7,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
   fieldInput: {
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 16,
+    fontFamily: Fonts.body,
     borderWidth: 1,
   },
   fieldInputMultiline: {
-    minHeight: 60,
+    minHeight: 88,
     textAlignVertical: 'top',
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 8,
-    marginBottom: 8,
+    letterSpacing: 1.1,
+    marginTop: 6,
+    marginBottom: 10,
   },
   setCard: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
   },
   setHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  setLabel: {
-    fontSize: 14,
-    fontWeight: '700',
+  cardIndexBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  cardIndexBadgeText: {
+    fontSize: 11,
+    fontFamily: Fonts.bodySemiBold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   rowFields: {
     flexDirection: 'row',
@@ -402,12 +443,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 6,
     marginBottom: 12,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   addButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
 });

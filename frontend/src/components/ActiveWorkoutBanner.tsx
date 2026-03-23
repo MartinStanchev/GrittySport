@@ -8,11 +8,29 @@ import { useWorkout } from '../contexts/WorkoutContext';
 import { navigationRef } from '../navigation/navigationRef';
 import { formatDistanceKm } from '../services/gpsUtils';
 
+function getActiveRouteName(state: any): string | undefined {
+  if (!state) return undefined;
+  const route = state.routes[state.index];
+  if (route.state) return getActiveRouteName(route.state);
+  return route.name;
+}
+
 export function ActiveWorkoutBanner() {
   const { colors } = useTheme();
   const { activeWorkout, activeGPSWorkout, workoutMode } = useWorkout();
   const insets = useSafeAreaInsets();
   const [elapsed, setElapsed] = useState(0);
+  const [currentRoute, setCurrentRoute] = useState<string | undefined>();
+
+  useEffect(() => {
+    const syncRoute = () => setCurrentRoute(navigationRef.getCurrentRoute()?.name);
+    if (navigationRef.isReady()) syncRoute();
+
+    const unsubState = navigationRef.addListener('state', syncRoute);
+    // If nav isn't ready yet, the 'ready' event fires once it mounts
+    const unsubReady = navigationRef.addListener('ready' as any, syncRoute);
+    return () => { unsubState(); unsubReady(); };
+  }, []);
 
   // Manual workout timer
   useEffect(() => {
@@ -25,6 +43,9 @@ export function ActiveWorkoutBanner() {
   }, [activeWorkout?.startedAt, activeWorkout?.phase]);
 
   if (workoutMode === null) return null;
+
+  // Hide banner when user is already on the recording screen
+  if (currentRoute === 'RecordGPS' || currentRoute === 'RecordManual') return null;
 
   function handlePress() {
     if (!navigationRef.isReady()) return;

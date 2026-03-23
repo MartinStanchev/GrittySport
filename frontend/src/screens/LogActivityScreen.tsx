@@ -14,9 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 import { getActivityIcon, IMPORT_ACTIVITY_TYPES } from '../constants/activityIcons';
 import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
+import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -354,6 +356,12 @@ export default function LogActivityScreen({ navigation }: Props) {
   if (!selectedType) {
     return (
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={styles.typeSelectorContent}>
+        <KineticHeader
+          eyebrow="History"
+          title="Log an activity"
+          subtitle="Capture a past session manually and link it back to your plan when it fits."
+          style={styles.header}
+        />
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>What did you do?</Text>
         <TypeSelector onSelect={setSelectedType} colors={colors} />
       </ScrollView>
@@ -366,9 +374,15 @@ export default function LogActivityScreen({ navigation }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+        <KineticHeader
+          eyebrow="History"
+          title="Workout details"
+          subtitle="Add the essentials now. You can refine the link to your plan after saving."
+          style={styles.header}
+        />
 
         {/* Activity type badge */}
-        <View style={[styles.typeBadge, { backgroundColor: colors.surface }]}>
+        <KineticPanel style={[styles.typeBadge, { backgroundColor: colors.surface }]}>
           <Ionicons name={getActivityIcon(selectedType)} size={20} color={colors.primary} />
           <Text style={[styles.typeBadgeLabel, { color: colors.textPrimary }]}>
             {IMPORT_ACTIVITY_TYPES.find((t) => t.type === selectedType)?.label ?? selectedType}
@@ -376,7 +390,7 @@ export default function LogActivityScreen({ navigation }: Props) {
           <Pressable onPress={() => setSelectedType(null)} style={[styles.changeTypeBtn, { backgroundColor: colors.background }]}>
             <Text style={[styles.changeTypeLabel, { color: colors.primary }]}>Change</Text>
           </Pressable>
-        </View>
+        </KineticPanel>
 
         {/* Date */}
         <View style={styles.fieldBlock}>
@@ -518,6 +532,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
   typeSelectorContent: {
     padding: 20,
   },
@@ -527,7 +546,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: Fonts.heading,
     marginBottom: 20,
   },
   typeGrid: {
@@ -537,56 +556,56 @@ const styles = StyleSheet.create({
   },
   typeCard: {
     width: '46%',
-    borderRadius: 12,
+    borderRadius: 18,
     padding: 16,
     alignItems: 'center',
     gap: 8,
   },
   typeCardLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   typeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 20,
-    borderRadius: 10,
-    padding: 12,
+    padding: 14,
   },
   typeBadgeLabel: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   changeTypeBtn: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   changeTypeLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   fieldBlock: {
     marginBottom: 20,
   },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     marginBottom: 8,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 1.1,
   },
   input: {
-    borderRadius: 10,
+    borderRadius: 16,
     padding: 12,
     fontSize: 15,
+    fontFamily: Fonts.body,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 4,
   },
@@ -597,7 +616,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   durationRow: {
     flexDirection: 'row',
@@ -611,12 +630,12 @@ const styles = StyleSheet.create({
   },
   durationUnit: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: Fonts.headingMedium,
   },
   computedStat: {
     marginTop: 8,
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   exerciseBlock: {
     paddingVertical: 12,
@@ -642,7 +661,7 @@ const styles = StyleSheet.create({
   },
   setColLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
@@ -665,7 +684,7 @@ const styles = StyleSheet.create({
   },
   addSetLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   addExerciseBtn: {
     flexDirection: 'row',
@@ -675,7 +694,7 @@ const styles = StyleSheet.create({
   },
   addExerciseLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   mobilityRow: {
     flexDirection: 'row',
@@ -695,14 +714,14 @@ const styles = StyleSheet.create({
   },
   completedLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: Fonts.bodySemiBold,
   },
   notesInput: {
     minHeight: 80,
     textAlignVertical: 'top',
   },
   saveBtn: {
-    borderRadius: 12,
+    borderRadius: 20,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
@@ -712,7 +731,7 @@ const styles = StyleSheet.create({
   },
   saveBtnLabel: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.headingMedium,
     color: '#FFF',
   },
 });
