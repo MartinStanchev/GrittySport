@@ -18,6 +18,12 @@ Added a swipeable metric carousel to the live GPS workout screen's collapsed bot
 - `resolveMetricValue`, `getMetricUnit`, `getMetricAccent` helper functions centralize metric formatting — used by both the collapsed carousel and the expanded secondary metrics grid (no duplication)
 - `COLLAPSED_PANEL_PEEK` hoisted to module-level constant (was inline)
 
+### Floating Collapsed Pill
+- Panel background animates from transparent (collapsed) to solid (expanded) via `panelBgOpacity` interpolation — metrics and controls float directly over the map when collapsed
+- Chevron-up icon crossfades with the drag handle bar: chevron visible when floating, handle when expanded
+- Hero metrics card retains its dark semi-transparent background for map readability
+- During swipe, the solid sheet background gradually materializes behind the floating elements
+
 ### Tests
 - **`frontend/src/__tests__/liveWorkout.test.ts`**: 4 new tests covering `getCollapsedMetricPages` for runners, cyclists, cadence/no-cadence variants
 

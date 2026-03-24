@@ -501,6 +501,24 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     extrapolate: 'clamp',
   });
 
+  const panelBgOpacity = panelTranslateY.interpolate({
+    inputRange: [0, collapsedTranslateY * 0.5, collapsedTranslateY],
+    outputRange: [1, 0.15, 0],
+    extrapolate: 'clamp',
+  });
+
+  const chevronOpacity = panelTranslateY.interpolate({
+    inputRange: [0, collapsedTranslateY * 0.3, collapsedTranslateY],
+    outputRange: [0, 0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const handleBarOpacity = panelTranslateY.interpolate({
+    inputRange: [0, collapsedTranslateY * 0.3],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
   const metricPages = useMemo(
     () => getCollapsedMetricPages(isRun, showCadence),
     [isRun, showCadence],
@@ -675,16 +693,28 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         style={[
           styles.bottomPanel,
           {
-            backgroundColor: colors.surface,
             height: expandedPanelHeight,
             paddingBottom: Math.max(insets.bottom + 12, 18),
             transform: [{ translateY: panelTranslateY }],
           },
         ]}
       >
+        <Animated.View
+          style={[
+            styles.panelBackground,
+            { backgroundColor: colors.surface, opacity: panelBgOpacity },
+          ]}
+          pointerEvents="none"
+        />
+
         <View style={styles.panelGestureZone} {...sheetPanResponder.panHandlers}>
           <View style={styles.panelHandleArea}>
-            <View style={[styles.panelHandle, { backgroundColor: `${colors.textSecondary}55` }]} />
+            <Animated.View style={[styles.indicatorPosition, { opacity: handleBarOpacity }]}>
+              <View style={[styles.panelHandle, { backgroundColor: `${colors.textSecondary}55` }]} />
+            </Animated.View>
+            <Animated.View style={[styles.indicatorPosition, { opacity: chevronOpacity }]}>
+              <Ionicons name="chevron-up" size={16} color={`${colors.textSecondary}99`} />
+            </Animated.View>
           </View>
 
           <View
@@ -1173,12 +1203,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
+  panelBackground: {
+    ...StyleSheet.absoluteFillObject,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
   panelGestureZone: {
     paddingBottom: 8,
   },
   panelHandleArea: {
+    height: 28,
     alignItems: 'center',
-    paddingBottom: 10,
+    justifyContent: 'center',
+  },
+  indicatorPosition: {
+    position: 'absolute',
   },
   panelHandle: {
     width: 52,
