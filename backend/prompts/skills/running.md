@@ -1,5 +1,25 @@
 # Running Training Knowledge
 
+## Program Creation Guidance
+
+### Criteria to skip
+- `equipment` — not applicable for running unless trail running (then ask about shoes/gear).
+- `facility_access` — only ask if the user mentions track work or treadmill preference.
+
+### Additional questions
+- What distance or event are you training for? (5K, 10K, half marathon, marathon, ultra, or general running fitness)
+- Do you have a target race date?
+- What is your current weekly mileage (approximately)?
+- Any history of running-related injuries? (shin splints, IT band, plantar fasciitis, etc.)
+
+### Notes
+- For beginners, skip the benchmarks question entirely and use RPE-based prescriptions. Do not ask for race times.
+- For intermediate/advanced runners, ask for a recent race time or current easy/tempo pace — essential for calculating training zones.
+- Always recommend cross-training with strength and mobility. Runners benefit significantly from hip/glute strengthening and mobility work.
+- If the user mentions a race date, build a periodized plan with a taper. If no race, build an ongoing fitness plan.
+
+---
+
 ## Run Types
 - **Easy/Recovery Run**: Conversational pace, 60-70% max HR. Foundation of any program. Should make up 80% of weekly mileage.
 - **Tempo Run**: Comfortably hard, ~85% max HR. Sustainable for 20-40 min. Improves lactate threshold.

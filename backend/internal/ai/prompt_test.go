@@ -22,12 +22,20 @@ Modify the user's saved program.`
 Follow up on the user's workout.`
 	questions := `{"categories":[{"name":"Sport","criteria":[{"id":"sport","description":"Primary sport","required":true}]}]}`
 
+	generalCoaching := `## Sport Knowledge Skills
+Available skills: periodization, running, cycling, swimming, strength_training, mobility_recovery, powerlifting, general_fitness, triathlon`
+	reviewPost := `Post-workout review for {{ACTIVITY_TYPE}}`
+	reviewMissed := `Missed workout check-in`
+
 	files := map[string]string{
-		"system_base.md":           base,
-		"system_program_create.md": create,
-		"system_program_modify.md": modify,
-		"system_review_context.md": review,
-		"questions.json":           questions,
+		"system_base.md":              base,
+		"system_general_coaching.md":  generalCoaching,
+		"system_program_create.md":    create,
+		"system_program_modify.md":    modify,
+		"system_review_context.md":    review,
+		"questions.json":              questions,
+		"review_post_workout.md":      reviewPost,
+		"review_missed_workout.md":    reviewMissed,
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
@@ -43,10 +51,10 @@ func TestLoadPrompts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadPrompts() error: %v", err)
 	}
-	if len(pl.templates) != 4 {
-		t.Errorf("expected 4 templates, got %d", len(pl.templates))
+	if len(pl.templates) != 5 {
+		t.Errorf("expected 5 templates, got %d", len(pl.templates))
 	}
-	for _, key := range []string{"base", "program_create", "program_modify", "review"} {
+	for _, key := range []string{"base", "general_coaching", "program_create", "program_modify", "review"} {
 		if _, ok := pl.templates[key]; !ok {
 			t.Errorf("missing template %q", key)
 		}

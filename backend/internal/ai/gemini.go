@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -188,6 +189,16 @@ func (sl *SkillLoader) GetSkill(name string) (string, error) {
 		return "", fmt.Errorf("unknown skill: %s", name)
 	}
 	return text, nil
+}
+
+// Names returns a sorted list of all loaded skill names.
+func (sl *SkillLoader) Names() []string {
+	names := make([]string, 0, len(sl.skills))
+	for k := range sl.skills {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func formatCriteria(cf criteriaFile) string {

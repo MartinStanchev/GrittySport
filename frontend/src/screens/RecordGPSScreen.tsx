@@ -87,12 +87,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const gpsWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
   gpsWorkoutRef.current = activeGPSWorkout;
   const metricsExpandedRef = useRef(false);
-  metricsExpandedRef.current = metricsExpanded;
   const userMovedMapRef = useRef(false);
   const followTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [hrModalVisible, setHRModalVisible] = useState(false);
   const [metricsExpanded, setMetricsExpanded] = useState(false);
+  metricsExpandedRef.current = metricsExpanded;
   const [userMovedMap, setUserMovedMap] = useState(false);
   const [previewPosition, setPreviewPosition] = useState<{ latitude: number; longitude: number } | null>(null);
   const [activeMetricPage, setActiveMetricPage] = useState(0);
@@ -575,12 +575,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     },
     ...(showCadence
       ? [{
-          label: 'Cadence',
-          value: resolveMetricValue('cadence'),
-          unit: getMetricUnit({ id: 'cadence', label: 'Cadence', unit: 'spm' }),
-          accent: getMetricAccent('cadence'),
-          support: workout?.avgCadence ? `Avg ${workout.avgCadence} spm` : 'Run rhythm',
-        }]
+        label: 'Cadence',
+        value: resolveMetricValue('cadence'),
+        unit: getMetricUnit({ id: 'cadence', label: 'Cadence', unit: 'spm' }),
+        accent: getMetricAccent('cadence'),
+        support: workout?.avgCadence ? `Avg ${workout.avgCadence} spm` : 'Run rhythm',
+      }]
       : []),
     {
       label: 'Elevation',
@@ -694,7 +694,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           styles.bottomPanel,
           {
             height: expandedPanelHeight,
-            paddingBottom: Math.max(insets.bottom + 12, 18),
+            paddingBottom: 0,
             transform: [{ translateY: panelTranslateY }],
           },
         ]}
@@ -1106,7 +1106,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   heroMetricsCardExpanded: {
-    marginBottom: 18,
+    marginBottom: 0,
   },
   heroMetricsRow: {
     flexDirection: 'row',
@@ -1201,7 +1201,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 0,
   },
   panelBackground: {
     ...StyleSheet.absoluteFillObject,

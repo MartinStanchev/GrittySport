@@ -1,5 +1,24 @@
 # Cycling Training Knowledge
 
+## Program Creation Guidance
+
+### Criteria to skip
+- `equipment` — only ask if the user is a beginner (do they have a bike, trainer, power meter, HR strap?).
+
+### Additional questions
+- Do you ride primarily indoors (trainer), outdoors, or a mix?
+- Do you have a power meter? If yes, do you know your FTP?
+- What type of cycling? (road, gravel, mountain biking, time trial, general fitness)
+- Are you training for a specific event or race?
+
+### Notes
+- FTP is the foundation of cycling training zones. For users with a power meter, ask for FTP or offer to include an FTP test in week 1.
+- For users without a power meter, use RPE and HR-based zones instead.
+- Indoor vs outdoor preference significantly affects session design — indoor sessions are typically shorter and more structured.
+- Always recommend strength and conditioning — cyclists benefit from leg strength and core work.
+
+---
+
 ## Power Zones (based on FTP)
 - **Zone 1 (Active Recovery)**: <55% FTP. Very easy spinning.
 - **Zone 2 (Endurance)**: 56-75% FTP. All-day pace. Foundation training.
@@ -28,15 +47,6 @@
 - Cadence targets: 85-95 RPM for most riding. Low cadence (60-70) for strength work. High cadence (100-110) for efficiency drills.
 
 Ask the user whether they prefer Indoor or Outdoor and include a mix of those if requested. If the user doesn't mind, you can suggest they can choose to do a session either ways.  
-
-## Weekly Structure (Example: 4 days)
-- Day 1: Endurance ride (Zone 2, longest ride of the week)
-- Day 2: Rest or cross-training
-- Day 3: Threshold/sweet spot intervals
-- Day 4: Rest
-- Day 5: VO2max or hill repeats
-- Day 6: Recovery spin or rest
-- Day 7: Group ride or endurance
 
 ## Prescription Formats
 

@@ -114,7 +114,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				"skill_name": {
 					Type:        genai.TypeString,
 					Description: "The sport or training domain to load knowledge for",
-					Enum:        []string{"running", "cycling", "swimming", "strength_training", "periodization", "mobility_recovery"},
+					Enum:        skillLoader.Names(),
 				},
 			},
 		},

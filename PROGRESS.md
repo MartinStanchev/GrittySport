@@ -62,6 +62,7 @@ Full details for each change are in the `progress/` folder.
 | [gps-map-recenter-north-up](progress/gps-map-recenter-north-up.md) | Live GPS recenter now restores north-up orientation and recenters within the visible map area |
 | [collapsed-metric-carousel](progress/collapsed-metric-carousel.md) | Swipeable metric carousel in collapsed GPS pill — time fixed, companion metrics paginate |
 | [gps-controls-dock-fix](progress/gps-controls-dock-fix.md) | Always-visible controls dock in collapsed/expanded sheet + hide banner on recording screens |
+| [early-skill-loading](progress/early-skill-loading.md) | Early skill loading during program creation — sport-specific intake guidance, 3 new skills (powerlifting, general fitness, triathlon), dynamic enum |
 
 ## Instructions for Agents
 

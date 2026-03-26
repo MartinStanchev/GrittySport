@@ -1,5 +1,26 @@
 # Strength Training Knowledge
 
+## Program Creation Guidance
+
+### Criteria to skip
+- `facility_access` — ask instead as part of equipment: gym membership vs home gym vs bodyweight only.
+
+### Additional questions
+- What is your primary strength goal? (general strength, hypertrophy/muscle building, athletic performance, body recomposition)
+- Do you have access to a full gym, home gym, or bodyweight only?
+- What key lifts do you currently do? (squat, deadlift, bench, overhead press, etc.)
+- For intermediate/advanced: What are your current working weights or 1RM estimates for the main lifts?
+
+### Notes
+- If the user mentions powerlifting specifically, load the `powerlifting` skill instead — it has specialized guidance.
+- The user's goal determines the training split and rep scheme: strength = low rep/heavy, hypertrophy = moderate rep/moderate weight, endurance = high rep/lighter.
+- Equipment access is critical — a full gym allows barbell compounds while a home gym may require dumbbell/kettlebell alternatives.
+- For beginners, recommend a full-body split 2-3x/week. Do not ask for 1RM numbers — use RPE-based prescriptions.
+- For intermediate/advanced, the split (upper/lower, push/pull/legs, full body) depends on available days per week.
+- Always recommend mobility work for strength athletes. Cardio is beneficial but optional — ask the user.
+
+---
+
 ## Compound Movements (prioritize these)
 - **Squat patterns**: Back squat, front squat, goblet squat. Primary lower body push.
 - **Hinge patterns**: Deadlift, Romanian deadlift, hip thrust. Posterior chain focus.

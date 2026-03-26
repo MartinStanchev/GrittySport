@@ -1,5 +1,26 @@
 # Swimming Training Knowledge
 
+## Program Creation Guidance
+
+### Criteria to skip
+- `equipment` — only relevant for beginners (goggles, kickboard, pull buoy). Skip for experienced swimmers.
+
+### Additional questions
+- Do you swim in a pool or open water (or both)?
+- What is the pool length? (25m or 50m)
+- Do you know your CSS (Critical Swim Speed) pace? If not, are you willing to do a test set in the first week?
+- Which stroke(s) do you primarily train? (freestyle, backstroke, breaststroke, butterfly, IM)
+- Are you training for an event? (triathlon swim leg, open water race, masters meet)
+
+### Notes
+- Pool length affects interval distances and rest calculations. Always confirm this.
+- CSS is the foundation of swim training zones, similar to FTP for cycling. For users who do not know it, suggest a 400m/200m test in week 1.
+- For beginners, focus on technique drills and building aerobic base. Do not prescribe threshold or VO2max sets.
+- Dryland training is important for swimmers — include shoulder stability and core work as cross-training.
+- `facility_access` is highly relevant for swimming — ask about pool availability and lane booking constraints.
+
+---
+
 ## Key Concepts
 - **CSS (Critical Swim Speed)**: Threshold pace, similar to FTP in cycling. Test: (400m time - 200m time) / 2 = pace per 100m. Train at CSS ± 5s for threshold work.
 - **Stroke rate vs distance per stroke**: Beginners should focus on DPS (fewer, longer strokes) before increasing rate.
@@ -31,12 +52,6 @@
 - Core work: planks, flutter kicks, hollow body holds
 - Shoulder stability: Y-T-W raises, external rotations
 - Lat pulldowns and cable rows for pull strength
-
-## Weekly Structure (Example: 4 sessions)
-- Day 1: Technique + endurance (drills + long aerobic set)
-- Day 2: Threshold (CSS intervals)
-- Day 3: Speed/VO2max (short, fast repeats)
-- Day 4: Mixed (kick, pull, IM, open water skills)
 
 ## Prescription Format
 
