@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
+import { isGPSActivity, isManualActivity } from '../constants/activityIcons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
@@ -214,28 +215,40 @@ export default function HomeScreen() {
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
   const [reviewingProposal, setReviewingProposal] = useState<{ data: ProgramProposalData; messageId: string } | null>(null);
 
-  const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const didInitialScrollRef = useRef(false);
 
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
 
   const completedDays = useWeeklyCompletedDays();
 
-  const todayActivity = useMemo(() => {
+  const todayActivities = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    return upcomingActivities.find((a) => a.date === today) ?? null;
+    return upcomingActivities.filter((a) => a.date === today);
   }, [upcomingActivities]);
+
+  // Build set of scheduled_activity_ids that have been completed today
+  const [completedActivityIds, setCompletedActivityIds] = useState<Set<string>>(new Set());
+  useFetchOnFocus(
+    useCallback(async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const workouts = await getWorkouts({ start_date: today, limit: 50 });
+      const ids = new Set<string>();
+      for (const w of workouts) {
+        if (w.scheduled_activity_id) ids.add(w.scheduled_activity_id);
+      }
+      // Only update state if the set actually changed to avoid no-op re-renders
+      setCompletedActivityIds((prev) => {
+        if (prev.size === ids.size && [...ids].every((id) => prev.has(id))) return prev;
+        return ids;
+      });
+    }, []),
+  );
 
   const handleProgramCreated = useCallback(() => {
     notifyProgramDataChanged();
     setTimeout(() => {
       setChatOpen(false);
     }, 1500);
-  }, [notifyProgramDataChanged]);
-
-  const handleAdjustmentApplied = useCallback(() => {
-    notifyProgramDataChanged();
   }, [notifyProgramDataChanged]);
 
   const {
@@ -246,7 +259,7 @@ export default function HomeScreen() {
     hasMore, isLoadingMore, setIsLoadingMore,
   } = useChatWebSocket({
     onProgramCreated: handleProgramCreated,
-    onAdjustmentApplied: handleAdjustmentApplied,
+    onAdjustmentApplied: notifyProgramDataChanged,
   });
 
   // Sync unread count to shared context for tab badge
@@ -262,6 +275,12 @@ export default function HomeScreen() {
       return true;
     });
   }, [messages]);
+
+  // Inverted FlatList expects newest-first order
+  const invertedMessages = useMemo(
+    () => [...uniqueMessages].reverse(),
+    [uniqueMessages],
+  );
 
   const openChat = useCallback(() => {
     markRead();
@@ -306,32 +325,6 @@ export default function HomeScreen() {
       .catch(() => setIsLoadingMore(false));
   }, [hasMore, isLoadingMore, messages, setIsLoadingMore, prependHistory]);
 
-  const scrollToBottom = useCallback((animated = true) => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated });
-    }, 100);
-  }, []);
-
-  useEffect(() => {
-    didInitialScrollRef.current = false;
-  }, [chatOpen]);
-
-  const handleChatContentSizeChange = useCallback(
-    (_w: number, _h: number) => {
-      if (messages.length > 0 && !didInitialScrollRef.current) {
-        flatListRef.current?.scrollToEnd({ animated: false });
-      }
-    },
-    [messages.length],
-  );
-
-  useEffect(() => {
-    if (!chatOpen) return;
-    const t = setTimeout(() => {
-      didInitialScrollRef.current = true;
-    }, 600);
-    return () => clearTimeout(t);
-  }, [chatOpen]);
 
   const handleSend = useCallback(() => {
     const text = inputText.trim();
@@ -341,17 +334,6 @@ export default function HomeScreen() {
     sendMessage(text);
   }, [inputText, chatOpen, openChat, sendMessage]);
 
-  useEffect(() => {
-    if (messages.length > 0) {
-      scrollToBottom();
-    }
-  }, [messages, scrollToBottom]);
-
-  useEffect(() => {
-    if (keyboardHeight > 0 && chatOpen) {
-      scrollToBottom();
-    }
-  }, [keyboardHeight, chatOpen, scrollToBottom]);
 
   const handleProposalResponse = useCallback(
     (action: 'accept' | 'deny', proposalId: string) => {
@@ -446,6 +428,7 @@ export default function HomeScreen() {
       if (openChatRequest) {
         clearOpenChatRequest();
         markRead();
+        setHistoryLoaded(false); // force refresh so review + reply appear
         setChatOpen(true);
       }
     }, [openChatRequest, clearOpenChatRequest, markRead]),
@@ -480,9 +463,22 @@ export default function HomeScreen() {
 
         {/* Today's Workout Hero */}
         <TodayWorkoutCard
-          activity={todayActivity}
+          activities={todayActivities}
+          completedIds={completedActivityIds}
           program={activeProgram}
-          onStartWorkout={() => navigation.navigate('RecordManual')}
+          onStartWorkout={(activity) => {
+            if (isGPSActivity(activity.activity_type)) {
+              navigation.navigate('RecordGPS', {
+                scheduledActivityId: activity.id,
+                activityType: activity.activity_type,
+              });
+            } else {
+              navigation.navigate('RecordManual', {
+                scheduledActivityId: activity.id,
+                activityType: activity.activity_type,
+              });
+            }
+          }}
           onCreateProgram={openProgramCreation}
         />
 
@@ -568,23 +564,17 @@ export default function HomeScreen() {
 
           {/* Messages */}
           <FlatList
-            ref={flatListRef}
-            data={uniqueMessages}
+            data={invertedMessages}
+            inverted
             renderItem={renderMessage}
             keyExtractor={(item) => item.id}
             style={styles.messageList}
             contentContainerStyle={styles.messageListContent}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="none"
-            onLayout={() => scrollToBottom(true)}
-            onContentSizeChange={handleChatContentSizeChange}
-            onScroll={(e) => {
-              if (e.nativeEvent.contentOffset.y < 60 && hasMore && !isLoadingMore) {
-                loadOlderMessages();
-              }
-            }}
-            scrollEventThrottle={200}
-            ListHeaderComponent={
+            onEndReached={loadOlderMessages}
+            onEndReachedThreshold={0.15}
+            ListFooterComponent={
               isLoadingMore ? (
                 <View style={styles.loadMoreContainer}>
                   <ActivityIndicator size="small" color={colors.textSecondary} />
@@ -794,8 +784,6 @@ const styles = StyleSheet.create({
   messageListContent: {
     padding: 16,
     paddingBottom: 8,
-    flexGrow: 1,
-    justifyContent: 'flex-end',
   },
   messageBubble: {
     maxWidth: '80%',

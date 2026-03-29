@@ -22,6 +22,8 @@ import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { getUpcomingActivities, saveWorkout } from '../services/api';
 import type { UpcomingActivity } from '../services/api';
+import { useProgram } from '../contexts/ProgramContext';
+import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitWorkoutSummary } from '../services/healthKitService';
 import { getImportedUUIDs, markImported } from '../services/importedWorkoutsStore';
@@ -118,18 +120,22 @@ function ImportDetailSheet({
   visible,
   onClose,
   onImported,
+  navigation,
   colors,
 }: {
   workout: HealthKitWorkoutSummary | null;
   visible: boolean;
   onClose: () => void;
   onImported: () => void;
+  navigation: any;
   colors: ThemeColors;
 }) {
   const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+  const { requestOpenChat } = useProgram();
   const slideAnim = useState(() => new Animated.Value(400))[0];
   const opacityAnim = useState(() => new Animated.Value(0))[0];
 
@@ -157,6 +163,7 @@ function ImportDetailSheet({
       ]).start();
       setSelectedActivityId(null);
       setUpcomingActivities([]);
+      setSavedWorkoutId(null);
     }
   }, [visible, workout, slideAnim, opacityAnim]);
 
@@ -181,7 +188,7 @@ function ImportDetailSheet({
       const result = await saveWorkout(input);
       await markImported(workout.uuid, result.id);
       onImported();
-      onClose();
+      setSavedWorkoutId(result.id);
     } catch (e: any) {
       Alert.alert('Import Failed', e?.message ?? 'Could not import workout.');
     } finally {
@@ -199,8 +206,11 @@ function ImportDetailSheet({
       </Animated.View>
       <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
         <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
+
         <ScrollView style={styles.sheetScroll} bounces={false}>
-          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Import Workout</Text>
+          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
+            {savedWorkoutId ? 'Imported' : 'Import Workout'}
+          </Text>
 
           <View style={[styles.sheetSummary, { backgroundColor: colors.surfaceAlt }]}>
             <View style={styles.summaryRow}>
@@ -241,7 +251,7 @@ function ImportDetailSheet({
             )}
           </View>
 
-          {upcomingActivities.length > 0 && (
+          {!savedWorkoutId && upcomingActivities.length > 0 && (
             <View style={styles.linkSection}>
               <Text style={[styles.linkTitle, { color: colors.textPrimary }]}>Link to Scheduled Activity</Text>
               <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
@@ -274,32 +284,45 @@ function ImportDetailSheet({
               ))}
             </View>
           )}
+
+          {savedWorkoutId && (
+            <PostWorkoutReview
+              workoutId={savedWorkoutId}
+              onContinueInChat={() => {
+                onClose();
+                requestOpenChat();
+                navigation.getParent()?.navigate('Home');
+              }}
+            />
+          )}
         </ScrollView>
 
-        <View style={[styles.sheetActions, { borderTopColor: colors.border }]}>
-          {loadingDetails && (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator size="small" color={colors.primary} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching heart rate & route data...</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={[styles.importButton, { backgroundColor: colors.primary }, importing && styles.importButtonDisabled]}
-            onPress={handleImport}
-            disabled={importing}
-          >
-            {importing && !loadingDetails ? (
-              <ActivityIndicator size="small" color={colors.surface} />
-            ) : (
-              <Text style={[styles.importButtonText, { color: colors.surface }]}>
-                {selectedActivityId ? 'Import & Link' : 'Import as Unscheduled'}
-              </Text>
+        {!savedWorkoutId && (
+          <View style={[styles.sheetActions, { borderTopColor: colors.border }]}>
+            {loadingDetails && (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching heart rate & route data...</Text>
+              </View>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.cancelButton} onPress={onClose} disabled={importing}>
-            <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.importButton, { backgroundColor: colors.primary }, importing && styles.importButtonDisabled]}
+              onPress={handleImport}
+              disabled={importing}
+            >
+              {importing && !loadingDetails ? (
+                <ActivityIndicator size="small" color={colors.surface} />
+              ) : (
+                <Text style={[styles.importButtonText, { color: colors.surface }]}>
+                  {selectedActivityId ? 'Import & Link' : 'Import as Unscheduled'}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={onClose} disabled={importing}>
+              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </Animated.View>
     </View>
   );
@@ -438,6 +461,7 @@ export default function ImportScreen({ navigation }: Props) {
         visible={selectedWorkout != null}
         onClose={() => setSelectedWorkout(null)}
         onImported={loadData}
+        navigation={navigation}
         colors={colors}
       />
     </View>

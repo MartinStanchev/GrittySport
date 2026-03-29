@@ -22,6 +22,7 @@ type Service struct {
 	pool           *pgxpool.Pool
 	chatService    *services.ChatService
 	workoutService *services.WorkoutService
+	programService *services.ProgramService
 	geminiClient   *ai.GeminiClient
 	memoryService  *memory.Service
 	reviewPrompt   string
@@ -33,6 +34,7 @@ func NewService(
 	pool *pgxpool.Pool,
 	chatService *services.ChatService,
 	workoutService *services.WorkoutService,
+	programService *services.ProgramService,
 	geminiClient *ai.GeminiClient,
 	memoryService *memory.Service,
 	reviewPrompt string,
@@ -42,6 +44,7 @@ func NewService(
 		pool:           pool,
 		chatService:    chatService,
 		workoutService: workoutService,
+		programService: programService,
 		geminiClient:   geminiClient,
 		memoryService:  memoryService,
 		reviewPrompt:   reviewPrompt,
@@ -51,13 +54,11 @@ func NewService(
 
 // TriggerReview runs a post-workout AI review for a completed workout.
 func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) error {
-	// Load workout
 	workout, err := s.workoutService.GetByID(ctx, workoutID, userID)
 	if err != nil {
 		return fmt.Errorf("load workout: %w", err)
 	}
 
-	// Load user for max HR
 	var maxHR int
 	var userName string
 	err = s.pool.QueryRow(ctx,
@@ -68,7 +69,6 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 		userName = "there"
 	}
 
-	// Compute effort score
 	var durationSec float64
 	if workout.FinishedAt != nil {
 		durationSec = workout.FinishedAt.Sub(workout.StartedAt).Seconds()
@@ -76,7 +76,6 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	effortScore := ComputeEffortScore(workout.HeartRateData, maxHR, durationSec)
 	effortLabel := EffortLabel(effortScore)
 
-	// Load linked scheduled activity prescription (if any)
 	var prescriptionSummary, deviationMetrics string
 	if workout.ScheduledActivityID != nil && *workout.ScheduledActivityID != "" {
 		prescriptionSummary, deviationMetrics = s.computeAlignmentSummary(
@@ -84,15 +83,16 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 		)
 	}
 
-	// Load recent workouts for trend context
 	trendSummary := s.loadTrendSummary(ctx, userID, workout.ActivityType)
-
-	// Build recorded data summary
 	recordedDataSummary := buildRecordedDataSummary(workout)
+	userMemory := s.assembleUserMemory(ctx, userID)
+	programContext := s.buildProgramContext(ctx, userID)
 
-	// Build the prompt
+
 	prompt := s.reviewPrompt
 	prompt = strings.ReplaceAll(prompt, "{{.UserName}}", userName)
+	prompt = strings.ReplaceAll(prompt, "{{.UserMemory}}", userMemory)
+	prompt = strings.ReplaceAll(prompt, "{{.ProgramContext}}", programContext)
 	prompt = strings.ReplaceAll(prompt, "{{.ActivityType}}", workout.ActivityType)
 	prompt = strings.ReplaceAll(prompt, "{{.PrescriptionSummary}}", prescriptionSummary)
 	prompt = strings.ReplaceAll(prompt, "{{.RecordedDataSummary}}", recordedDataSummary)
@@ -106,8 +106,9 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 		return fmt.Errorf("generate review: %w", err)
 	}
 
-	// Save Grit's review message
-	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
+	// Save Grit's review message with workout_id in metadata for polling.
+	reviewMeta, _ := json.Marshal(map[string]string{"workout_id": workoutID})
+	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, reviewMeta)
 	if err != nil {
 		return fmt.Errorf("save review message: %w", err)
 	}
@@ -126,7 +127,6 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 
 // TriggerMissedReview sends a check-in message for a missed scheduled activity.
 func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID string) error {
-	// Load the scheduled activity
 	var activityType, phaseName string
 	var prescription json.RawMessage
 	err := s.pool.QueryRow(ctx,
@@ -152,8 +152,13 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 		prescriptionStr = string(prescription)
 	}
 
+	userMemory := s.assembleUserMemory(ctx, userID)
+	programContext := s.buildProgramContext(ctx, userID)
+
 	prompt := s.missedPrompt
 	prompt = strings.ReplaceAll(prompt, "{{.UserName}}", userName)
+	prompt = strings.ReplaceAll(prompt, "{{.UserMemory}}", userMemory)
+	prompt = strings.ReplaceAll(prompt, "{{.ProgramContext}}", programContext)
 	prompt = strings.ReplaceAll(prompt, "{{.ActivityType}}", activityType)
 	prompt = strings.ReplaceAll(prompt, "{{.PhaseName}}", phaseName)
 	prompt = strings.ReplaceAll(prompt, "{{.PrescriptionSummary}}", prescriptionStr)
@@ -163,7 +168,8 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 		return fmt.Errorf("generate missed review: %w", err)
 	}
 
-	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, nil)
+	missedMeta, _ := json.Marshal(map[string]string{"activity_id": activityID})
+	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, missedMeta)
 	if err != nil {
 		return fmt.Errorf("save missed review message: %w", err)
 	}
@@ -285,6 +291,46 @@ func (s *Service) startReviewSegment(ctx context.Context, userID, segType, start
 	if _, err := s.memoryService.StartSegment(ctx, userID, segType, startMessageID); err != nil {
 		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to start review segment")
 	}
+}
+
+// assembleUserMemory returns formatted user facts and recent session summaries,
+// or a fallback string if no memory data exists.
+func (s *Service) assembleUserMemory(ctx context.Context, userID string) string {
+	if s.memoryService == nil {
+		return "No prior context available."
+	}
+	mem, err := s.memoryService.AssembleMemory(ctx, userID, "workout_review")
+	if err != nil || mem == "" {
+		return "No prior context available."
+	}
+	return mem
+}
+
+// buildProgramContext returns a formatted summary of the user's active program
+// (name, sport, goal, criteria) for injection into review prompts.
+func (s *Service) buildProgramContext(ctx context.Context, userID string) string {
+	program, criteria, err := s.programService.GetActiveProgramSettings(ctx, userID)
+	if err != nil || program == nil {
+		return "No active program."
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Program: %s\n", program.Name))
+	if program.Sport != nil && *program.Sport != "" {
+		b.WriteString(fmt.Sprintf("Sport: %s\n", *program.Sport))
+	}
+	if program.GoalDescription != nil && *program.GoalDescription != "" {
+		b.WriteString(fmt.Sprintf("Goal: %s\n", *program.GoalDescription))
+	}
+
+	if len(criteria) > 0 {
+		b.WriteString("\nSettings:\n")
+		for _, c := range criteria {
+			b.WriteString(fmt.Sprintf("- %s: %s\n", c.Label, c.Value))
+		}
+	}
+
+	return b.String()
 }
 
 func buildRecordedDataSummary(workout *models.Workout) string {

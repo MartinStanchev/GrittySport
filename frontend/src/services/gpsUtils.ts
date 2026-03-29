@@ -213,7 +213,7 @@ export function estimateCalories(activityType: string, durationSec: number, weig
 
 // --- Sport Classification ---
 
-const RUN_TYPES = new Set(['run', 'easy_run', 'interval', 'long_run', 'trail_run']);
+const RUN_TYPES = new Set(['run', 'easy_run', 'interval', 'long_run', 'trail_run', 'tempo_run']);
 const CYCLING_TYPES = new Set(['cycling', 'bike']);
 
 export function isRunSport(activityType: string): boolean {

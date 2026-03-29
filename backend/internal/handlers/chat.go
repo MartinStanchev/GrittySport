@@ -267,15 +267,26 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, use
 		})
 	}
 
+	// routingTools maps routing tool names to their segment type and target mode.
+	// These tools have nil handlers in the registry; they are intercepted here to
+	// trigger a segment transition and mode escalation retry.
+	routingTools := map[string]struct {
+		segmentType string
+		targetMode  chat.Mode
+	}{
+		"begin_program_creation":     {"program_creation", chat.ModeProgramCreation},
+		"begin_program_modification": {"program_modification", chat.ModeProgramManagement},
+	}
+
 	executeTool := func(name string, args map[string]any) (any, error) {
-		// Routing tool: switch to program creation mode with segment transition.
-		// This must be checked before the general mode escalation guard below.
-		if name == "begin_program_creation" {
-			h.transitionSegment(r.Context(), userID, "program_creation", session)
+		// Routing tools: switch mode with segment transition.
+		// These must be checked before the general mode escalation guard below.
+		if rt, ok := routingTools[name]; ok {
+			h.transitionSegment(r.Context(), userID, rt.segmentType, session)
 			return nil, &chat.ErrModeEscalation{
 				ToolName:     name,
 				OriginalMode: session.mode,
-				TargetMode:   chat.ModeProgramCreation,
+				TargetMode:   rt.targetMode,
 			}
 		}
 

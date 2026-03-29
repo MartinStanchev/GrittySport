@@ -17,4 +17,5 @@ export const TOOL_LABELS: Record<string, string> = {
   update_draft_phase: 'Updated a phase',
   delete_draft_phase: 'Removed a phase',
   begin_program_creation: 'Switching to program creation',
+  begin_program_modification: 'Switching to program editing',
 };

@@ -108,7 +108,7 @@ func main() {
 
 	workoutService := services.NewWorkoutService(pool)
 
-	reviewService := review.NewService(pool, chatService, workoutService, geminiClient, memoryService, promptLoader.ReviewPrompt(), promptLoader.MissedPrompt())
+	reviewService := review.NewService(pool, chatService, workoutService, programService, geminiClient, memoryService, promptLoader.ReviewPrompt(), promptLoader.MissedPrompt())
 
 	// Start missed workout checker
 	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)
@@ -165,8 +165,10 @@ func main() {
 		r.Get("/workouts", workoutHandler.List)
 		r.Get("/workouts/weekly-effort", workoutHandler.WeeklyEffort)
 		r.Get("/workouts/{workoutId}", workoutHandler.Get)
+		r.Delete("/workouts/{workoutId}", workoutHandler.Delete)
 		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
 		r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
+		r.Get("/workouts/{workoutId}/review", workoutHandler.GetReview)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

@@ -2,7 +2,9 @@ package review
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
+	"strings"
 )
 
 // DeviationMetrics holds deviation percentages between prescribed and actual workout metrics.
@@ -129,16 +131,28 @@ type KmSplit struct {
 	ElevationGain float64 `json:"elevation_gain"`
 }
 
-// ComputeKmSplits walks GPS points and emits a split every 1000m.
-func ComputeKmSplits(gpsRoute json.RawMessage) []KmSplit {
+// parseGPSPoints extracts GPS points from a raw JSON route. Returns nil if empty/invalid.
+func parseGPSPoints(gpsRoute json.RawMessage) []GPSPoint {
 	if len(gpsRoute) == 0 {
 		return nil
 	}
-
 	var route struct {
 		Points []GPSPoint `json:"points"`
 	}
-	if err := json.Unmarshal(gpsRoute, &route); err != nil || len(route.Points) < 2 {
+	if json.Unmarshal(gpsRoute, &route) != nil || len(route.Points) < 2 {
+		return nil
+	}
+	return route.Points
+}
+
+// ComputeKmSplits walks GPS points and emits a split every 1000m.
+func ComputeKmSplits(gpsRoute json.RawMessage) []KmSplit {
+	return computeKmSplitsFromPoints(parseGPSPoints(gpsRoute))
+}
+
+// computeKmSplitsFromPoints computes splits from pre-parsed points.
+func computeKmSplitsFromPoints(points []GPSPoint) []KmSplit {
+	if len(points) < 2 {
 		return nil
 	}
 
@@ -146,13 +160,13 @@ func ComputeKmSplits(gpsRoute json.RawMessage) []KmSplit {
 	splitStart := 0
 	var splitDist float64
 
-	for i := 1; i < len(route.Points); i++ {
-		splitDist += route.Points[i].DistanceFromPrev
+	for i := 1; i < len(points); i++ {
+		splitDist += points[i].DistanceFromPrev
 
 		if splitDist >= 1000 {
 			km := len(splits) + 1
-			startTs := route.Points[splitStart].Timestamp
-			endTs := route.Points[i].Timestamp
+			startTs := points[splitStart].Timestamp
+			endTs := points[i].Timestamp
 			durSec := float64(endTs-startTs) / 1000.0
 			pace := 0.0
 			if durSec > 0 && splitDist > 0 {
@@ -283,6 +297,58 @@ func floatFromMap(m map[string]any, key string) float64 {
 		return 0
 	}
 	return floatFromAny(v)
+}
+
+// activityTypeFamily groups related activity types into a family for comparison.
+func activityTypeFamily(actType string) string {
+	t := strings.ToLower(actType)
+	switch {
+	case t == "run" || t == "easy_run" || t == "long_run" || t == "interval" || t == "trail_run" || t == "tempo_run":
+		return "run"
+	case t == "cycling" || t == "bike":
+		return "cycling"
+	case t == "swim" || t == "swim_open_water":
+		return "swim"
+	case strings.Contains(t, "strength") || strings.Contains(t, "weight"):
+		return "strength"
+	case strings.Contains(t, "mobility") || strings.Contains(t, "yoga"):
+		return "mobility"
+	default:
+		return t
+	}
+}
+
+// activityTypesInFamily returns all known activity types for a given family.
+func activityTypesInFamily(family string) []string {
+	switch family {
+	case "run":
+		return []string{"run", "easy_run", "long_run", "interval", "trail_run", "tempo_run"}
+	case "cycling":
+		return []string{"cycling", "bike"}
+	case "swim":
+		return []string{"swim", "swim_open_water"}
+	case "strength":
+		return []string{"strength", "strength_training", "weight_training"}
+	case "mobility":
+		return []string{"mobility", "yoga"}
+	default:
+		return []string{family}
+	}
+}
+
+// formatDurationSec formats seconds as "m:ss" or "h:mm:ss".
+func formatDurationSec(sec float64) string {
+	total := int(math.Round(sec))
+	if total < 0 {
+		total = 0
+	}
+	h := total / 3600
+	m := (total % 3600) / 60
+	s := total % 60
+	if h > 0 {
+		return fmt.Sprintf("%d:%02d:%02d", h, m, s)
+	}
+	return fmt.Sprintf("%d:%02d", m, s)
 }
 
 func floatFromAny(v any) float64 {

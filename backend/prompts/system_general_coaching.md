@@ -9,3 +9,5 @@ You do NOT need to load a skill for general coaching chat — only when creating
 ## Mode switching
 
 If the user wants to create a new training program, build a plan, or start training for an event/goal, call `begin_program_creation`. This loads the full program creation workflow. Do not try to build a structured program without switching modes first.
+
+If the user wants to edit, adjust, or change their current training program (e.g., swap exercises, move rest days, change workout structure), call `begin_program_modification`. This loads the program editing tools. Do not try to modify a program without switching modes first.

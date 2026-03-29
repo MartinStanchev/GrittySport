@@ -202,6 +202,132 @@ func TestComputeKmSplits(t *testing.T) {
 	})
 }
 
+func TestActivityTypeFamily(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"run", "run"},
+		{"easy_run", "run"},
+		{"long_run", "run"},
+		{"interval", "run"},
+		{"trail_run", "run"},
+		{"tempo_run", "run"},
+		{"cycling", "cycling"},
+		{"bike", "cycling"},
+		{"swim", "swim"},
+		{"swim_open_water", "swim"},
+		{"strength_training", "strength"},
+		{"weight_training", "strength"},
+		{"mobility", "mobility"},
+		{"yoga", "mobility"},
+		{"hike", "hike"},
+		{"walk", "walk"},
+	}
+	for _, tt := range tests {
+		got := activityTypeFamily(tt.input)
+		if got != tt.want {
+			t.Errorf("activityTypeFamily(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestActivityTypesInFamily(t *testing.T) {
+	runTypes := activityTypesInFamily("run")
+	if len(runTypes) < 4 {
+		t.Errorf("expected at least 4 run types, got %d: %v", len(runTypes), runTypes)
+	}
+	cyclingTypes := activityTypesInFamily("cycling")
+	if len(cyclingTypes) != 2 {
+		t.Errorf("expected 2 cycling types, got %d: %v", len(cyclingTypes), cyclingTypes)
+	}
+}
+
+func TestFormatDurationSec(t *testing.T) {
+	tests := []struct {
+		sec  float64
+		want string
+	}{
+		{0, "0:00"},
+		{65, "1:05"},
+		{300, "5:00"},
+		{1234.5, "20:35"},
+		{3661, "1:01:01"},
+		{7200, "2:00:00"},
+	}
+	for _, tt := range tests {
+		got := formatDurationSec(tt.sec)
+		if got != tt.want {
+			t.Errorf("formatDurationSec(%.1f) = %q, want %q", tt.sec, got, tt.want)
+		}
+	}
+}
+
+func TestComputeCardiacEfficiencyFromData(t *testing.T) {
+	t.Run("insufficient matches returns nil", func(t *testing.T) {
+		result := computeCardiacEfficiencyFromData(
+			330, 150,
+			[]float64{400, 420}, // paces too far from 330
+			[]float64{145, 148},
+			30,
+		)
+		if result != nil {
+			t.Error("expected nil for insufficient matches")
+		}
+	})
+
+	t.Run("improving cardiac efficiency", func(t *testing.T) {
+		result := computeCardiacEfficiencyFromData(
+			330, 140, // current: 5:30/km, 140 bpm
+			[]float64{325, 335, 328}, // historical paces within ±30
+			[]float64{152, 148, 150}, // historical HRs
+			30,
+		)
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if result.Trend != TrendImproving {
+			t.Errorf("expected improving trend, got %q", result.Trend)
+		}
+		if result.DeltaHR >= 0 {
+			t.Errorf("expected negative delta HR for improvement, got %d", result.DeltaHR)
+		}
+		if result.ComparisonCount != 3 {
+			t.Errorf("expected 3 comparisons, got %d", result.ComparisonCount)
+		}
+	})
+
+	t.Run("declining cardiac efficiency", func(t *testing.T) {
+		result := computeCardiacEfficiencyFromData(
+			330, 160,
+			[]float64{335, 328},
+			[]float64{148, 150},
+			30,
+		)
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if result.Trend != TrendDeclining {
+			t.Errorf("expected declining trend, got %q", result.Trend)
+		}
+	})
+
+	t.Run("stable cardiac efficiency", func(t *testing.T) {
+		result := computeCardiacEfficiencyFromData(
+			330, 150,
+			[]float64{335, 328},
+			[]float64{149, 151},
+			30,
+		)
+		if result == nil {
+			t.Fatal("expected non-nil result")
+		}
+		if result.Trend != TrendStable {
+			t.Errorf("expected stable trend, got %q", result.Trend)
+		}
+	})
+}
+
 // --- Helpers ---
 
 func buildHRJSON(bpm, count, intervalMs int) string {

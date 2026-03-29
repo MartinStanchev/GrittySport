@@ -29,7 +29,8 @@ func newTestRegistry() *Registry {
 		{"propose_program", []chat.Mode{chat.ModeProgramCreation}},
 		{"start_program_today", []chat.Mode{chat.ModeProgramCreation}},
 		{"confirm_program_save", []chat.Mode{chat.ModeProgramCreation}},
-		{"begin_program_creation", []chat.Mode{chat.ModeGeneralCoaching}},
+		{"begin_program_creation", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeWorkoutReview}},
+		{"begin_program_modification", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeWorkoutReview}},
 		{"get_program_criteria", []chat.Mode{chat.ModeProgramManagement}},
 		{"get_scheduled_activity", []chat.Mode{chat.ModeProgramManagement, chat.ModeWorkoutReview}},
 		{"edit_program", []chat.Mode{chat.ModeProgramManagement}},
@@ -208,8 +209,8 @@ func TestProposalStoreGetPhases(t *testing.T) {
 func TestGeminiToolsReturnsAll(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiTools())
-	if len(names) != 18 {
-		t.Errorf("GeminiTools() returned %d tools, want 18", len(names))
+	if len(names) != 19 {
+		t.Errorf("GeminiTools() returned %d tools, want 19", len(names))
 	}
 }
 
@@ -223,8 +224,8 @@ func TestGeminiToolsForMode(t *testing.T) {
 	}{
 		{
 			mode:      chat.ModeGeneralCoaching,
-			wantCount: 5,
-			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation"},
+			wantCount: 6,
+			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation", "begin_program_modification"},
 		},
 		{
 			mode:      chat.ModeProgramCreation,
@@ -238,8 +239,8 @@ func TestGeminiToolsForMode(t *testing.T) {
 		},
 		{
 			mode:      chat.ModeWorkoutReview,
-			wantCount: 3,
-			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity"},
+			wantCount: 5,
+			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity", "begin_program_creation", "begin_program_modification"},
 		},
 	}
 
@@ -265,7 +266,7 @@ func TestGeminiToolsForMode(t *testing.T) {
 func TestGeminiToolsForMode_UnknownFallsBack(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiToolsForMode("unknown_mode"))
-	if len(names) != 18 {
+	if len(names) != 19 {
 		t.Errorf("unknown mode should fall back to all tools, got %d", len(names))
 	}
 }

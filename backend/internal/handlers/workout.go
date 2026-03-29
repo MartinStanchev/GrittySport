@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -168,11 +169,27 @@ func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.workoutService.LinkToActivity(r.Context(), workoutID, body.ScheduledActivityID, userID); err != nil {
-		if err.Error() == "workout not found" {
+		if errors.Is(err, services.ErrWorkoutNotFound) {
 			writeError(w, http.StatusNotFound, "workout not found")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "failed to link workout")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *WorkoutHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	workoutID := chi.URLParam(r, "workoutId")
+
+	if err := h.workoutService.Delete(r.Context(), workoutID, userID); err != nil {
+		if errors.Is(err, services.ErrWorkoutNotFound) {
+			writeError(w, http.StatusNotFound, "workout not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to delete workout")
 		return
 	}
 
@@ -188,6 +205,38 @@ func (h *WorkoutHandler) getUserMaxHR(ctx context.Context, userID string) int {
 		return defaultMaxHR
 	}
 	return maxHR
+}
+
+// GetReview polls for a post-workout review message linked to a specific workout.
+func (h *WorkoutHandler) GetReview(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	workoutID := chi.URLParam(r, "workoutId")
+
+	var msg models.ChatMessage
+	err := h.pool.QueryRow(r.Context(),
+		`SELECT id, user_id, role, content, program_id, metadata, created_at
+		 FROM chat_messages
+		 WHERE user_id = $1
+		   AND role = 'assistant'
+		   AND metadata->>'workout_id' = $2
+		 ORDER BY created_at DESC
+		 LIMIT 1`,
+		userID, workoutID,
+	).Scan(&msg.ID, &msg.UserID, &msg.Role, &msg.Content, &msg.ProgramID, &msg.Metadata, &msg.CreatedAt)
+
+	if err == pgx.ErrNoRows {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "pending"})
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to query review")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":  "ready",
+		"message": msg.ToResponse(),
+	})
 }
 
 // WeeklyEffort returns aggregated effort score for the current week.

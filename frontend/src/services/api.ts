@@ -592,8 +592,12 @@ export async function getWorkout(id: string): Promise<WorkoutResponse> {
   return apiFetch<WorkoutResponse>(`/api/v1/workouts/${id}`);
 }
 
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  await apiFetch<{ status: string }>(`/api/v1/workouts/${workoutId}`, { method: 'DELETE' });
+}
+
 export async function linkWorkoutToActivity(workoutId: string, scheduledActivityId: string): Promise<void> {
-  await apiFetch<unknown>(`/api/v1/workouts/${workoutId}/link`, {
+  await apiFetch<{ status: string }>(`/api/v1/workouts/${workoutId}/link`, {
     method: 'PUT',
     body: JSON.stringify({ scheduled_activity_id: scheduledActivityId }),
   });
@@ -642,3 +646,15 @@ export async function getUsage(): Promise<UsageSummary> {
 export async function getWorkoutAnalytics(workoutId: string): Promise<WorkoutAnalytics> {
   return apiFetch<WorkoutAnalytics>(`/api/v1/workouts/${workoutId}/analytics`);
 }
+
+// Post-workout review polling
+
+export interface WorkoutReviewResponse {
+  status: 'pending' | 'ready';
+  message?: ChatMessageResponse;
+}
+
+export async function getWorkoutReview(workoutId: string): Promise<WorkoutReviewResponse> {
+  return apiFetch<WorkoutReviewResponse>(`/api/v1/workouts/${workoutId}/review`);
+}
+

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/grittyfitness/api/internal/models"
 )
+
+var ErrWorkoutNotFound = errors.New("workout not found")
 
 type WorkoutService struct {
 	pool *pgxpool.Pool
@@ -265,6 +268,20 @@ func toFloat(v any) (float64, bool) {
 	return 0, false
 }
 
+func (s *WorkoutService) Delete(ctx context.Context, workoutID, userID string) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM workouts WHERE id = $1 AND user_id = $2`,
+		workoutID, userID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrWorkoutNotFound
+	}
+	return nil
+}
+
 func (s *WorkoutService) LinkToActivity(ctx context.Context, workoutID, scheduledActivityID, userID string) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE workouts SET scheduled_activity_id = $1 WHERE id = $2 AND user_id = $3`,
@@ -274,7 +291,7 @@ func (s *WorkoutService) LinkToActivity(ctx context.Context, workoutID, schedule
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("workout not found")
+		return ErrWorkoutNotFound
 	}
 	return nil
 }

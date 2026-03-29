@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   FlatList,
@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
 import MapView, { Polyline, UrlTile } from '../components/NativeMap';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,8 +20,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
-import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
+import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import type { WorkoutResponse } from '../services/api';
 import { savePendingWorkout } from '../services/offlineStorage';
@@ -47,11 +49,32 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { activeGPSWorkout, clearGPSWorkout } = useWorkout();
   const { user } = useAuth();
-  const { notifyProgramDataChanged } = useProgram();
+  const { notifyProgramDataChanged, requestOpenChat } = useProgram();
   const maxHR = user?.max_heart_rate ?? 185;
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+  const hasSaved = useRef(false);
+
+  // Clear GPS workout on unmount after successful save
+  useEffect(() => {
+    return () => {
+      if (hasSaved.current) clearGPSWorkout();
+    };
+  }, [clearGPSWorkout]);
+
+  // Show "Done" in header after save
+  useEffect(() => {
+    if (!savedWorkoutId) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={() => navigation.getParent()?.navigate('Home')} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        </Pressable>
+      ),
+    });
+  }, [savedWorkoutId, navigation, colors]);
 
   const gpsPayload = useMemo(() => {
     if (!activeGPSWorkout) return null;
@@ -153,33 +176,13 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
     setSaving(false);
     notifyProgramDataChanged();
 
-    // Navigate away BEFORE clearing workout data to avoid a flash of the empty state
     if (savedWorkout) {
-      navigation.getParent()?.navigate('Home');
+      hasSaved.current = true;
+      setSavedWorkoutId(savedWorkout.id);
     } else {
+      // Offline save — clear and navigate to history
+      clearGPSWorkout();
       navigation.navigate('History');
-    }
-
-    clearGPSWorkout();
-
-    // Offer to link to today's scheduled activity if not already linked
-    if (savedWorkout && !workout.scheduledActivityId) {
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const activities = await getUpcomingActivities();
-        const todayActivity = activities.find((a) => a.date === today);
-        if (todayActivity) {
-          const label = todayActivity.activity_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-          Alert.alert(
-            'Link to Program?',
-            `Link this workout to your "${label}" activity?`,
-            [
-              { text: 'Skip', style: 'cancel' },
-              { text: 'Link', onPress: () => linkWorkoutToActivity(savedWorkout!.id, todayActivity.id) },
-            ]
-          );
-        }
-      } catch { /* ignore — linking is best-effort */ }
     }
   }
 
@@ -415,17 +418,29 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
             />
           </View>
 
-          {/* Buttons */}
-          <Pressable
-            style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            <Text style={[styles.saveBtnText, { color: colors.surface }]}>{saving ? 'Saving...' : 'Save Workout'}</Text>
-          </Pressable>
-          <Pressable style={[styles.discardBtn, { borderColor: colors.border }]} onPress={handleDiscard}>
-            <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Discard</Text>
-          </Pressable>
+          {/* Actions / Review */}
+          {savedWorkoutId ? (
+            <PostWorkoutReview
+              workoutId={savedWorkoutId}
+              onContinueInChat={() => {
+                requestOpenChat();
+                navigation.getParent()?.navigate('Home');
+              }}
+            />
+          ) : (
+            <>
+              <Pressable
+                style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                <Text style={[styles.saveBtnText, { color: colors.surface }]}>{saving ? 'Saving...' : 'Save Workout'}</Text>
+              </Pressable>
+              <Pressable style={[styles.discardBtn, { borderColor: colors.border }]} onPress={handleDiscard}>
+                <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Discard</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

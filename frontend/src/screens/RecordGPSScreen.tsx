@@ -69,7 +69,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const params = route.params as RecordGPSParams | undefined;
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout, workoutMode } = useWorkout();
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
@@ -431,6 +431,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const hrZoneColor = workout?.currentHR ? getHRZoneColor(workout.currentHR, maxHR) : colors.textSecondary;
   const qualityColor = getQualityColor(gpsQuality.tone, colors);
   const primaryMetricTone = recordingState === 'recording' ? colors.secondary : colors.primary;
+  const mapOverlay = isDark ? 'rgba(17, 17, 26, 0.78)' : 'rgba(255, 255, 255, 0.82)';
+  const mapScrimColor = isDark ? 'rgba(12, 11, 18, 0.18)' : 'rgba(245, 243, 255, 0.12)';
+  const collapsedPillBg = isDark ? 'rgba(17, 17, 26, 0.88)' : 'rgba(255, 255, 255, 0.92)';
   const connectionLabel = bleService.isConnected()
     ? `Connected to ${workout?.hrDeviceName ?? bleService.getDeviceName()}`
     : 'Connect heart rate monitor';
@@ -640,17 +643,17 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           )}
         </MapView>
 
-        <View style={[styles.mapScrim, { backgroundColor: 'rgba(12, 11, 18, 0.18)' }]} pointerEvents="none" />
+        <View style={[styles.mapScrim, { backgroundColor: mapScrimColor }]} pointerEvents="none" />
 
         <View style={[styles.topBar, { top: insets.top + 12 }]}>
           <Pressable
-            style={[styles.iconButton, { backgroundColor: 'rgba(17, 17, 26, 0.74)' }]}
+            style={[styles.iconButton, { backgroundColor: mapOverlay }]}
             onPress={handleDiscard}
           >
             <Ionicons name="close" size={20} color={colors.textPrimary} />
           </Pressable>
 
-          <View style={[styles.sessionBadge, { backgroundColor: 'rgba(17, 17, 26, 0.78)' }]}>
+          <View style={[styles.sessionBadge, { backgroundColor: mapOverlay }]}>
             <Text style={[styles.sessionTitle, { color: colors.textPrimary }]} numberOfLines={1}>
               {activityLabel.toUpperCase()}
             </Text>
@@ -660,7 +663,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <View style={[styles.qualityBadge, { backgroundColor: 'rgba(17, 17, 26, 0.78)' }]}>
+          <View style={[styles.qualityBadge, { backgroundColor: mapOverlay }]}>
             <Ionicons name="locate" size={14} color={qualityColor} />
             <Text style={[styles.qualityText, { color: colors.textPrimary }]}>{gpsQuality.label}</Text>
           </View>
@@ -678,7 +681,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
             styles.recenterButton,
             {
               top: insets.top + 84,
-              backgroundColor: userMovedMap ? colors.surface : 'rgba(17, 17, 26, 0.78)',
+              backgroundColor: userMovedMap ? colors.surface : mapOverlay,
             },
           ]}
           onPress={handleRecenter}
@@ -721,7 +724,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
             style={[
               styles.heroMetricsCard,
               metricsExpanded ? styles.heroMetricsCardExpanded : styles.heroMetricsCardCollapsed,
-              { backgroundColor: metricsExpanded ? colors.surfaceAlt : 'rgba(17, 17, 26, 0.88)' },
+              { backgroundColor: metricsExpanded ? colors.surfaceAlt : collapsedPillBg },
             ]}
           >
             <View style={styles.heroMetricsRow}>

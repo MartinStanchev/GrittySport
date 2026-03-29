@@ -3,6 +3,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -34,12 +36,9 @@ import {
   avgPaceSecPerKm,
   avgSpeedKph,
 } from '../services/gpsUtils';
-import {
-  saveWorkout,
-  linkWorkoutToActivity,
-  getUpcomingActivities,
-} from '../services/api';
+import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
+import { PostWorkoutReview } from '../components/PostWorkoutReview';
 
 interface RouteParams {
   fileUri: string;
@@ -51,7 +50,7 @@ interface RouteParams {
 export default function WorkoutFilePreviewScreen({ route, navigation }: any) {
   const { fileUri, fileName, scheduledActivityId, preselectedType } = route.params as RouteParams;
   const insets = useSafeAreaInsets();
-  const { notifyProgramDataChanged } = useProgram();
+  const { notifyProgramDataChanged, requestOpenChat } = useProgram();
   const { colors } = useTheme();
 
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
@@ -136,6 +135,7 @@ export default function WorkoutFilePreviewScreen({ route, navigation }: any) {
       scheduledActivityId={scheduledActivityId}
       navigation={navigation}
       notifyProgramDataChanged={notifyProgramDataChanged}
+      requestOpenChat={requestOpenChat}
       insets={insets}
       onBackToList={parseResult.kind === 'zip' ? () => setSelectedWorkout(null) : undefined}
     />
@@ -207,6 +207,7 @@ function WorkoutPreview({
   scheduledActivityId,
   navigation,
   notifyProgramDataChanged,
+  requestOpenChat,
   insets,
   onBackToList,
 }: {
@@ -215,6 +216,7 @@ function WorkoutPreview({
   scheduledActivityId?: string;
   navigation: any;
   notifyProgramDataChanged: () => void;
+  requestOpenChat: () => void;
   insets: { bottom: number };
   onBackToList?: () => void;
 }) {
@@ -226,6 +228,18 @@ function WorkoutPreview({
   );
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!savedWorkoutId) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        </Pressable>
+      ),
+    });
+  }, [savedWorkoutId, navigation, colors]);
 
   const isRun = isRunSport(activityType);
 
@@ -274,26 +288,7 @@ function WorkoutPreview({
       const payload = buildFileSavePayload(workout, activityType, notes, scheduledActivityId);
       const saved = await saveWorkout(payload);
       notifyProgramDataChanged();
-      navigation.goBack();
-
-      if (!scheduledActivityId) {
-        try {
-          const today = new Date().toISOString().split('T')[0];
-          const activities = await getUpcomingActivities();
-          const todayActivity = activities.find((a) => a.date === today);
-          if (todayActivity) {
-            const label = todayActivity.activity_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-            Alert.alert(
-              'Link to Program?',
-              `Link this workout to your "${label}" activity?`,
-              [
-                { text: 'Skip', style: 'cancel' },
-                { text: 'Link', onPress: () => linkWorkoutToActivity(saved.id, todayActivity.id) },
-              ],
-            );
-          }
-        } catch { /* linking is best-effort */ }
-      }
+      setSavedWorkoutId(saved.id);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save workout');
     } finally {
@@ -302,6 +297,7 @@ function WorkoutPreview({
   }
 
   return (
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
       {/* Source format badge */}
       <View style={styles.formatBadgeRow}>
@@ -464,26 +460,38 @@ function WorkoutPreview({
           />
         </View>
 
-        {/* Save / Back actions */}
-        <Pressable
-          style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Workout'}</Text>
-        </Pressable>
-
-        {onBackToList ? (
-          <Pressable style={styles.discardBtn} onPress={onBackToList}>
-            <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Back to File List</Text>
-          </Pressable>
+        {/* Actions / Review */}
+        {savedWorkoutId ? (
+          <PostWorkoutReview
+            workoutId={savedWorkoutId}
+            onContinueInChat={() => {
+              requestOpenChat();
+              navigation.getParent()?.navigate('Home');
+            }}
+          />
         ) : (
-          <Pressable style={styles.discardBtn} onPress={() => navigation.goBack()}>
-            <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Cancel</Text>
-          </Pressable>
+          <>
+            <Pressable
+              style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Workout'}</Text>
+            </Pressable>
+            {onBackToList ? (
+              <Pressable style={styles.discardBtn} onPress={onBackToList}>
+                <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Back to File List</Text>
+              </Pressable>
+            ) : (
+              <Pressable style={styles.discardBtn} onPress={() => navigation.goBack()}>
+                <Text style={[styles.discardBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+              </Pressable>
+            )}
+          </>
         )}
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

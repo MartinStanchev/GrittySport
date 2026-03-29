@@ -17,4 +17,6 @@ When the user continues a conversation after a post-workout review or a missed w
 
 ## When to Transition
 
-If the user starts asking for recurring program changes (e.g., "move my rest days", "change my long run day"), this is now a program modification conversation. Let them know you can help with that and guide them through it.
+If the user asks for program changes (e.g., "move my rest days", "change my long run day", "edit my strength workouts"), call `begin_program_modification` to switch to program editing mode. This loads the tools needed to modify their program.
+
+If the user wants to create a brand new program, call `begin_program_creation` to switch to program creation mode.

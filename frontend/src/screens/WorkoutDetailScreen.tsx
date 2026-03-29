@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { formatDuration, formatFullDate } from '../utils/dates';
-import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics } from '../services/api';
+import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
 import { formatPaceSecPerKm, formatSpeedKph, isRunSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories } from '../services/gpsUtils';
@@ -20,6 +20,8 @@ import { EffortScoreCard } from '../components/EffortScoreCard';
 import { SplitsCard } from '../components/SplitsCard';
 import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
 import { PRBadge } from '../components/PRBadge';
+import { CardiacEfficiencyCard } from '../components/CardiacEfficiencyCard';
+import { WeeklyTrendCard } from '../components/WeeklyTrendCard';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -312,12 +314,24 @@ function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
     return <GPSDetail workout={workout} />;
   }
 
-  const typeDetail = normalized === 'run' ? <RunDetail data={data} />
-    : normalized === 'cycling' ? <CyclingDetail data={data} />
-    : normalized === 'swim' ? <SwimDetail data={data} />
-    : normalized === 'strength' ? <StrengthDetail data={data} />
-    : normalized === 'mobility' ? <MobilityDetail data={data} />
-    : null;
+  let typeDetail = null as ReturnType<typeof RunDetail> | null;
+  switch (normalized) {
+    case 'run':
+      typeDetail = <RunDetail data={data} />;
+      break;
+    case 'cycling':
+      typeDetail = <CyclingDetail data={data} />;
+      break;
+    case 'swim':
+      typeDetail = <SwimDetail data={data} />;
+      break;
+    case 'strength':
+      typeDetail = <StrengthDetail data={data} />;
+      break;
+    case 'mobility':
+      typeDetail = <MobilityDetail data={data} />;
+      break;
+  }
 
   return (
     <>
@@ -331,7 +345,7 @@ function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
 
 type Props = NativeStackScreenProps<any, 'WorkoutDetail'>;
 
-export default function WorkoutDetailScreen({ route }: Props) {
+export default function WorkoutDetailScreen({ route, navigation }: Props) {
   const { workoutId } = route.params as { workoutId: string };
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -410,6 +424,24 @@ export default function WorkoutDetailScreen({ route }: Props) {
     }
   }, [workout, openLinkSheet]);
 
+  const handleDelete = useCallback(() => {
+    Alert.alert('Delete Workout', 'This workout will be permanently deleted.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteWorkout(workoutId);
+            navigation.goBack();
+          } catch {
+            Alert.alert('Error', 'Could not delete workout.');
+          }
+        },
+      },
+    ]);
+  }, [workoutId, navigation]);
+
   if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -438,7 +470,9 @@ export default function WorkoutDetailScreen({ route }: Props) {
     analytics.effort_score > 0 ||
     analytics.program_alignment ||
     (analytics.personal_records && analytics.personal_records.length > 0) ||
-    analytics.trend
+    analytics.trend ||
+    analytics.cardiac_efficiency ||
+    analytics.weekly_trend
   );
   const showPremiumAnalytics = userIsPremium ? !!hasAnalyticsContent : hasGPSOrHR;
 
@@ -480,22 +514,43 @@ export default function WorkoutDetailScreen({ route }: Props) {
               {analytics.effort_score > 0 && (
                 <EffortScoreCard data={{ score: analytics.effort_score, label: analytics.effort_label }} />
               )}
+
+              {analytics.cardiac_efficiency && (
+                <CardiacEfficiencyCard data={analytics.cardiac_efficiency} />
+              )}
+
               {analytics.program_alignment && (
                 <ProgramAlignmentCard data={analytics.program_alignment} />
               )}
+
               {analytics.personal_records && analytics.personal_records.length > 0 && (
-                <View style={{ gap: 6, marginTop: 8 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>Personal Records</Text>
+                <View style={styles.prSection}>
+                  <Text style={[styles.prSectionTitle, { color: colors.textPrimary }]}>Personal Records</Text>
                   {analytics.personal_records.map((pr) => (
-                    <View key={pr.category} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View key={pr.category} style={styles.prRow}>
                       <PRBadge />
-                      <Text style={{ fontSize: 13, color: colors.textPrimary }}>{pr.category}</Text>
+                      <View style={styles.prInfo}>
+                        <Text style={[styles.prCategory, { color: colors.textPrimary }]}>{pr.category}</Text>
+                        {pr.formatted_value ? (
+                          <Text style={[styles.prValue, { color: colors.textSecondary }]}>
+                            {pr.formatted_value}
+                            {pr.improvement_pct != null && pr.improvement_pct > 0
+                              ? ` (+${pr.improvement_pct.toFixed(1)}%)`
+                              : ''}
+                          </Text>
+                        ) : null}
+                      </View>
                     </View>
                   ))}
                 </View>
               )}
-              {analytics.trend && (
-                <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 8 }}>
+
+              {analytics.weekly_trend && (
+                <WeeklyTrendCard data={analytics.weekly_trend} />
+              )}
+
+              {!analytics.weekly_trend && analytics.trend && (
+                <Text style={[styles.trendText, { color: colors.textSecondary }]}>
                   {analytics.trend.comparison_text}
                 </Text>
               )}
@@ -519,6 +574,12 @@ export default function WorkoutDetailScreen({ route }: Props) {
           <Text style={[styles.linkBtnText, { color: colors.primary }]}>Link to Program Activity</Text>
         </Pressable>
       )}
+
+      {/* Delete */}
+      <Pressable style={[styles.deleteBtn, { borderColor: colors.error }]} onPress={handleDelete}>
+        <Ionicons name="trash-outline" size={16} color={colors.error} />
+        <Text style={[styles.deleteBtnText, { color: colors.error }]}>Delete Workout</Text>
+      </Pressable>
     </ScrollView>
 
     <Modal visible={linkSheetVisible} transparent animationType="none" onRequestClose={closeLinkSheet}>
@@ -752,6 +813,40 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
   },
 
+  // PR section
+  prSection: {
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  prSectionTitle: {
+    fontSize: 14,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  prRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  prInfo: {
+    flex: 1,
+  },
+  prCategory: {
+    fontSize: 13,
+    fontFamily: Fonts.bodyMedium,
+  },
+  prValue: {
+    fontSize: 12,
+    fontFamily: Fonts.body,
+    fontVariant: ['tabular-nums'] as any,
+    marginTop: 1,
+  },
+  trendText: {
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    marginTop: 8,
+  },
+
   // Link button
   linkBtn: {
     flexDirection: 'row',
@@ -764,6 +859,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   linkBtnText: {
+    fontSize: 15,
+    fontFamily: Fonts.headingMedium,
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingVertical: 14,
+    marginTop: 12,
+  },
+  deleteBtnText: {
     fontSize: 15,
     fontFamily: Fonts.headingMedium,
   },

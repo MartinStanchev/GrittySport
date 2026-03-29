@@ -728,7 +728,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 
 	reg.Register(&Tool{
 		Name:        "begin_program_creation",
-		Modes:       []chat.Mode{chat.ModeGeneralCoaching},
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeWorkoutReview},
 		Description: "Switch to program creation mode. Call this when the user wants to create a new training program, build a plan, or start training for an event. This loads the full program creation workflow with all required tools.",
 		Parameters: &genai.Schema{
 			Type:       genai.TypeObject,
@@ -736,6 +736,19 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 		},
 		// Handler is intentionally nil: this tool is intercepted by the chat handler
 		// before reaching the registry. It triggers a mode escalation to program_creation.
+		Handler: nil,
+	})
+
+	reg.Register(&Tool{
+		Name:        "begin_program_modification",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeWorkoutReview},
+		Description: "Switch to program modification mode. Call this when the user wants to edit, adjust, or change their current training program. This loads the program editing tools.",
+		Parameters: &genai.Schema{
+			Type:       genai.TypeObject,
+			Properties: map[string]*genai.Schema{},
+		},
+		// Handler is intentionally nil: this tool is intercepted by the chat handler
+		// before reaching the registry. It triggers a mode escalation to program_management.
 		Handler: nil,
 	})
 

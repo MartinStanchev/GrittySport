@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -9,6 +9,7 @@ import {
   Text,
   TextInput,
   View,
+
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -16,8 +17,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon, IMPORT_ACTIVITY_TYPES } from '../constants/activityIcons';
-import { saveWorkout, getUpcomingActivities, linkWorkoutToActivity } from '../services/api';
+import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
+import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -278,7 +280,7 @@ type Props = NativeStackScreenProps<any, 'LogActivity'>;
 
 export default function LogActivityScreen({ navigation }: Props) {
   const { colors } = useTheme();
-  const { notifyProgramDataChanged } = useProgram();
+  const { notifyProgramDataChanged, requestOpenChat } = useProgram();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [dateOffset, setDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
   const [hours, setHours] = useState('');
@@ -291,6 +293,18 @@ export default function LogActivityScreen({ navigation }: Props) {
     { name: '', durationSeconds: '', completed: false },
   ]);
   const [saving, setSaving] = useState(false);
+  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!savedWorkoutId) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        </Pressable>
+      ),
+    });
+  }, [savedWorkoutId, navigation, colors]);
 
   const date = offsetDate(dateOffset);
   const durationSec = (parseInt(hours || '0', 10) * 3600) + (parseInt(minutes || '0', 10) * 60);
@@ -318,7 +332,7 @@ export default function LogActivityScreen({ navigation }: Props) {
       const finishedAt = new Date(startedAt.getTime() + durationSec * 1000);
       const recordedData = buildRecordedData(selectedType, dist, durationSec, laps, exercises, mobilityExercises);
 
-      const savedWorkout = await saveWorkout({
+      const saved = await saveWorkout({
         activity_type: selectedType,
         recorded_data: recordedData,
         source: 'manual',
@@ -327,25 +341,7 @@ export default function LogActivityScreen({ navigation }: Props) {
         notes: notes.trim() || undefined,
       });
       notifyProgramDataChanged();
-      navigation.goBack();
-
-      // Offer to link to today's scheduled activity
-      try {
-        const today = new Date().toISOString().split('T')[0];
-        const activities = await getUpcomingActivities();
-        const todayActivity = activities.find((a) => a.date === today);
-        if (todayActivity) {
-          const label = todayActivity.activity_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-          Alert.alert(
-            'Link to Program?',
-            `Link this workout to your "${label}" activity?`,
-            [
-              { text: 'Skip', style: 'cancel' },
-              { text: 'Link', onPress: () => linkWorkoutToActivity(savedWorkout.id, todayActivity.id) },
-            ]
-          );
-        }
-      } catch { /* ignore */ }
+      setSavedWorkoutId(saved.id);
     } catch {
       Alert.alert('Error', 'Failed to save activity. Please try again.');
     } finally {
@@ -513,14 +509,24 @@ export default function LogActivityScreen({ navigation }: Props) {
           />
         </View>
 
-        {/* Save button */}
-        <Pressable
-          style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
-          <Text style={styles.saveBtnLabel}>{saving ? 'Saving...' : 'Save Activity'}</Text>
-        </Pressable>
+        {/* Actions / Review */}
+        {savedWorkoutId ? (
+          <PostWorkoutReview
+            workoutId={savedWorkoutId}
+            onContinueInChat={() => {
+              requestOpenChat();
+              navigation.getParent()?.navigate('Home');
+            }}
+          />
+        ) : (
+          <Pressable
+            style={[styles.saveBtn, { backgroundColor: colors.primary }, saving && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            <Text style={styles.saveBtnLabel}>{saving ? 'Saving...' : 'Save Activity'}</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );

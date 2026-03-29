@@ -63,6 +63,10 @@ Full details for each change are in the `progress/` folder.
 | [collapsed-metric-carousel](progress/collapsed-metric-carousel.md) | Swipeable metric carousel in collapsed GPS pill — time fixed, companion metrics paginate |
 | [gps-controls-dock-fix](progress/gps-controls-dock-fix.md) | Always-visible controls dock in collapsed/expanded sheet + hide banner on recording screens |
 | [early-skill-loading](progress/early-skill-loading.md) | Early skill loading during program creation — sport-specific intake guidance, 3 new skills (powerlifting, general fitness, triathlon), dynamic enum |
+| [context-aware-reviews](progress/context-aware-reviews.md) | Inject user memory (facts) + active program context into automated post-workout and missed-workout reviews |
+| [post-workout-review-ux](progress/post-workout-review-ux.md) | Inline post-workout review: poll for AI review after save, quick-reply, continue-in-chat — all 4 save flows |
+| [enhanced-workout-analytics](progress/enhanced-workout-analytics.md) | Cardiac efficiency, sport-specific PRs (distance/swim/strength), structured weekly trends, activity type families |
+| [daily-schedule-multi-activity](progress/daily-schedule-multi-activity.md) | Multi-activity daily schedule: hero card + compact "next up" rows, completion tracking with green tick, auto-promotion |
 
 ## Instructions for Agents
 

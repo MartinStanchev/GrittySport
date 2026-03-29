@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,7 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
-import { getWorkouts } from '../services/api';
+import { getWorkouts, deleteWorkout } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
@@ -225,14 +225,31 @@ export default function HistoryScreen({ navigation }: Props) {
     resetAndFetch(activeFilter, preset);
   }, [resetAndFetch, activeFilter]);
 
+  const handleDeleteWorkout = useCallback((workout: WorkoutResponse) => {
+    Alert.alert('Delete Workout', `Delete this ${formatActivityType(workout.activity_type)} workout?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteWorkout(workout.id);
+            setWorkouts((prev) => prev.filter((w) => w.id !== workout.id));
+          } catch {
+            Alert.alert('Error', 'Could not delete workout.');
+          }
+        },
+      },
+    ]);
+  }, []);
+
   const dateLabel = DATE_PRESETS.find((p) => p.key === datePreset)?.label ?? 'All Time';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <KineticHeader
         eyebrow="History"
-        title="Workout archive"
-        subtitle="Filter past sessions, import external files, and jump back into analysis."
+        title="Activities Log"
         right={
           <View style={styles.headerActions}>
             <Pressable onPress={() => navigation.navigate('Import')} style={[styles.addBtn, { backgroundColor: colors.surface }]}>
@@ -291,7 +308,10 @@ export default function HistoryScreen({ navigation }: Props) {
           data={workouts}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <Pressable onPress={() => navigation.navigate('WorkoutDetail', { workoutId: item.id })}>
+            <Pressable
+              onPress={() => navigation.navigate('WorkoutDetail', { workoutId: item.id })}
+              onLongPress={() => handleDeleteWorkout(item)}
+            >
               <WorkoutRow workout={item} colors={colors} />
             </Pressable>
           )}

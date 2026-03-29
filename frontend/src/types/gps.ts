@@ -99,8 +99,48 @@ export interface SplitsAnalysis {
 export interface PersonalRecord {
   category: string;
   value: number;
-  previousBest?: number;
-  improvementPct?: number;
+  formatted_value?: string;
+  unit?: string;
+  previous_best?: number;
+  improvement_pct?: number;
+}
+
+export interface CardiacEfficiency {
+  current_pace_sec_per_km: number;
+  current_avg_hr: number;
+  historical_avg_hr: number;
+  comparison_count: number;
+  delta_hr: number;
+  trend: 'improving' | 'stable' | 'declining';
+  summary: string;
+}
+
+export interface VolumeTrend {
+  this_week_km?: number;
+  last_week_km?: number;
+  this_week_sessions: number;
+  last_week_sessions: number;
+  change_km_pct?: number;
+  change_session_pct: number;
+}
+
+export interface EffortTrend {
+  this_week_avg_effort: number;
+  last_4_weeks_avg_effort: number;
+  change_pct: number;
+}
+
+export interface HRTrend {
+  avg_hr_at_pace_this_week: number;
+  avg_hr_at_pace_last_4_wks: number;
+  delta_hr: number;
+  trend: 'improving' | 'stable' | 'declining';
+}
+
+export interface WeeklyTrend {
+  volume_trend?: VolumeTrend;
+  effort_trend?: EffortTrend;
+  hr_trend?: HRTrend;
 }
 
 export interface WorkoutAnalytics {
@@ -114,6 +154,8 @@ export interface WorkoutAnalytics {
   program_alignment?: ProgramAlignment;
   trend?: TrendComparison;
   personal_records?: PersonalRecord[];
+  cardiac_efficiency?: CardiacEfficiency;
+  weekly_trend?: WeeklyTrend;
 }
 
 export interface ProgramAlignment {
