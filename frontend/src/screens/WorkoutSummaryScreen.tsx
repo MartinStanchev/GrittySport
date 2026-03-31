@@ -43,6 +43,7 @@ import { PremiumStatsCard } from '../components/PremiumStatsCard';
 import { EffortScoreCard } from '../components/EffortScoreCard';
 import { SplitsCard } from '../components/SplitsCard';
 import type { ThemeColors } from '../constants/colors';
+import { Fonts } from '../constants/fonts';
 
 export default function WorkoutSummaryScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -69,8 +70,8 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.getParent()?.navigate('Home')} hitSlop={8}>
-          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
@@ -400,7 +401,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
           {/* Premium Analytics */}
           {effortData && (
-            <PremiumStatsCard isPremium={userIsPremium} title="Advanced Analytics">
+            <PremiumStatsCard isPremium={userIsPremium} title="Analytics">
               <EffortScoreCard data={effortData} />
             </PremiumStatsCard>
           )}
@@ -422,9 +423,11 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
           {savedWorkoutId ? (
             <PostWorkoutReview
               workoutId={savedWorkoutId}
+              activityType={workout.activityType}
+              scheduledActivityId={workout.scheduledActivityId}
               onContinueInChat={() => {
                 requestOpenChat();
-                navigation.getParent()?.navigate('Home');
+                navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
               }}
             />
           ) : (

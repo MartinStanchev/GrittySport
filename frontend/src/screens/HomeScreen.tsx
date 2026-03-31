@@ -27,7 +27,9 @@ import { getChatHistory, getWorkouts } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
 import { ProgramEditCard } from '../components/ProgramEditCard';
+import type { ProgramEditData } from '../components/ProgramEditCard';
 import { ProposalReviewView } from '../components/ProposalReviewView';
+import { EditProposalReviewView } from '../components/EditProposalReviewView';
 import { TodayWorkoutCard } from '../components/TodayWorkoutCard';
 import { GritInsightCard } from '../components/GritInsightCard';
 import { QuickStatsRow } from '../components/QuickStatsRow';
@@ -214,6 +216,7 @@ export default function HomeScreen() {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
   const [reviewingProposal, setReviewingProposal] = useState<{ data: ProgramProposalData; messageId: string } | null>(null);
+  const [reviewingEditProposal, setReviewingEditProposal] = useState<{ data: ProgramEditData; messageId: string } | null>(null);
 
   const inputRef = useRef<TextInput>(null);
 
@@ -376,6 +379,7 @@ export default function HomeScreen() {
             data={item.proposalData}
             onAccept={() => handleProposalResponse('accept', item.id)}
             onDeny={() => handleProposalResponse('deny', item.id)}
+            onReviewChanges={() => setReviewingEditProposal({ data: item.proposalData, messageId: item.id })}
             disabled={respondedProposals.has(item.id)}
           />
         );
@@ -416,6 +420,18 @@ export default function HomeScreen() {
     handleProposalResponse('deny', reviewingProposal.messageId);
     setReviewingProposal(null);
   }, [reviewingProposal, handleProposalResponse]);
+
+  const handleEditReviewAccept = useCallback(() => {
+    if (!reviewingEditProposal) return;
+    handleProposalResponse('accept', reviewingEditProposal.messageId);
+    setReviewingEditProposal(null);
+  }, [reviewingEditProposal, handleProposalResponse]);
+
+  const handleEditReviewDeny = useCallback(() => {
+    if (!reviewingEditProposal) return;
+    handleProposalResponse('deny', reviewingEditProposal.messageId);
+    setReviewingEditProposal(null);
+  }, [reviewingEditProposal, handleProposalResponse]);
 
   useFocusEffect(
     useCallback(() => {
@@ -511,9 +527,21 @@ export default function HomeScreen() {
         visible={chatOpen}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={reviewingProposal ? () => setReviewingProposal(null) : closeChat}
+        onRequestClose={
+          reviewingEditProposal ? () => setReviewingEditProposal(null) :
+          reviewingProposal ? () => setReviewingProposal(null) :
+          closeChat
+        }
       >
-        {reviewingProposal ? (
+        {reviewingEditProposal ? (
+          <EditProposalReviewView
+            data={reviewingEditProposal.data}
+            onAccept={handleEditReviewAccept}
+            onDeny={handleEditReviewDeny}
+            onBack={() => setReviewingEditProposal(null)}
+            disabled={respondedProposals.has(reviewingEditProposal.messageId)}
+          />
+        ) : reviewingProposal ? (
           <ProposalReviewView
             data={reviewingProposal.data}
             onAccept={handleReviewAccept}

@@ -169,6 +169,7 @@ func main() {
 		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
 		r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
 		r.Get("/workouts/{workoutId}/review", workoutHandler.GetReview)
+		r.Post("/workouts/{workoutId}/review/trigger", workoutHandler.TriggerReview)
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

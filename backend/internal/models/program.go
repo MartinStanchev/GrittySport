@@ -308,6 +308,34 @@ type ProgramEdit struct {
 	Criteria []SaveCriterionInput `json:"criteria,omitempty"`
 }
 
+// ActivitySnapshot is a lightweight summary of an activity's current state.
+type ActivitySnapshot struct {
+	ActivityType string          `json:"activity_type"`
+	Prescription json.RawMessage `json:"prescription,omitempty"`
+	Notes        *string         `json:"notes,omitempty"`
+}
+
+// CriterionSnapshot captures the old value of a criterion.
+type CriterionSnapshot struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+// EditBeforeState holds the resolved "before" state for a single edit.
+type EditBeforeState struct {
+	Activity *ActivitySnapshot   `json:"activity,omitempty"`
+	DayA     []ActivitySnapshot  `json:"day_a,omitempty"`
+	DayB     []ActivitySnapshot  `json:"day_b,omitempty"`
+	Criteria []CriterionSnapshot `json:"criteria,omitempty"`
+}
+
+// EnrichedEdit is a ProgramEdit augmented with its resolved "before" state.
+type EnrichedEdit struct {
+	ProgramEdit
+	Before *EditBeforeState `json:"before,omitempty"`
+}
+
 type UpcomingActivityResponse struct {
 	ID           string          `json:"id"`
 	ActivityType string          `json:"activity_type"`

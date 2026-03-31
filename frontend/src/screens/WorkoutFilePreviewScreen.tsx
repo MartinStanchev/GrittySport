@@ -39,6 +39,7 @@ import {
 import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
+import { Fonts } from '../constants/fonts';
 
 interface RouteParams {
   fileUri: string;
@@ -234,8 +235,8 @@ function WorkoutPreview({
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
@@ -464,9 +465,11 @@ function WorkoutPreview({
         {savedWorkoutId ? (
           <PostWorkoutReview
             workoutId={savedWorkoutId}
+            activityType={activityType}
+            scheduledActivityId={scheduledActivityId}
             onContinueInChat={() => {
               requestOpenChat();
-              navigation.getParent()?.navigate('Home');
+              navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
             }}
           />
         ) : (

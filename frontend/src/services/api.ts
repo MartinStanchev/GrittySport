@@ -658,3 +658,8 @@ export async function getWorkoutReview(workoutId: string): Promise<WorkoutReview
   return apiFetch<WorkoutReviewResponse>(`/api/v1/workouts/${workoutId}/review`);
 }
 
+export async function triggerWorkoutReview(workoutId: string): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/v1/workouts/${workoutId}/review/trigger`, {
+    method: 'POST',
+  });
+}

@@ -19,9 +19,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
-import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
-import { getUpcomingActivities, saveWorkout } from '../services/api';
-import type { UpcomingActivity } from '../services/api';
+import { getActivityIcon } from '../constants/activityIcons';
+import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import * as healthKit from '../services/healthKitService';
@@ -130,8 +129,6 @@ function ImportDetailSheet({
   navigation: any;
   colors: ThemeColors;
 }) {
-  const [upcomingActivities, setUpcomingActivities] = useState<UpcomingActivity[]>([]);
-  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
@@ -145,24 +142,11 @@ function ImportDetailSheet({
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 320 }),
         Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
       ]).start();
-
-      getUpcomingActivities()
-        .then((activities) => {
-          const compatible = activities.filter((a) => {
-            const aType = a.activity_type.toLowerCase().replace(/\s+/g, '_');
-            const wType = workout.mappedActivityType.toLowerCase();
-            return aType.includes(wType) || wType.includes(aType);
-          });
-          setUpcomingActivities(compatible);
-        })
-        .catch(() => {});
     } else {
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: 400, duration: 180, useNativeDriver: true }),
         Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
       ]).start();
-      setSelectedActivityId(null);
-      setUpcomingActivities([]);
       setSavedWorkoutId(null);
     }
   }, [visible, workout, slideAnim, opacityAnim]);
@@ -182,7 +166,6 @@ function ImportDetailSheet({
         workout,
         hrReadings,
         gpsPoints,
-        selectedActivityId ?? undefined,
       );
 
       const result = await saveWorkout(input);
@@ -251,47 +234,14 @@ function ImportDetailSheet({
             )}
           </View>
 
-          {!savedWorkoutId && upcomingActivities.length > 0 && (
-            <View style={styles.linkSection}>
-              <Text style={[styles.linkTitle, { color: colors.textPrimary }]}>Link to Scheduled Activity</Text>
-              <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
-                Connect this import to a planned activity in your program
-              </Text>
-              {upcomingActivities.map((a) => (
-                <TouchableOpacity
-                  key={a.id}
-                  style={[
-                    styles.linkOption,
-                    { borderColor: colors.border },
-                    selectedActivityId === a.id && { borderColor: colors.primary, backgroundColor: colors.primaryLight },
-                  ]}
-                  onPress={() =>
-                    setSelectedActivityId(selectedActivityId === a.id ? null : a.id)
-                  }
-                >
-                  <Ionicons
-                    name={selectedActivityId === a.id ? 'radio-button-on' : 'radio-button-off'}
-                    size={18}
-                    color={selectedActivityId === a.id ? colors.primary : colors.textSecondary}
-                  />
-                  <View style={styles.linkOptionContent}>
-                    <Text style={[styles.linkOptionType, { color: colors.textPrimary }]}>{formatActivityType(a.activity_type)}</Text>
-                    <Text style={[styles.linkOptionMeta, { color: colors.textSecondary }]}>
-                      {a.date} - {a.phase_name}, Week {a.week_number}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
           {savedWorkoutId && (
             <PostWorkoutReview
               workoutId={savedWorkoutId}
+              activityType={workout.mappedActivityType}
               onContinueInChat={() => {
                 onClose();
                 requestOpenChat();
-                navigation.getParent()?.navigate('Home');
+                navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
               }}
             />
           )}
@@ -314,7 +264,7 @@ function ImportDetailSheet({
                 <ActivityIndicator size="small" color={colors.surface} />
               ) : (
                 <Text style={[styles.importButtonText, { color: colors.surface }]}>
-                  {selectedActivityId ? 'Import & Link' : 'Import as Unscheduled'}
+                  Import Workout
                 </Text>
               )}
             </TouchableOpacity>
@@ -562,24 +512,6 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
   summaryLabel: { fontSize: 14 },
   summaryValue: { fontSize: 14, fontWeight: '500' },
-
-  // Link section
-  linkSection: { marginBottom: 16 },
-  linkTitle: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
-  linkSubtitle: { fontSize: 13, marginBottom: 10 },
-  linkOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  linkOptionContent: { flex: 1 },
-  linkOptionType: { fontSize: 14, fontWeight: '500' },
-  linkOptionMeta: { fontSize: 12, marginTop: 2 },
 
   // Actions
   sheetActions: { padding: 20, gap: 10, borderTopWidth: 1 },

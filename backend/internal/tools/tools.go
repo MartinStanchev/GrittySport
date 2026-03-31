@@ -553,6 +553,14 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("marshal edits: %w", err)
 			}
 
+			// Enrich edits with "before" state for frontend diffs.
+			var rawEdits []models.ProgramEdit
+			if err := json.Unmarshal(editsJSON, &rawEdits); err == nil {
+				if enriched, err := programSvc.ResolveEditsBefore(ctx, programID, userID, rawEdits); err == nil {
+					editsJSON, _ = json.Marshal(enriched)
+				}
+			}
+
 			metaJSON, _ := json.Marshal(map[string]string{
 				"program_id":  programID,
 				"description": description,

@@ -79,23 +79,6 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Trigger post-workout review async (non-blocking).
-	// Use a detached context — the HTTP request context is cancelled after response.
-	if h.reviewService != nil {
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			allowed, _, _ := h.usageService.CheckAndIncrement(ctx, userID, "post_workout_review")
-			if !allowed {
-				log.Debug().Str("user_id", userID).Msg("Post-workout review skipped: free tier limit reached")
-				return
-			}
-			if err := h.reviewService.TriggerReview(ctx, userID, workout.ID); err != nil {
-				log.Error().Err(err).Str("workout_id", workout.ID).Msg("Post-workout review failed")
-			}
-		}()
-	}
-
 	writeJSON(w, http.StatusCreated, workout)
 }
 
@@ -237,6 +220,33 @@ func (h *WorkoutHandler) GetReview(w http.ResponseWriter, r *http.Request) {
 		"status":  "ready",
 		"message": msg.ToResponse(),
 	})
+}
+
+// TriggerReview starts an async post-workout review for a given workout.
+// Called by the frontend after the user decides whether to link the workout to a program activity.
+func (h *WorkoutHandler) TriggerReview(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	workoutID := chi.URLParam(r, "workoutId")
+
+	if h.reviewService == nil {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		allowed, _, _ := h.usageService.CheckAndIncrement(ctx, userID, "post_workout_review")
+		if !allowed {
+			log.Debug().Str("user_id", userID).Msg("Post-workout review skipped: free tier limit reached")
+			return
+		}
+		if err := h.reviewService.TriggerReview(ctx, userID, workoutID); err != nil {
+			log.Error().Err(err).Str("workout_id", workoutID).Msg("Post-workout review failed")
+		}
+	}()
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // WeeklyEffort returns aggregated effort score for the current week.

@@ -299,8 +299,8 @@ export default function LogActivityScreen({ navigation }: Props) {
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>Done</Text>
+        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+          <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
@@ -513,9 +513,10 @@ export default function LogActivityScreen({ navigation }: Props) {
         {savedWorkoutId ? (
           <PostWorkoutReview
             workoutId={savedWorkoutId}
+            activityType={selectedType!}
             onContinueInChat={() => {
               requestOpenChat();
-              navigation.getParent()?.navigate('Home');
+              navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
             }}
           />
         ) : (

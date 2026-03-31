@@ -508,7 +508,7 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
 
       {/* Premium Analytics */}
       {showPremiumAnalytics && (
-        <PremiumStatsCard isPremium={userIsPremium} title="Advanced Analytics">
+        <PremiumStatsCard isPremium={userIsPremium} title="Analytics">
           {analytics && (
             <>
               {analytics.effort_score > 0 && (

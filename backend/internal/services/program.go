@@ -1030,6 +1030,137 @@ func (s *ProgramService) DeleteProgram(ctx context.Context, programID, userID st
 	return nil
 }
 
+// ResolveEditsBefore enriches each edit with its "before" state so the
+// frontend can render before→after diffs. Errors per edit are non-fatal;
+// the Before field is simply left nil.
+func (s *ProgramService) ResolveEditsBefore(ctx context.Context, programID, userID string, edits []models.ProgramEdit) ([]models.EnrichedEdit, error) {
+	result := make([]models.EnrichedEdit, len(edits))
+
+	// Pre-fetch criteria and build lookup map once if any edit needs them.
+	var criteriaMap map[string]models.ProgramCriterion
+	for _, e := range edits {
+		if e.Action == "update_criteria" {
+			if criteria, err := s.GetCriteria(ctx, programID, userID); err == nil {
+				criteriaMap = make(map[string]models.ProgramCriterion, len(criteria))
+				for _, c := range criteria {
+					criteriaMap[c.Key] = c
+				}
+			}
+			break
+		}
+	}
+
+	for i, edit := range edits {
+		result[i].ProgramEdit = edit
+
+		switch edit.Action {
+		case "update_activity", "remove_activity":
+			if edit.ActivityID != "" {
+				act, err := s.GetScheduledActivity(ctx, edit.ActivityID, userID)
+				if err == nil {
+					result[i].Before = &models.EditBeforeState{
+						Activity: &models.ActivitySnapshot{
+							ActivityType: act.ActivityType,
+							Prescription: act.Prescription,
+							Notes:        act.Notes,
+						},
+					}
+				}
+			} else if edit.DayOfWeek != nil {
+				snap := s.sampleActivityByDay(ctx, programID, *edit.DayOfWeek, edit.PhaseIndex, edit.ActivityTypeFilter)
+				if snap != nil {
+					result[i].Before = &models.EditBeforeState{Activity: snap}
+				}
+			}
+
+		case "swap_day":
+			if edit.DayOfWeek != nil && edit.NewDay != nil {
+				dayA := s.sampleActivitiesByDay(ctx, programID, *edit.DayOfWeek, edit.PhaseIndex)
+				dayB := s.sampleActivitiesByDay(ctx, programID, *edit.NewDay, edit.PhaseIndex)
+				result[i].Before = &models.EditBeforeState{DayA: dayA, DayB: dayB}
+			}
+
+		case "update_criteria":
+			if criteriaMap != nil && len(edit.Criteria) > 0 {
+				var snaps []models.CriterionSnapshot
+				for _, c := range edit.Criteria {
+					if old, ok := criteriaMap[c.Key]; ok {
+						snaps = append(snaps, models.CriterionSnapshot{
+							Key: old.Key, Label: old.Label, Value: old.Value,
+						})
+					}
+				}
+				if len(snaps) > 0 {
+					result[i].Before = &models.EditBeforeState{Criteria: snaps}
+				}
+			}
+		}
+	}
+	return result, nil
+}
+
+// sampleActivityByDay returns a single representative activity for a given
+// day_of_week in the program, optionally filtered by phase and activity type.
+func (s *ProgramService) sampleActivityByDay(ctx context.Context, programID string, dayOfWeek int, phaseIndex *int, typeFilter string) *models.ActivitySnapshot {
+	weekFilter, args, argIdx := buildWeekFilter(programID, phaseIndex, "sa.week_id")
+
+	args = append(args, dayOfWeek)
+	dayArg := argIdx
+	argIdx++
+
+	typeClause, args := appendTypeFilter(typeFilter, args, argIdx)
+
+	var snap models.ActivitySnapshot
+	err := s.pool.QueryRow(ctx,
+		fmt.Sprintf(`SELECT sa.activity_type, sa.prescription, sa.notes
+		 FROM scheduled_activities sa
+		 WHERE sa.day_of_week = $%d%s AND %s
+		 ORDER BY sa.week_id ASC, sa.order_index ASC
+		 LIMIT 1`, dayArg, typeClause, weekFilter),
+		args...,
+	).Scan(&snap.ActivityType, &snap.Prescription, &snap.Notes)
+	if err != nil {
+		return nil
+	}
+	return &snap
+}
+
+// sampleActivitiesByDay returns all activities on a given day from the first
+// matching week. Used to populate swap_day before-state.
+func (s *ProgramService) sampleActivitiesByDay(ctx context.Context, programID string, dayOfWeek int, phaseIndex *int) []models.ActivitySnapshot {
+	weekFilter, args, argIdx := buildWeekFilter(programID, phaseIndex, "sa.week_id")
+	args = append(args, dayOfWeek)
+	dayArg := argIdx
+
+	// Find the first week that has activities on this day.
+	rows, err := s.pool.Query(ctx,
+		fmt.Sprintf(`SELECT sa.activity_type, sa.prescription, sa.notes
+		 FROM scheduled_activities sa
+		 WHERE sa.day_of_week = $%d AND %s
+		   AND sa.week_id = (
+		       SELECT sa2.week_id FROM scheduled_activities sa2
+		       WHERE sa2.day_of_week = $%d AND %s
+		       ORDER BY sa2.week_id ASC LIMIT 1
+		   )
+		 ORDER BY sa.order_index ASC`, dayArg, weekFilter, dayArg, weekFilter),
+		args...,
+	)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var result []models.ActivitySnapshot
+	for rows.Next() {
+		var snap models.ActivitySnapshot
+		if err := rows.Scan(&snap.ActivityType, &snap.Prescription, &snap.Notes); err != nil {
+			return nil
+		}
+		result = append(result, snap)
+	}
+	return result
+}
+
 func nilIfEmpty(s string) *string {
 	if s == "" {
 		return nil
