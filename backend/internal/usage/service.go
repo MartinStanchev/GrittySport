@@ -14,10 +14,10 @@ const (
 	TierPremium = "premium"
 	TierFree    = "free"
 
-	FreeChatMessagesPerWeek            = 50
+	FreeChatMessagesPerWeek            = 40
 	FreeProgramCreationsPerMonth       = 2
-	FreePostWorkoutReviewsPerMonth     = 3
-	FreeMissedWorkoutReviewsPerMonth   = 3
+	FreePostWorkoutReviewsPerMonth     = 5
+	FreeMissedWorkoutReviewsPerMonth   = 5
 	FreeProgramsTotal                  = 1
 	FreeDraftsTotal                    = 3
 )

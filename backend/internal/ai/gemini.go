@@ -17,7 +17,7 @@ import (
 	"google.golang.org/genai"
 )
 
-const model = "gemini-2.5-flash"
+const model = "gemini-3-flash"
 const cheapModel = "gemini-2.0-flash-lite"
 
 type ChatMessage struct {
