@@ -92,6 +92,26 @@ func TestBuildClassifyPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildCondensePreferencePrompt(t *testing.T) {
+	prompt := buildCondensePreferencePrompt("Remember that I always prefer to do my long runs on Sunday mornings because my wife takes the kids to swimming")
+
+	if !strings.Contains(prompt, "long runs on Sunday") {
+		t.Error("prompt should include the preference content")
+	}
+	if !strings.Contains(prompt, "Condense") {
+		t.Error("prompt should instruct condensation")
+	}
+	if !strings.Contains(prompt, "under 100 characters") {
+		t.Error("prompt should specify a character limit")
+	}
+}
+
+func TestCondensePreferenceThreshold(t *testing.T) {
+	if condensePreferenceThreshold != 150 {
+		t.Errorf("condensePreferenceThreshold = %d, want 150", condensePreferenceThreshold)
+	}
+}
+
 func TestStripCodeFence(t *testing.T) {
 	tests := []struct {
 		input    string

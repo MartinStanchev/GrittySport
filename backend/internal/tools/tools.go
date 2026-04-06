@@ -8,6 +8,7 @@ import (
 
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/chat"
+	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/usage"
@@ -102,7 +103,7 @@ func parsePhaseParams(params map[string]any) (models.TemplatePhaseInput, error) 
 	return phase, nil
 }
 
-func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader, usageSvc *usage.Service) {
+func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader, usageSvc *usage.Service, memorySvc *memory.Service) {
 	reg.Register(&Tool{
 		Name:        "read_skill",
 		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
@@ -777,6 +778,80 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("activity_id is required")
 			}
 			return programSvc.GetScheduledActivity(ctx, activityID, userID)
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "save_user_preference",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
+		Description: "Save an explicit user preference that Grit should always follow. Use when the user says 'remember that...', 'always do...', 'I prefer...', or similar. The preference is persisted across conversations and always included in context. Long preferences are automatically condensed.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"content"},
+			Properties: map[string]*genai.Schema{
+				"content": {Type: genai.TypeString, Description: "The preference to remember, stated concisely"},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			content, _ := params["content"].(string)
+			if content == "" {
+				return nil, fmt.Errorf("content is required")
+			}
+
+			// Enforce preference cap for free users.
+			tier, _ := usageSvc.GetTier(ctx, userID)
+			if tier != usage.TierPremium {
+				count, err := memorySvc.CountExplicitPreferences(ctx, userID)
+				if err == nil && count >= usage.FreeExplicitPreferencesTotal {
+					return map[string]any{
+						"status":  "blocked",
+						"reason":  "free_tier_limit",
+						"message": fmt.Sprintf("You've reached your free preference limit (%d). Remove an existing preference or upgrade to premium.", usage.FreeExplicitPreferencesTotal),
+					}, nil
+				}
+			}
+
+			if err := memorySvc.SaveExplicitPreference(ctx, userID, content); err != nil {
+				return nil, err
+			}
+			return map[string]string{
+				"status":  "saved",
+				"message": "Preference saved. I'll keep this in mind for all future conversations.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "forget_user_preference",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
+		Description: "Remove a previously saved user preference. Use when the user says 'forget that...', 'stop doing...', 'I no longer prefer...'. Provide the exact preference content as shown in User Preferences.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"content"},
+			Properties: map[string]*genai.Schema{
+				"content": {Type: genai.TypeString, Description: "The exact preference content to remove (as shown in User Preferences)"},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			content, _ := params["content"].(string)
+			if content == "" {
+				return nil, fmt.Errorf("content is required")
+			}
+
+			removed, err := memorySvc.RemoveExplicitPreference(ctx, userID, content)
+			if err != nil {
+				return nil, err
+			}
+			if removed == 0 {
+				return map[string]string{
+					"status":  "not_found",
+					"message": "No matching preference found. Check the exact wording in User Preferences.",
+				}, nil
+			}
+			return map[string]string{
+				"status":  "removed",
+				"message": "Preference removed.",
+			}, nil
 		},
 	})
 }

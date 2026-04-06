@@ -338,16 +338,84 @@ func (s *Service) RunFactDecay(ctx context.Context) (int64, error) {
 	return total, nil
 }
 
-// GetActiveFacts returns the 20 most recent active facts for a user.
-func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.ChatFact, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
-		 FROM chat_facts WHERE user_id = $1 AND active = true
-		 ORDER BY created_at DESC LIMIT 20`,
-		userID,
+// SaveExplicitPreference saves a user-requested preference. If the content exceeds
+// condensePreferenceThreshold characters, it is condensed via a cheap LLM call first.
+func (s *Service) SaveExplicitPreference(ctx context.Context, userID, content string) error {
+	if len(content) > condensePreferenceThreshold {
+		condensed, err := s.aiClient.GenerateCheap(ctx, buildCondensePreferencePrompt(content))
+		if err == nil && strings.TrimSpace(condensed) != "" {
+			content = strings.TrimSpace(condensed)
+		}
+		// On LLM error, fall through with the original content.
+	}
+
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO chat_facts (user_id, fact_type, content)
+		 SELECT $1::uuid, 'explicit_preference', $2::text
+		 WHERE NOT EXISTS (
+		   SELECT 1 FROM chat_facts WHERE user_id = $1 AND fact_type = 'explicit_preference' AND content = $2 AND active = true
+		 )`,
+		userID, content,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("get active facts: %w", err)
+		return fmt.Errorf("save explicit preference: %w", err)
+	}
+	return nil
+}
+
+// RemoveExplicitPreference deactivates an explicit preference matching the given content (case-insensitive).
+// Returns the number of preferences deactivated.
+func (s *Service) RemoveExplicitPreference(ctx context.Context, userID, content string) (int64, error) {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE chat_facts SET active = false, updated_at = NOW()
+		 WHERE user_id = $1 AND fact_type = 'explicit_preference' AND LOWER(content) = LOWER($2) AND active = true`,
+		userID, content,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("remove explicit preference: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+// CountExplicitPreferences returns the number of active explicit preferences for a user.
+func (s *Service) CountExplicitPreferences(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM chat_facts WHERE user_id = $1 AND fact_type = 'explicit_preference' AND active = true`,
+		userID,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count explicit preferences: %w", err)
+	}
+	return count, nil
+}
+
+// GetExplicitPreferences returns up to 10 active explicit preferences for a user, newest first.
+func (s *Service) GetExplicitPreferences(ctx context.Context, userID string) ([]models.ChatFact, error) {
+	return s.queryFacts(ctx,
+		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
+		 FROM chat_facts WHERE user_id = $1 AND fact_type = 'explicit_preference' AND active = true
+		 ORDER BY created_at DESC LIMIT 10`,
+		"get explicit preferences", userID,
+	)
+}
+
+// GetActiveFacts returns the 20 most recent active facts for a user (excludes explicit_preference, which is fetched separately).
+func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.ChatFact, error) {
+	return s.queryFacts(ctx,
+		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
+		 FROM chat_facts WHERE user_id = $1 AND active = true AND fact_type != 'explicit_preference'
+		 ORDER BY created_at DESC LIMIT 20`,
+		"get active facts", userID,
+	)
+}
+
+// queryFacts executes a chat_facts SELECT query and scans the results into a slice.
+// The query must select the standard eight fact columns in declaration order.
+func (s *Service) queryFacts(ctx context.Context, query, errContext string, args ...any) ([]models.ChatFact, error) {
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", errContext, err)
 	}
 	defer rows.Close()
 
@@ -355,7 +423,7 @@ func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.C
 	for rows.Next() {
 		var f models.ChatFact
 		if err := rows.Scan(&f.ID, &f.UserID, &f.FactType, &f.Content, &f.SourceSegmentID, &f.Active, &f.CreatedAt, &f.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("scan fact: %w", err)
+			return nil, fmt.Errorf("%s: scan: %w", errContext, err)
 		}
 		facts = append(facts, f)
 	}
@@ -367,7 +435,20 @@ func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.C
 func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (string, error) {
 	var b strings.Builder
 
-	// 1. Active facts.
+	// 1. Explicit user preferences (always included, separate from general facts).
+	prefs, err := s.GetExplicitPreferences(ctx, userID)
+	if err != nil {
+		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to load explicit preferences for memory assembly")
+	}
+	if len(prefs) > 0 {
+		b.WriteString("### User Preferences\n")
+		for _, p := range prefs {
+			b.WriteString(fmt.Sprintf("- %s\n", p.Content))
+		}
+		b.WriteString("\n")
+	}
+
+	// 2. Active facts (auto-extracted, excludes explicit_preference).
 	facts, err := s.GetActiveFacts(ctx, userID)
 	if err != nil {
 		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to load facts for memory assembly")
@@ -380,7 +461,7 @@ func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (stri
 		b.WriteString("\n")
 	}
 
-	// 2. Mode-aware segment summaries.
+	// 3. Mode-aware segment summaries.
 	summaries := s.getSegmentSummaries(ctx, userID, mode)
 	if len(summaries) > 0 {
 		b.WriteString("### Recent Sessions\n")
@@ -397,6 +478,7 @@ func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (stri
 	log.Debug().
 		Str("user_id", userID).
 		Str("mode", mode).
+		Int("preferences", len(prefs)).
 		Int("facts", len(facts)).
 		Int("segments", len(summaries)).
 		Msg("Memory assembled")
@@ -592,6 +674,8 @@ func formatFactType(ft string) string {
 		return "Equipment"
 	case "sport_focus":
 		return "Sport"
+	case "explicit_preference":
+		return "User Preference"
 	default:
 		return strings.ReplaceAll(ft, "_", " ")
 	}

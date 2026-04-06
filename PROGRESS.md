@@ -69,6 +69,7 @@ Full details for each change are in the `progress/` folder.
 | [daily-schedule-multi-activity](progress/daily-schedule-multi-activity.md) | Multi-activity daily schedule: hero card + compact "next up" rows, completion tracking with green tick, auto-promotion |
 | [link-before-review](progress/link-before-review.md) | Link workout to scheduled activity before Grit's review — unified flow in PostWorkoutReview, new trigger endpoint |
 | [enriched-edit-proposals](progress/enriched-edit-proposals.md) | Backend edit enrichment with before-state + bifurcated inline/full-screen edit proposal UI |
+| [explicit-user-preferences](progress/explicit-user-preferences.md) | Explicit user preferences: save/forget tools, LLM condensing, separate assembly section, 5 free / unlimited premium |
 
 ## Instructions for Agents
 

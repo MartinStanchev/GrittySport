@@ -70,6 +70,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
   const initialVersionRef = useRef(programDataVersion);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const navigateWeekRef = useRef<(direction: 1 | -1) => void>(() => {});
+  const hasAutoSelectedWeek = useRef(false);
 
   const fetchProgram = useCallback(async () => {
     try {
@@ -146,7 +147,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
   }, [program]);
 
   useEffect(() => {
-    if (flatWeeks.length === 0) return;
+    if (flatWeeks.length === 0 || hasAutoSelectedWeek.current) return;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -170,6 +171,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
       idx = flatWeeks.length - 1;
     }
 
+    hasAutoSelectedWeek.current = true;
     setSelectedWeekIdx(idx);
   }, [flatWeeks]);
 

@@ -16,6 +16,7 @@ func TestFormatFactType(t *testing.T) {
 		{"schedule_constraint", "Schedule"},
 		{"equipment", "Equipment"},
 		{"sport_focus", "Sport"},
+		{"explicit_preference", "User Preference"},
 		{"unknown_type", "unknown type"},
 	}
 

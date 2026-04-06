@@ -25,7 +25,7 @@ Tie up loose ends, ensure all features work together end-to-end, and polish the 
 - Chat message sending should show the user's message immediately (optimistic UI) with a subtle pending indicator until confirmed
 
 ### Task 15.5: App Icon and Splash Screen
-- Design and configure the app icon (a bold, gritty "G" or fist icon in the primary red color on a dark background)
+- Design and configure the app icon. We can use Stitch or you can design icon ideas yourself. 
 - Configure the splash screen in `app.json` with the app name and icon
 - Use `expo-splash-screen` to hold the splash until initial auth check completes
 

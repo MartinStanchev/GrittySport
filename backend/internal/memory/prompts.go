@@ -71,6 +71,17 @@ Respond with JSON only:
 If no facts are present, return an empty facts array. Always include at least one tag. Be concise and factual.`
 }
 
+// condensePreferenceThreshold is the character count above which a preference is condensed via LLM.
+const condensePreferenceThreshold = 150
+
+func buildCondensePreferencePrompt(content string) string {
+	return `Condense the following user preference into a single short sentence (under 100 characters). Keep the core meaning, drop filler and context.
+
+User said: "` + content + `"
+
+Respond with the condensed preference only, no quotes, no JSON.`
+}
+
 func buildClassifyPrompt(messageContent string) string {
 	return `Classify this user message into a conversation segment type. The user has an AI fitness coach.
 

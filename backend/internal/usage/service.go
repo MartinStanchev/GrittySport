@@ -20,6 +20,7 @@ const (
 	FreeMissedWorkoutReviewsPerMonth   = 5
 	FreeProgramsTotal                  = 1
 	FreeDraftsTotal                    = 3
+	FreeExplicitPreferencesTotal       = 5
 )
 
 type Service struct {

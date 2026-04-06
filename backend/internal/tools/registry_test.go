@@ -35,6 +35,8 @@ func newTestRegistry() *Registry {
 		{"get_scheduled_activity", []chat.Mode{chat.ModeProgramManagement, chat.ModeWorkoutReview}},
 		{"edit_program", []chat.Mode{chat.ModeProgramManagement}},
 		{"confirm_edit", []chat.Mode{chat.ModeProgramManagement}},
+		{"save_user_preference", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
+		{"forget_user_preference", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
 	}
 
 	for _, s := range stubs {
@@ -209,8 +211,8 @@ func TestProposalStoreGetPhases(t *testing.T) {
 func TestGeminiToolsReturnsAll(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiTools())
-	if len(names) != 19 {
-		t.Errorf("GeminiTools() returned %d tools, want 19", len(names))
+	if len(names) != 21 {
+		t.Errorf("GeminiTools() returned %d tools, want 21", len(names))
 	}
 }
 
@@ -224,23 +226,23 @@ func TestGeminiToolsForMode(t *testing.T) {
 	}{
 		{
 			mode:      chat.ModeGeneralCoaching,
-			wantCount: 6,
-			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation", "begin_program_modification"},
+			wantCount: 8,
+			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference"},
 		},
 		{
 			mode:      chat.ModeProgramCreation,
-			wantCount: 13,
-			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "get_draft_program", "create_draft_program", "save_draft_criterion", "save_draft_phase", "update_draft_phase", "delete_draft_phase", "propose_program", "start_program_today", "confirm_program_save"},
+			wantCount: 15,
+			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "get_draft_program", "create_draft_program", "save_draft_criterion", "save_draft_phase", "update_draft_phase", "delete_draft_phase", "propose_program", "start_program_today", "confirm_program_save", "save_user_preference", "forget_user_preference"},
 		},
 		{
 			mode:      chat.ModeProgramManagement,
-			wantCount: 6,
-			wantNames: []string{"read_skill", "get_active_program", "get_program_criteria", "get_scheduled_activity", "edit_program", "confirm_edit"},
+			wantCount: 8,
+			wantNames: []string{"read_skill", "get_active_program", "get_program_criteria", "get_scheduled_activity", "edit_program", "confirm_edit", "save_user_preference", "forget_user_preference"},
 		},
 		{
 			mode:      chat.ModeWorkoutReview,
-			wantCount: 5,
-			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity", "begin_program_creation", "begin_program_modification"},
+			wantCount: 7,
+			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference"},
 		},
 	}
 
@@ -266,7 +268,7 @@ func TestGeminiToolsForMode(t *testing.T) {
 func TestGeminiToolsForMode_UnknownFallsBack(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiToolsForMode("unknown_mode"))
-	if len(names) != 19 {
+	if len(names) != 21 {
 		t.Errorf("unknown mode should fall back to all tools, got %d", len(names))
 	}
 }
