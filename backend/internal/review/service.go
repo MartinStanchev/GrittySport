@@ -100,8 +100,8 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	prompt = strings.ReplaceAll(prompt, "{{.TrendSummary}}", trendSummary)
 	prompt = strings.ReplaceAll(prompt, "{{.EffortScore}}", fmt.Sprintf("%d (%s)", effortScore, effortLabel))
 
-	// Call Gemini — single non-streaming call, Grit initiates
-	response, err := s.generateReview(ctx, prompt)
+	// Call Gemini — single non-streaming call, Grit initiates (Standard tier: user-facing)
+	response, err := s.generateReview(ctx, prompt, false)
 	if err != nil {
 		return fmt.Errorf("generate review: %w", err)
 	}
@@ -163,7 +163,8 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	prompt = strings.ReplaceAll(prompt, "{{.PhaseName}}", phaseName)
 	prompt = strings.ReplaceAll(prompt, "{{.PrescriptionSummary}}", prescriptionStr)
 
-	response, err := s.generateReview(ctx, prompt)
+	// Flex tier: background scheduler, no user waiting
+	response, err := s.generateReview(ctx, prompt, true)
 	if err != nil {
 		return fmt.Errorf("generate missed review: %w", err)
 	}
@@ -195,7 +196,7 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	return nil
 }
 
-func (s *Service) generateReview(ctx context.Context, systemPrompt string) (string, error) {
+func (s *Service) generateReview(ctx context.Context, systemPrompt string, flex bool) (string, error) {
 	contents := []*genai.Content{
 		{
 			Role:  "user",
@@ -209,12 +210,10 @@ func (s *Service) generateReview(ctx context.Context, systemPrompt string) (stri
 		},
 	}
 
-	resp, err := s.geminiClient.GenerateContent(ctx, contents, config)
-	if err != nil {
-		return "", err
+	if flex {
+		return s.geminiClient.GenerateContentFlex(ctx, contents, config)
 	}
-
-	return resp, nil
+	return s.geminiClient.GenerateContent(ctx, contents, config)
 }
 
 func (s *Service) computeAlignmentSummary(ctx context.Context, activityID string, workout *models.Workout) (string, string) {

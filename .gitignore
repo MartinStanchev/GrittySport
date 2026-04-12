@@ -2,7 +2,6 @@
 frontend/.env
 .cursor/
 .claude/
-*.png
 *.csv
 *.tcx
 *.gpx

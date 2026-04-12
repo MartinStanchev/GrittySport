@@ -70,6 +70,7 @@ Full details for each change are in the `progress/` folder.
 | [link-before-review](progress/link-before-review.md) | Link workout to scheduled activity before Grit's review — unified flow in PostWorkoutReview, new trigger endpoint |
 | [enriched-edit-proposals](progress/enriched-edit-proposals.md) | Backend edit enrichment with before-state + bifurcated inline/full-screen edit proposal UI |
 | [explicit-user-preferences](progress/explicit-user-preferences.md) | Explicit user preferences: save/forget tools, LLM condensing, separate assembly section, 5 free / unlimited premium |
+| [flex-inference-tier](progress/flex-inference-tier.md) | Gemini Flex tier for background ops (missed reviews, summarization) — 50% cost reduction with Standard fallback |
 
 ## Instructions for Agents
 

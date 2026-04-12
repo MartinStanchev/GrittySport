@@ -176,7 +176,8 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 	}
 
 	prompt := buildSummarizePrompt(segType, messages)
-	raw, err := s.aiClient.GenerateCheap(ctx, prompt)
+	// Flex tier: async background summarization, no user waiting
+	raw, err := s.aiClient.GenerateCheapFlex(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("summarize LLM call: %w", err)
 	}

@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/grittyfitness/api/internal/chat"
 	"github.com/rs/zerolog/log"
@@ -261,6 +263,88 @@ func (g *GeminiClient) GenerateCheap(ctx context.Context, prompt string) (string
 	}
 
 	return extractText(resp.Candidates[0].Content.Parts), nil
+}
+
+// flexHTTPOptions returns HTTPOptions that set the Flex service tier with a 10-minute timeout.
+func flexHTTPOptions() *genai.HTTPOptions {
+	timeout := 10 * time.Minute
+	return &genai.HTTPOptions{
+		Headers:  http.Header{"X-Server-Timeout": []string{"600"}},
+		Timeout:  &timeout,
+		ExtraBody: map[string]any{"service_tier": "FLEX"},
+	}
+}
+
+// applyFlexTier sets Flex service tier on an existing config, preserving all other settings.
+func applyFlexTier(config *genai.GenerateContentConfig) *genai.GenerateContentConfig {
+	if config == nil {
+		config = &genai.GenerateContentConfig{}
+	}
+	config.HTTPOptions = flexHTTPOptions()
+	return config
+}
+
+// isFlexRetryable returns true if the error is a transient Flex capacity issue (503/429).
+func isFlexRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "503") || strings.Contains(msg, "429") ||
+		strings.Contains(msg, "Service Unavailable") || strings.Contains(msg, "Too Many Requests") ||
+		strings.Contains(msg, "RESOURCE_EXHAUSTED")
+}
+
+// generateWithFlexRetry executes a generation request using the Flex service tier,
+// retrying up to 2 times on transient capacity errors before invoking the fallback.
+func (g *GeminiClient) generateWithFlexRetry(
+	ctx context.Context,
+	modelName string,
+	contents []*genai.Content,
+	flexCfg *genai.GenerateContentConfig,
+	logName string,
+	fallback func() (string, error),
+) (string, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, err := g.client.Models.GenerateContent(ctx, modelName, contents, flexCfg)
+		if err != nil {
+			if isFlexRetryable(err) {
+				wait := time.Duration(1<<attempt) * time.Second
+				log.Warn().Err(err).Int("attempt", attempt).Dur("backoff", wait).Msgf("Flex %s retryable error", logName)
+				time.Sleep(wait)
+				continue
+			}
+			log.Warn().Err(err).Msgf("Flex %s non-retryable error, falling back to Standard", logName)
+			return fallback()
+		}
+		if len(resp.Candidates) == 0 || resp.Candidates[0].Content == nil {
+			return "", fmt.Errorf("no response generated (flex)")
+		}
+		log.Debug().Msgf("Flex %s succeeded", logName)
+		return extractText(resp.Candidates[0].Content.Parts), nil
+	}
+
+	log.Warn().Msgf("Flex %s exhausted retries, falling back to Standard", logName)
+	return fallback()
+}
+
+// GenerateContentFlex performs generation using the Flex tier (50% cost reduction, 1-15 min latency).
+// Retries up to 2 times on transient Flex errors, then falls back to Standard tier.
+func (g *GeminiClient) GenerateContentFlex(ctx context.Context, contents []*genai.Content, config *genai.GenerateContentConfig) (string, error) {
+	return g.generateWithFlexRetry(ctx, model, contents, applyFlexTier(config), "GenerateContent", func() (string, error) {
+		return g.GenerateContent(ctx, contents, config)
+	})
+}
+
+// GenerateCheapFlex calls the cheap model with Flex tier (50% cost reduction).
+// Retries up to 2 times on transient errors, then falls back to Standard tier.
+func (g *GeminiClient) GenerateCheapFlex(ctx context.Context, prompt string) (string, error) {
+	contents := []*genai.Content{
+		{Role: "user", Parts: []*genai.Part{genai.NewPartFromText(prompt)}},
+	}
+	return g.generateWithFlexRetry(ctx, cheapModel, contents, applyFlexTier(nil), "GenerateCheap", func() (string, error) {
+		return g.GenerateCheap(ctx, prompt)
+	})
 }
 
 func (g *GeminiClient) StreamChat(ctx context.Context, systemPrompt string, messages []ChatMessage) (<-chan string, error) {
