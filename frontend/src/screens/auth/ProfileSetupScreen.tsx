@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ageBasedMaxHR, inchesToCm, lbsToKg } from '../../utils/units';
@@ -17,6 +18,7 @@ import { ageBasedMaxHR, inchesToCm, lbsToKg } from '../../utils/units';
 export default function ProfileSetupScreen() {
   const { updateUser } = useAuth();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
@@ -82,7 +84,7 @@ export default function ProfileSetupScreen() {
     >
       <ScrollView
         style={styles.flex}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingTop: insets.top + 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.title, { color: colors.textPrimary }]}>About You</Text>
@@ -182,7 +184,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: {
     padding: 24,
-    paddingTop: 60,
     paddingBottom: 40,
   },
   title: {
