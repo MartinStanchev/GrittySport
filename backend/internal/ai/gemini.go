@@ -19,8 +19,8 @@ import (
 	"google.golang.org/genai"
 )
 
-const model = "gemini-3-flash"
-const cheapModel = "gemini-2.0-flash-lite"
+const model = "gemini-3-flash-preview"
+const cheapModel = "gemini-3.1-flash-lite-preview"
 
 type ChatMessage struct {
 	Role    string
@@ -423,10 +423,7 @@ func (g *GeminiClient) ChatWithTools(
 		return "", nil, fmt.Errorf("last message must be from user")
 	}
 
-	var (
-		maxOutputTokens int32 = 65536
-		thinkingBudget  int32 = 8192
-	)
+	var maxOutputTokens int32 = 65536
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
@@ -434,7 +431,7 @@ func (g *GeminiClient) ChatWithTools(
 		Tools:           tools,
 		MaxOutputTokens: maxOutputTokens,
 		ThinkingConfig: &genai.ThinkingConfig{
-			ThinkingBudget: &thinkingBudget,
+			ThinkingLevel: genai.ThinkingLevelLow,
 		},
 	}
 
