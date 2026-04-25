@@ -16,6 +16,7 @@ import (
 	"github.com/grittyfitness/api/internal/handlers"
 	"github.com/grittyfitness/api/internal/memory"
 	appmw "github.com/grittyfitness/api/internal/middleware"
+	"github.com/grittyfitness/api/internal/notifications"
 	"github.com/grittyfitness/api/internal/review"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/usage"
@@ -108,11 +109,18 @@ func main() {
 
 	workoutService := services.NewWorkoutService(pool)
 
-	reviewService := review.NewService(pool, chatService, workoutService, programService, geminiClient, memoryService, promptLoader.ReviewPrompt(), promptLoader.MissedPrompt())
+	notifService := notifications.NewService(pool, usageService)
+	notifHandler := handlers.NewNotificationHandler(notifService, usageService)
+
+	reviewService := review.NewService(pool, chatService, workoutService, programService, geminiClient, memoryService, notifService, promptLoader.ReviewPrompt(), promptLoader.MissedPrompt())
 
 	// Start missed workout checker
 	missedChecker := review.NewMissedWorkoutChecker(pool, reviewService, usageService)
 	go missedChecker.Run(ctx)
+
+	// Start workout reminder scheduler
+	reminderScheduler := review.NewReminderScheduler(pool, notifService)
+	go reminderScheduler.Run(ctx)
 
 	factDecay := memory.NewFactDecayScheduler(memoryService)
 	go factDecay.Run(ctx)
@@ -160,6 +168,11 @@ func main() {
 		r.Get("/activities/{activityId}", programHandler.GetActivity)
 		r.Post("/programs/{id}/weeks/{weekId}/activities", programHandler.CreateActivity)
 		r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
+
+		r.Post("/devices/push-token", notifHandler.RegisterToken)
+		r.Delete("/devices/push-token", notifHandler.DeleteToken)
+		r.Get("/notifications/types", notifHandler.ListTypes)
+		r.Put("/notifications/preferences/{type}", notifHandler.UpdatePreference)
 
 		r.Post("/workouts", workoutHandler.Create)
 		r.Get("/workouts", workoutHandler.List)

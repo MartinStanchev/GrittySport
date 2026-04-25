@@ -663,3 +663,41 @@ export async function triggerWorkoutReview(workoutId: string): Promise<{ status:
     method: 'POST',
   });
 }
+
+// Push notifications
+
+export async function registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
+  await apiFetch<{ status: string }>('/api/v1/devices/push-token', {
+    method: 'POST',
+    body: JSON.stringify({ token, platform }),
+  });
+}
+
+export async function deletePushToken(token: string): Promise<void> {
+  await apiFetch<{ status: string }>('/api/v1/devices/push-token', {
+    method: 'DELETE',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export interface NotificationType {
+  key: string;
+  label: string;
+  description: string;
+  requires_premium: boolean;
+  enabled: boolean;
+}
+
+export async function getNotificationTypes(): Promise<NotificationType[]> {
+  return apiFetch<NotificationType[]>('/api/v1/notifications/types');
+}
+
+export async function updateNotificationPreference(
+  notifType: string,
+  enabled: boolean,
+): Promise<void> {
+  await apiFetch<{ status: string }>(`/api/v1/notifications/preferences/${notifType}`, {
+    method: 'PUT',
+    body: JSON.stringify({ enabled }),
+  });
+}

@@ -71,6 +71,7 @@ Full details for each change are in the `progress/` folder.
 | [enriched-edit-proposals](progress/enriched-edit-proposals.md) | Backend edit enrichment with before-state + bifurcated inline/full-screen edit proposal UI |
 | [explicit-user-preferences](progress/explicit-user-preferences.md) | Explicit user preferences: save/forget tools, LLM condensing, separate assembly section, 5 free / unlimited premium |
 | [flex-inference-tier](progress/flex-inference-tier.md) | Gemini Flex tier for background ops (missed reviews, summarization) — 50% cost reduction with Standard fallback |
+| [push-notifications](progress/push-notifications.md) | Task 14: Push notifications via Expo Push API, dynamic type registry, workout reminders, notification preferences |
 
 ## Instructions for Agents
 

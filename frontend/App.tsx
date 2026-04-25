@@ -16,10 +16,12 @@ import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { navigationRef } from './src/navigation/navigationRef';
 import { syncPendingWorkouts } from './src/services/syncService';
+import { useNotifications } from './src/hooks/useNotifications';
 
 function RootNavigator() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { colors } = useTheme();
+  useNotifications(isAuthenticated);
 
   if (isLoading) {
     return (

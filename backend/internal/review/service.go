@@ -14,6 +14,7 @@ import (
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/models"
+	"github.com/grittyfitness/api/internal/notifications"
 	"github.com/grittyfitness/api/internal/services"
 )
 
@@ -25,6 +26,7 @@ type Service struct {
 	programService *services.ProgramService
 	geminiClient   *ai.GeminiClient
 	memoryService  *memory.Service
+	notifService   *notifications.Service
 	reviewPrompt   string
 	missedPrompt   string
 }
@@ -37,6 +39,7 @@ func NewService(
 	programService *services.ProgramService,
 	geminiClient *ai.GeminiClient,
 	memoryService *memory.Service,
+	notifService *notifications.Service,
 	reviewPrompt string,
 	missedPrompt string,
 ) *Service {
@@ -47,6 +50,7 @@ func NewService(
 		programService: programService,
 		geminiClient:   geminiClient,
 		memoryService:  memoryService,
+		notifService:   notifService,
 		reviewPrompt:   reviewPrompt,
 		missedPrompt:   missedPrompt,
 	}
@@ -88,7 +92,6 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	userMemory := s.assembleUserMemory(ctx, userID)
 	programContext := s.buildProgramContext(ctx, userID)
 
-
 	prompt := s.reviewPrompt
 	prompt = strings.ReplaceAll(prompt, "{{.UserName}}", userName)
 	prompt = strings.ReplaceAll(prompt, "{{.UserMemory}}", userMemory)
@@ -115,6 +118,13 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 
 	// Close any active segment and start a new post-workout review segment.
 	s.startReviewSegment(ctx, userID, "post_workout_review", savedMsg.ID)
+
+	// Send push notification with a short preview
+	if s.notifService != nil {
+		_ = s.notifService.SendToUser(ctx, userID, "post_workout_review", truncatePreview(response), map[string]string{
+			"workout_id": workoutID,
+		})
+	}
 
 	log.Info().
 		Str("user_id", userID).
@@ -185,6 +195,13 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	)
 	if err != nil {
 		log.Error().Err(err).Str("activity_id", activityID).Msg("Failed to mark missed_review_sent")
+	}
+
+	// Send push notification
+	if s.notifService != nil {
+		_ = s.notifService.SendToUser(ctx, userID, "missed_workout", truncatePreview(response), map[string]string{
+			"activity_id": activityID,
+		})
 	}
 
 	log.Info().
@@ -330,6 +347,14 @@ func (s *Service) buildProgramContext(ctx context.Context, userID string) string
 	}
 
 	return b.String()
+}
+
+// truncatePreview returns up to 100 characters of text, adding "..." if truncated.
+func truncatePreview(text string) string {
+	if len(text) <= 100 {
+		return text
+	}
+	return text[:97] + "..."
 }
 
 func buildRecordedDataSummary(workout *models.Workout) string {

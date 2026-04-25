@@ -23,7 +23,8 @@ import HRSensorModal from '../components/HRSensorModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
-import { deleteChatHistory, deleteGritMemory } from '../services/api';
+import { deleteChatHistory, deleteGritMemory, getNotificationTypes, updateNotificationPreference } from '../services/api';
+import type { NotificationType } from '../services/api';
 import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
@@ -58,6 +59,8 @@ export default function SettingsScreen() {
   const [appleHealthLoading, setAppleHealthLoading] = useState(false);
   const [clearingChat, setClearingChat] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
+  const [notifTypes, setNotifTypes] = useState<NotificationType[]>([]);
+  const [notifLoading, setNotifLoading] = useState<string | null>(null);
 
   function confirmClearData(
     title: string,
@@ -108,6 +111,7 @@ export default function SettingsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshUsage();
+      getNotificationTypes().then(setNotifTypes).catch(() => {});
     }, [refreshUsage]),
   );
 
@@ -318,6 +322,61 @@ export default function SettingsScreen() {
         >
           <Text style={[styles.saveText, { color: colors.surface }]}>{isSaving ? 'Saving...' : 'Save Changes'}</Text>
         </TouchableOpacity>
+
+        {notifTypes.length > 0 && (
+          <>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Notifications</Text>
+            <KineticPanel style={styles.section}>
+              {notifTypes.map((nt) => {
+                const isPremiumLocked = nt.requires_premium && usage?.tier !== 'premium';
+                return (
+                  <View key={nt.key} style={[styles.settingRow, { paddingVertical: 12 }]}>
+                    <View style={styles.settingInfo}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>{nt.label}</Text>
+                        {nt.requires_premium && (
+                          <View style={[styles.tierBadge, { backgroundColor: colors.primary, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                            <Text style={[styles.tierBadgeText, { color: '#FFF', fontSize: 10 }]}>PRO</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.helpText, { color: colors.textSecondary, marginBottom: 0 }]}>
+                        {nt.description}
+                      </Text>
+                    </View>
+                    {notifLoading === nt.key ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <TouchableOpacity
+                        style={[styles.themeToggle, nt.enabled && !isPremiumLocked && { backgroundColor: colors.primary }]}
+                        disabled={isPremiumLocked}
+                        onPress={async () => {
+                          setNotifLoading(nt.key);
+                          try {
+                            await updateNotificationPreference(nt.key, !nt.enabled);
+                            setNotifTypes((prev) =>
+                              prev.map((t) => (t.key === nt.key ? { ...t, enabled: !t.enabled } : t)),
+                            );
+                          } catch {
+                            Alert.alert('Error', 'Failed to update notification preference.');
+                          } finally {
+                            setNotifLoading(null);
+                          }
+                        }}
+                      >
+                        <View style={[
+                          styles.themeToggleKnob,
+                          { backgroundColor: isPremiumLocked ? colors.textSecondary : colors.surface },
+                          nt.enabled && !isPremiumLocked && styles.themeToggleKnobOn,
+                        ]} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </KineticPanel>
+          </>
+        )}
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>
         <KineticPanel style={styles.section}>
