@@ -18,6 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /app/server .
 COPY prompts/ ./prompts/
+COPY ../db/migrations/ ./migrations/
 
 EXPOSE 8080
 
