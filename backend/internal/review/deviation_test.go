@@ -208,21 +208,16 @@ func TestActivityTypeFamily(t *testing.T) {
 		want  string
 	}{
 		{"run", "run"},
-		{"easy_run", "run"},
-		{"long_run", "run"},
-		{"interval", "run"},
-		{"trail_run", "run"},
-		{"tempo_run", "run"},
+		{"indoor_run", "run"},
 		{"cycling", "cycling"},
-		{"bike", "cycling"},
+		{"indoor_cycling", "cycling"},
 		{"swim", "swim"},
-		{"swim_open_water", "swim"},
+		{"open_water_swim", "swim"},
 		{"strength_training", "strength"},
-		{"weight_training", "strength"},
 		{"mobility", "mobility"},
 		{"yoga", "mobility"},
-		{"hike", "hike"},
 		{"walk", "walk"},
+		{"drill", "drill"},
 	}
 	for _, tt := range tests {
 		got := activityTypeFamily(tt.input)
@@ -234,12 +229,16 @@ func TestActivityTypeFamily(t *testing.T) {
 
 func TestActivityTypesInFamily(t *testing.T) {
 	runTypes := activityTypesInFamily("run")
-	if len(runTypes) < 4 {
-		t.Errorf("expected at least 4 run types, got %d: %v", len(runTypes), runTypes)
+	if len(runTypes) != 2 {
+		t.Errorf("expected 2 run types, got %d: %v", len(runTypes), runTypes)
 	}
 	cyclingTypes := activityTypesInFamily("cycling")
 	if len(cyclingTypes) != 2 {
 		t.Errorf("expected 2 cycling types, got %d: %v", len(cyclingTypes), cyclingTypes)
+	}
+	strengthTypes := activityTypesInFamily("strength")
+	if len(strengthTypes) != 1 || strengthTypes[0] != "strength_training" {
+		t.Errorf("expected [strength_training], got %v", strengthTypes)
 	}
 }
 

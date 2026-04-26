@@ -23,7 +23,8 @@
         "NSLocationWhenInUseUsageDescription": "Gritty Fitness uses your location to track your workout route, distance, and pace.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Gritty Fitness uses background location to continue tracking your workout when the app is in the background.",
         "NSBluetoothPeripheralUsageDescription": "Gritty Fitness connects to heart rate monitors via Bluetooth.",
-        "NSBluetoothAlwaysUsageDescription": "Gritty Fitness connects to heart rate monitors via Bluetooth."
+        "NSBluetoothAlwaysUsageDescription": "Gritty Fitness connects to heart rate monitors via Bluetooth.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

@@ -38,7 +38,7 @@ interface MobilityExLog {
   completed: boolean;
 }
 
-const PACE_TYPES = ['run', 'walk', 'indoor_run', 'trail_run'];
+const PACE_TYPES = ['run', 'walk', 'indoor_run'];
 const SPEED_TYPES = ['cycling', 'indoor_cycling'];
 const SWIM_TYPES = ['swim', 'open_water_swim'];
 
@@ -73,7 +73,7 @@ function buildRecordedData(
   if (SWIM_TYPES.includes(type)) {
     return { distance_m: dist || 0, ...(laps ? { laps: parseInt(laps, 10) } : {}) };
   }
-  if (type === 'strength') {
+  if (type === 'strength_training') {
     return {
       exercises: exercises.map((ex) => ({
         name: ex.name,
@@ -481,7 +481,7 @@ export default function LogActivityScreen({ navigation }: Props) {
           </View>
         )}
 
-        {selectedType === 'strength' && (
+        {selectedType === 'strength_training' && (
           <View style={styles.fieldBlock}>
             <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Exercises</Text>
             <ExerciseEditor exercises={exercises} onChange={setExercises} colors={colors} />

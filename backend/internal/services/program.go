@@ -737,7 +737,7 @@ func (s *ProgramService) applyUpdateCriteria(ctx context.Context, tx pgx.Tx, pro
 	count := 0
 	for _, c := range edit.Criteria {
 		tag, err := tx.Exec(ctx,
-			`INSERT INTO criteria (program_id, key, label, value, value_type, display_order)
+			`INSERT INTO program_criteria (program_id, key, label, value, value_type, display_order)
 			 VALUES ($1, $2, $3, $4, COALESCE(NULLIF($5,''), 'text'), $6)
 			 ON CONFLICT (program_id, key) DO UPDATE SET
 				label = EXCLUDED.label, value = EXCLUDED.value,

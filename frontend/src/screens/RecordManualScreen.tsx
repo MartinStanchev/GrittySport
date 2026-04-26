@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,18 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { formatTime } from '../constants/workoutUtils';
 import { getActivity, saveWorkout } from '../services/api';
-import { isGPSActivity } from '../constants/activityIcons';
+import { formatActivityType, isGPSActivity } from '../constants/activityIcons';
 import {
   useWorkout,
   type WorkoutType,
@@ -27,6 +30,19 @@ import {
   type MobilityExerciseLog,
 } from '../contexts/WorkoutContext';
 import { useProgram } from '../contexts/ProgramContext';
+import HRSensorModal from '../components/HRSensorModal';
+import LiveHRChart from '../components/LiveHRChart';
+import { bleService } from '../services/bleService';
+import {
+  getHRZoneColor,
+  HR_ZONE_COLORS,
+  computeHRZoneDistribution,
+} from '../services/gpsUtils';
+import {
+  useSetDetection,
+  type SetHighlight,
+} from '../utils/setDetection';
+import type { HRReading, HRZone } from '../types/gps';
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -57,7 +73,7 @@ const BLANK_MOBILITY: MobilityExerciseLog[] = [
 ];
 
 const DISPLAY_TYPE_LABELS: Record<string, string> = {
-  strength: 'Strength Training',
+  strength_training: 'Strength Training',
   mobility: 'Mobility / Recovery',
   drill: 'Sport-Specific Drill',
   indoor_run: 'Indoor Run',
@@ -87,7 +103,7 @@ const INDOOR_OPTIONS: TypeOption[] = [
   { activityType: 'indoor_run', icon: 'walk-outline', label: 'Indoor Run', desc: 'Treadmill or indoor track' },
   { activityType: 'indoor_cycling', icon: 'bicycle-outline', label: 'Indoor Cycling', desc: 'Stationary bike or spin class' },
   { activityType: 'swim', icon: 'water-outline', label: 'Swim', desc: 'Pool swimming session' },
-  { activityType: 'strength', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight' },
+  { activityType: 'strength_training', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight' },
   { activityType: 'mobility', icon: 'body-outline', label: 'Mobility', desc: 'Timed exercises with countdowns' },
   { activityType: 'drill', icon: 'flag-outline', label: 'Drill', desc: 'Drill session with notes' },
 ];
@@ -151,16 +167,129 @@ function TypeSelector({
 // STRENGTH LOGGER
 // ─────────────────────────────────────────────
 
+function SetRow({
+  set,
+  setIdx,
+  ex,
+  exIdx,
+  isHighlighted,
+  colors,
+  onUpdateSet,
+  onRemoveSet,
+}: {
+  set: ExerciseLog['sets'][number];
+  setIdx: number;
+  ex: ExerciseLog;
+  exIdx: number;
+  isHighlighted: boolean;
+  colors: ThemeColors;
+  onUpdateSet: (exIdx: number, setIdx: number, field: keyof ExerciseLog['sets'][number], value: string | boolean) => void;
+  onRemoveSet: (exIdx: number, setIdx: number) => void;
+}) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!isHighlighted) {
+      pulse.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 700, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0, duration: 700, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isHighlighted, pulse]);
+
+  const animatedBorderColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(0,0,0,0)', colors.primary],
+  });
+  const animatedBg = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      set.completed ? colors.surfaceAlt : 'rgba(0,0,0,0)',
+      `${colors.primary}22`,
+    ],
+  });
+
+  const baseStyle: any = [
+    styles.setRow,
+    { borderBottomColor: colors.surfaceAlt },
+    set.completed && !isHighlighted && { backgroundColor: colors.surfaceAlt },
+  ];
+  const highlightStyle = isHighlighted
+    ? {
+        borderWidth: 2,
+        borderColor: animatedBorderColor,
+        backgroundColor: animatedBg,
+        borderRadius: 8,
+        marginVertical: 2,
+      }
+    : null;
+
+  return (
+    <Animated.View style={[baseStyle, highlightStyle]}>
+      <Text style={[styles.setCell, { flex: 0.4, color: colors.textSecondary }]}>{setIdx + 1}</Text>
+      <TextInput
+        style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
+        value={set.reps}
+        onChangeText={(t) => onUpdateSet(exIdx, setIdx, 'reps', t)}
+        keyboardType="number-pad"
+        placeholder={ex.targetReps || '-'}
+        placeholderTextColor={colors.border}
+      />
+      <TextInput
+        style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
+        value={set.weight}
+        onChangeText={(t) => onUpdateSet(exIdx, setIdx, 'weight', t)}
+        keyboardType="decimal-pad"
+        placeholder={ex.targetWeight || 'kg'}
+        placeholderTextColor={colors.border}
+      />
+      <TextInput
+        style={[styles.setCell, styles.setInput, { flex: 0.6, borderColor: colors.border, color: colors.textPrimary }]}
+        value={set.rpe}
+        onChangeText={(t) => onUpdateSet(exIdx, setIdx, 'rpe', t)}
+        keyboardType="number-pad"
+        placeholder="-"
+        placeholderTextColor={colors.border}
+        maxLength={2}
+      />
+      <View style={styles.setActions}>
+        <Pressable
+          style={styles.doneBtn}
+          onPress={() => onUpdateSet(exIdx, setIdx, 'completed', !set.completed)}
+        >
+          <Ionicons
+            name={set.completed ? 'checkmark-circle' : 'ellipse-outline'}
+            size={22}
+            color={set.completed ? colors.primary : colors.border}
+          />
+        </Pressable>
+        <Pressable onPress={() => onRemoveSet(exIdx, setIdx)} style={styles.removeMiniBtn}>
+          <Ionicons name="close" size={14} color={colors.border} />
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
 function StrengthLogger({
   exercises,
   onChange,
   onRest,
   colors,
+  highlight,
+  onDismissHighlight,
 }: {
   exercises: ExerciseLog[];
   onChange: (exercises: ExerciseLog[]) => void;
   onRest: (restSeconds: number) => void;
   colors: ThemeColors;
+  highlight: SetHighlight | null;
+  onDismissHighlight: () => void;
 }) {
   function updateExercise(idx: number, updated: ExerciseLog) {
     onChange(exercises.map((e, i) => (i === idx ? updated : e)));
@@ -174,6 +303,9 @@ function StrengthLogger({
   }
 
   function updateSet(exIdx: number, setIdx: number, field: keyof typeof exercises[0]['sets'][0], value: string | boolean) {
+    if (highlight && highlight.exIdx === exIdx && highlight.setIdx === setIdx) {
+      onDismissHighlight();
+    }
     const ex = exercises[exIdx];
     updateExercise(exIdx, { ...ex, sets: ex.sets.map((s, i) => (i === setIdx ? { ...s, [field]: value } : s)) });
   }
@@ -218,51 +350,22 @@ function StrengthLogger({
             <View style={{ width: 52 }} />
           </View>
 
-          {ex.sets.map((set, setIdx) => (
-            <View key={setIdx} style={[styles.setRow, { borderBottomColor: colors.surfaceAlt }, set.completed && { backgroundColor: colors.surfaceAlt }]}>
-              <Text style={[styles.setCell, { flex: 0.4, color: colors.textSecondary }]}>{setIdx + 1}</Text>
-              <TextInput
-                style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
-                value={set.reps}
-                onChangeText={(t) => updateSet(exIdx, setIdx, 'reps', t)}
-                keyboardType="number-pad"
-                placeholder={ex.targetReps || '-'}
-                placeholderTextColor={colors.border}
+          {ex.sets.map((set, setIdx) => {
+            const isHighlighted = !!highlight && highlight.exIdx === exIdx && highlight.setIdx === setIdx;
+            return (
+              <SetRow
+                key={setIdx}
+                set={set}
+                setIdx={setIdx}
+                ex={ex}
+                exIdx={exIdx}
+                isHighlighted={isHighlighted}
+                colors={colors}
+                onUpdateSet={updateSet}
+                onRemoveSet={removeSet}
               />
-              <TextInput
-                style={[styles.setCell, styles.setInput, { borderColor: colors.border, color: colors.textPrimary }]}
-                value={set.weight}
-                onChangeText={(t) => updateSet(exIdx, setIdx, 'weight', t)}
-                keyboardType="decimal-pad"
-                placeholder={ex.targetWeight || 'kg'}
-                placeholderTextColor={colors.border}
-              />
-              <TextInput
-                style={[styles.setCell, styles.setInput, { flex: 0.6, borderColor: colors.border, color: colors.textPrimary }]}
-                value={set.rpe}
-                onChangeText={(t) => updateSet(exIdx, setIdx, 'rpe', t)}
-                keyboardType="number-pad"
-                placeholder="-"
-                placeholderTextColor={colors.border}
-                maxLength={2}
-              />
-              <View style={styles.setActions}>
-                <Pressable
-                  style={styles.doneBtn}
-                  onPress={() => updateSet(exIdx, setIdx, 'completed', !set.completed)}
-                >
-                  <Ionicons
-                    name={set.completed ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={22}
-                    color={set.completed ? colors.primary : colors.border}
-                  />
-                </Pressable>
-                <Pressable onPress={() => removeSet(exIdx, setIdx)} style={styles.removeMiniBtn}>
-                  <Ionicons name="close" size={14} color={colors.border} />
-                </Pressable>
-              </View>
-            </View>
-          ))}
+            );
+          })}
 
           <View style={styles.exerciseFooter}>
             <Pressable style={[styles.addSetBtn, { backgroundColor: colors.primaryLight }]} onPress={() => addSet(exIdx)}>
@@ -398,6 +501,93 @@ function DrillLogger({
 }
 
 // ─────────────────────────────────────────────
+// HR SENSOR PILL & STATS
+// ─────────────────────────────────────────────
+
+function HRSensorPill({
+  currentHR,
+  maxHR,
+  expanded,
+  onPress,
+  colors,
+}: {
+  currentHR: number | null;
+  maxHR: number;
+  expanded: boolean;
+  onPress: () => void;
+  colors: ThemeColors;
+}) {
+  const connected = currentHR !== null;
+  const tint = connected ? getHRZoneColor(currentHR, maxHR) : colors.textSecondary;
+  return (
+    <Pressable onPress={onPress} style={[styles.hrPill, { backgroundColor: colors.surfaceAlt, borderColor: tint }]}>
+      <Ionicons name={connected ? 'heart' : 'heart-outline'} size={14} color={tint} />
+      {connected ? (
+        <>
+          <Text style={[styles.hrPillValue, { color: tint }]}>{currentHR}</Text>
+          <Text style={[styles.hrPillUnit, { color: colors.textSecondary }]}>bpm</Text>
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={12} color={colors.textSecondary} />
+        </>
+      ) : (
+        <Text style={[styles.hrPillUnit, { color: colors.textSecondary }]}>Connect</Text>
+      )}
+    </Pressable>
+  );
+}
+
+function HRStatsRow({
+  hrReadings,
+  maxHR,
+  colors,
+}: {
+  hrReadings: HRReading[];
+  maxHR: number;
+  colors: ThemeColors;
+}) {
+  if (hrReadings.length === 0) return null;
+  const avg = Math.round(hrReadings.reduce((s, r) => s + r.bpm, 0) / hrReadings.length);
+  const max = hrReadings.reduce((m, r) => Math.max(m, r.bpm), 0);
+  const dist = computeHRZoneDistribution(hrReadings, maxHR);
+  const totalSec = (Object.values(dist) as number[]).reduce((s, v) => s + v, 0);
+  return (
+    <View style={[styles.hrStatsCard, { backgroundColor: colors.surface, borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+      <View style={styles.hrStatsHeader}>
+        <View style={styles.hrStatTile}>
+          <Text style={[styles.hrStatLabel, { color: colors.textSecondary }]}>Avg HR</Text>
+          <Text style={[styles.hrStatValue, { color: colors.textPrimary }]}>{avg}<Text style={[styles.hrStatUnit, { color: colors.textSecondary }]}> bpm</Text></Text>
+        </View>
+        <View style={styles.hrStatTile}>
+          <Text style={[styles.hrStatLabel, { color: colors.textSecondary }]}>Max HR</Text>
+          <Text style={[styles.hrStatValue, { color: colors.textPrimary }]}>{max}<Text style={[styles.hrStatUnit, { color: colors.textSecondary }]}> bpm</Text></Text>
+        </View>
+      </View>
+      {totalSec > 0 && (
+        <>
+          <View style={styles.hrZoneBar}>
+            {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => {
+              const pct = dist[zone] / totalSec;
+              return pct > 0 ? (
+                <View key={zone} style={{ flex: pct, height: 12, backgroundColor: HR_ZONE_COLORS[zone] }} />
+              ) : null;
+            })}
+          </View>
+          <View style={styles.hrZoneLegend}>
+            {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => (
+              <View key={zone} style={styles.hrZoneLegendItem}>
+                <View style={[styles.hrZoneDot, { backgroundColor: HR_ZONE_COLORS[zone] }]} />
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                  Z{zone} {Math.round((dist[zone] / totalSec) * 100)}%
+                </Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─────────────────────────────────────────────
 // REST TIMER MODAL
 // ─────────────────────────────────────────────
 
@@ -456,6 +646,8 @@ function WorkoutSummary({
   onSave,
   onDiscard,
   isSaving,
+  hrReadings,
+  maxHR,
   colors,
 }: {
   workoutType: WorkoutType;
@@ -468,6 +660,8 @@ function WorkoutSummary({
   onSave: () => void;
   onDiscard: () => void;
   isSaving: boolean;
+  hrReadings: HRReading[];
+  maxHR: number;
   colors: ThemeColors;
 }) {
   return (
@@ -478,6 +672,8 @@ function WorkoutSummary({
         <Text style={[styles.summaryTime, { color: colors.primary }]}>{formatTime(elapsedSeconds)}</Text>
         <Text style={[styles.summaryTimeLabel, { color: colors.textSecondary }]}>Total Time</Text>
       </View>
+
+      <HRStatsRow hrReadings={hrReadings} maxHR={maxHR} colors={colors} />
 
       {workoutType === 'strength' && (
         <View style={[styles.summarySection, { backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, borderBottomWidth: 1, borderBottomColor: colors.border }]}>
@@ -547,6 +743,8 @@ export default function RecordManualScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
   const { scheduledActivityId, activityType: paramActivityType } = route.params ?? {};
 
   const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode } = useWorkout();
@@ -556,6 +754,50 @@ export default function RecordManualScreen() {
   const [restTimerVisible, setRestTimerVisible] = useState(false);
   const [restTimerSeconds, setRestTimerSeconds] = useState(90);
   const [isSaving, setIsSaving] = useState(false);
+  const [hrModalVisible, setHRModalVisible] = useState(false);
+  const [hrPanelExpanded, setHRPanelExpanded] = useState(false);
+  const hrReadingsRef = useRef<HRReading[]>([]);
+  const hrSumRef = useRef(0);
+
+  // Keep ref aligned with context state on workout start (handles cross-screen resume).
+  useEffect(() => {
+    const readings = activeWorkout?.hrReadings ?? [];
+    hrReadingsRef.current = readings;
+    hrSumRef.current = readings.reduce((s, r) => s + r.bpm, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeWorkout?.startedAt]);
+
+  const handleHRReading = useCallback((bpm: number) => {
+    const now = Date.now();
+    hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
+    hrSumRef.current += bpm;
+    const avg = Math.round(hrSumRef.current / hrReadingsRef.current.length);
+    updateWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
+  }, [updateWorkout]);
+
+  const handleHRConnected = useCallback((deviceName: string) => {
+    updateWorkout({ hrDeviceName: deviceName });
+  }, [updateWorkout]);
+
+  // Disconnect BLE on unmount if no workout is active (e.g. stack drop after save).
+  const activeWorkoutLatestRef = useRef(activeWorkout);
+  activeWorkoutLatestRef.current = activeWorkout;
+  useEffect(() => {
+    return () => {
+      if (!activeWorkoutLatestRef.current && bleService.isConnected()) {
+        bleService.disconnect();
+      }
+    };
+  }, []);
+
+  const { highlight, dismiss: dismissHighlight } = useSetDetection({
+    hrReadings: activeWorkout?.hrReadings ?? [],
+    exercises: activeWorkout?.strengthExercises ?? [],
+    enabled:
+      activeWorkout?.phase === 'recording' &&
+      activeWorkout?.workoutType === 'strength' &&
+      (activeWorkout?.hrReadings.length ?? 0) > 0,
+  });
 
   // Elapsed timer — always derived from startedAt
   const [elapsed, setElapsed] = useState(0);
@@ -614,7 +856,8 @@ export default function RecordManualScreen() {
           const [strength, mobility, drill] = buildPrescriptionState(type, detail.prescription);
           startWorkout({
             workoutType: type,
-            activityDisplayType: detail.activity_type,
+            activityType: detail.activity_type,
+            activityDisplayType: formatActivityType(detail.activity_type),
             scheduledActivityId,
             startedAt: new Date(),
             strengthExercises: strength,
@@ -630,7 +873,8 @@ export default function RecordManualScreen() {
       const type = inferWorkoutType(paramActivityType);
       startWorkout({
         workoutType: type,
-        activityDisplayType: paramActivityType,
+        activityType: paramActivityType,
+        activityDisplayType: DISPLAY_TYPE_LABELS[paramActivityType] ?? formatActivityType(paramActivityType),
         startedAt: new Date(),
         strengthExercises: BLANK_STRENGTH,
         mobilityExercises: BLANK_MOBILITY,
@@ -672,6 +916,7 @@ export default function RecordManualScreen() {
     const type = inferWorkoutType(activityType);
     startWorkout({
       workoutType: type,
+      activityType,
       activityDisplayType: DISPLAY_TYPE_LABELS[activityType] ?? activityType,
       startedAt: new Date(),
       strengthExercises: BLANK_STRENGTH,
@@ -684,8 +929,16 @@ export default function RecordManualScreen() {
 
   function buildRecordedData(): Record<string, any> {
     if (!activeWorkout) return {};
+    const hr = activeWorkout.hrReadings;
+    const hrSummary: Record<string, number> = hr.length > 0
+      ? {
+          avg_hr: Math.round(hr.reduce((s, r) => s + r.bpm, 0) / hr.length),
+          max_hr: hr.reduce((m, r) => Math.max(m, r.bpm), 0),
+        }
+      : {};
     if (activeWorkout.workoutType === 'strength') {
       return {
+        ...hrSummary,
         exercises: activeWorkout.strengthExercises.map((ex) => ({
           name: ex.name,
           sets: ex.sets.map((s) => ({
@@ -699,6 +952,7 @@ export default function RecordManualScreen() {
     }
     if (activeWorkout.workoutType === 'mobility') {
       return {
+        ...hrSummary,
         exercises: activeWorkout.mobilityExercises.map((ex) => ({
           name: ex.name,
           completed: ex.completed,
@@ -706,7 +960,7 @@ export default function RecordManualScreen() {
         })),
       };
     }
-    return { notes: activeWorkout.drillNotes };
+    return { ...hrSummary, notes: activeWorkout.drillNotes };
   }
 
   function handleFinishWorkout() {
@@ -717,10 +971,14 @@ export default function RecordManualScreen() {
     if (!activeWorkout) return;
     setIsSaving(true);
     try {
+      const heartRatePayload = activeWorkout.hrReadings.length > 0
+        ? { readings: activeWorkout.hrReadings, device_name: activeWorkout.hrDeviceName }
+        : undefined;
       await saveWorkout({
         scheduled_activity_id: activeWorkout.scheduledActivityId,
-        activity_type: activeWorkout.activityDisplayType,
+        activity_type: activeWorkout.activityType,
         recorded_data: buildRecordedData(),
+        heart_rate_data: heartRatePayload as Record<string, any> | undefined,
         source: 'manual',
         started_at: activeWorkout.startedAt.toISOString(),
         finished_at: activeWorkout.finishedAt?.toISOString(),
@@ -741,6 +999,7 @@ export default function RecordManualScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Discard', style: 'destructive', onPress: () => {
+          bleService.disconnect();
           clearWorkout();
           navigation.goBack();
         }
@@ -771,8 +1030,39 @@ export default function RecordManualScreen() {
             <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>ELAPSED</Text>
             <Text style={[styles.timerValue, { color: colors.textPrimary }]}>{formatTime(elapsedSeconds)}</Text>
           </View>
+          <HRSensorPill
+            currentHR={activeWorkout?.currentHR ?? null}
+            maxHR={maxHR}
+            expanded={hrPanelExpanded}
+            onPress={() => {
+              if (activeWorkout?.currentHR != null) {
+                setHRPanelExpanded((p) => !p);
+              } else {
+                setHRModalVisible(true);
+              }
+            }}
+            colors={colors}
+          />
           <Pressable style={[styles.finishBtn, { backgroundColor: colors.primary }]} onPress={handleFinishWorkout}>
-            <Text style={styles.finishBtnText}>Finish Workout</Text>
+            <Text style={styles.finishBtnText}>Finish</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Inline live HR chart — only when expanded */}
+      {phase === 'recording' && hrPanelExpanded && activeWorkout && activeWorkout.currentHR != null && (
+        <View style={[styles.hrPanel, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+          <LiveHRChart
+            hrReadings={activeWorkout.hrReadings}
+            maxHR={maxHR}
+            startedAt={activeWorkout.startedAt}
+            width={Dimensions.get('window').width}
+            height={150}
+          />
+          <Pressable onPress={() => setHRModalVisible(true)} style={styles.hrPanelLink}>
+            <Text style={{ color: colors.primary, fontFamily: Fonts.bodySemiBold, fontSize: 12 }}>
+              {bleService.isConnected() ? 'Change device / Disconnect' : 'Connect device'}
+            </Text>
           </Pressable>
         </View>
       )}
@@ -799,6 +1089,8 @@ export default function RecordManualScreen() {
             onChange={(ex) => updateWorkout({ strengthExercises: ex })}
             onRest={(secs) => { setRestTimerSeconds(secs); setRestTimerVisible(true); }}
             colors={colors}
+            highlight={highlight}
+            onDismissHighlight={dismissHighlight}
           />
         )}
 
@@ -832,6 +1124,8 @@ export default function RecordManualScreen() {
             onSave={handleSave}
             onDiscard={handleDiscard}
             isSaving={isSaving}
+            hrReadings={activeWorkout.hrReadings}
+            maxHR={maxHR}
             colors={colors}
           />
         )}
@@ -841,6 +1135,13 @@ export default function RecordManualScreen() {
         visible={restTimerVisible}
         seconds={restTimerSeconds}
         onClose={() => setRestTimerVisible(false)}
+      />
+
+      <HRSensorModal
+        visible={hrModalVisible}
+        onClose={() => setHRModalVisible(false)}
+        onConnected={handleHRConnected}
+        onReading={handleHRReading}
       />
     </KeyboardAvoidingView>
   );
@@ -861,6 +1162,40 @@ const styles = StyleSheet.create({
   timerValue: { fontSize: 28, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'] },
   finishBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
   finishBtnText: { color: '#FFF', fontFamily: Fonts.headingMedium, fontSize: 14 },
+  hrPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  hrPillValue: { fontSize: 15, fontFamily: Fonts.headingMedium, fontVariant: ['tabular-nums'] },
+  hrPillUnit: { fontSize: 11, fontFamily: Fonts.bodySemiBold },
+  hrPanel: {
+    paddingVertical: 10,
+    paddingHorizontal: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  hrPanelLink: { paddingVertical: 6, paddingHorizontal: 12, marginTop: 4 },
+  hrStatsCard: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    marginBottom: 16,
+  },
+  hrStatsHeader: { flexDirection: 'row', gap: 24, marginBottom: 12 },
+  hrStatTile: { flex: 1 },
+  hrStatLabel: { fontSize: 11, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  hrStatValue: { fontSize: 22, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'] },
+  hrStatUnit: { fontSize: 12, fontFamily: Fonts.body },
+  hrZoneBar: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
+  hrZoneLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  hrZoneLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  hrZoneDot: { width: 8, height: 8, borderRadius: 4 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   activityBanner: {

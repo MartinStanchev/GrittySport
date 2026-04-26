@@ -61,8 +61,8 @@ func TestWeekToResponse_NormalizesToMonday(t *testing.T) {
 		WeekNumber: 1,
 		StartDate:  &badStart,
 		Activities: []ScheduledActivity{
-			{ID: "a1", DayOfWeek: 1, ActivityType: "Easy Run", Prescription: json.RawMessage("{}")},
-			{ID: "a2", DayOfWeek: 3, ActivityType: "Swim", Prescription: json.RawMessage("{}")},
+			{ID: "a1", DayOfWeek: 1, ActivityType: "run", Prescription: json.RawMessage("{}")},
+			{ID: "a2", DayOfWeek: 3, ActivityType: "swim", Prescription: json.RawMessage("{}")},
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestWeekToResponse_FallbackFromProgramStart(t *testing.T) {
 		WeekNumber: 2,
 		StartDate:  nil,
 		Activities: []ScheduledActivity{
-			{ID: "a1", DayOfWeek: 6, ActivityType: "Tempo Run", Prescription: json.RawMessage("{}")},
+			{ID: "a1", DayOfWeek: 6, ActivityType: "run", Prescription: json.RawMessage("{}")},
 		},
 	}
 
@@ -118,7 +118,7 @@ func TestWeekToResponse_SundayActivity(t *testing.T) {
 		WeekNumber: 1,
 		StartDate:  nil,
 		Activities: []ScheduledActivity{
-			{ID: "a1", DayOfWeek: 0, ActivityType: "Rest", Prescription: json.RawMessage("{}")},
+			{ID: "a1", DayOfWeek: 0, ActivityType: "rest", Prescription: json.RawMessage("{}")},
 		},
 	}
 

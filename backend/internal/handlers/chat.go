@@ -224,7 +224,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		// Start a segment if none is active.
 		if session.activeSegmentID == "" {
 			segType := h.memoryService.DetectSegmentType(r.Context(), incoming.Content)
-			if seg, err := h.memoryService.StartSegment(r.Context(), userID, segType, userMsg.ID); err == nil {
+			if seg, err := h.memoryService.StartSegment(r.Context(), userID, segType, userMsg.ID, nil); err == nil {
 				session.activeSegmentID = seg.ID
 				session.activeSegmentType = segType
 			}
@@ -533,7 +533,7 @@ func (h *ChatHandler) transitionSegment(ctx context.Context, userID, newType str
 	h.closeSessionSegment(ctx, session)
 
 	startMsgID := h.memoryService.GetLastMessageID(ctx, userID)
-	if seg, err := h.memoryService.StartSegment(ctx, userID, newType, startMsgID); err == nil {
+	if seg, err := h.memoryService.StartSegment(ctx, userID, newType, startMsgID, nil); err == nil {
 		session.activeSegmentID = seg.ID
 		session.activeSegmentType = newType
 	}
@@ -711,8 +711,24 @@ func (h *ChatHandler) History(w http.ResponseWriter, r *http.Request) {
 		responses[i] = msg.ToResponse()
 	}
 
+	// Attach segments overlapping the returned message window so the UI can
+	// render group headers without an extra round-trip.
+	segments := []models.ChatSegmentResponse{}
+	if len(messages) > 0 {
+		segs, err := h.memoryService.GetSegmentsSince(r.Context(), userID, messages[0].CreatedAt)
+		if err != nil {
+			log.Warn().Err(err).Str("user_id", userID).Msg("Failed to load segments for chat history")
+		} else {
+			segments = make([]models.ChatSegmentResponse, len(segs))
+			for i, seg := range segs {
+				segments[i] = seg.ToResponse()
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"messages": responses,
+		"segments": segments,
 		"has_more": hasMore,
 	})
 }

@@ -15,4 +15,16 @@ Monthly view - a calendar, monthly statistics. Icons for the scheduled workouts.
 
 Redesign manual program creation. Include some basic concepts that we have from AI program gen, like the criteria that we have if it applies. Then the process should be easier and more interactive instead of plain text fields. Manual program creation should be for users that already know what they want to create
 
- 
+## bugs 
+
+### Heart rate not shown before starting workout - working
+
+### no heart rate option for indoor activities - working
+
+### Remove notification subscription error on logout - working 
+
+### Clicking a notification should lead to the place where the user can see the message
+
+### Notification text should be short, not the whole Grit message
+
+### 

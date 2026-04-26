@@ -82,6 +82,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const slowPointCountRef = useRef(0);
   const hrReadingsRef = useRef<{ bpm: number; timestamp: number }[]>([]);
+  const hrSumRef = useRef(0);
   const cadenceReadingsRef = useRef<CadenceReading[]>([]);
   const showCadence = isRun || activityType === 'walk';
   const gpsWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
@@ -91,6 +92,8 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const followTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [hrModalVisible, setHRModalVisible] = useState(false);
+  const [previewHR, setPreviewHR] = useState<number | null>(null);
+  const [previewDeviceName, setPreviewDeviceName] = useState<string | null>(null);
   const [metricsExpanded, setMetricsExpanded] = useState(false);
   metricsExpandedRef.current = metricsExpanded;
   const [userMovedMap, setUserMovedMap] = useState(false);
@@ -381,17 +384,27 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   }, [clearGPSWorkout, navigation]);
 
   const handleHRReading = useCallback((bpm: number) => {
+    setPreviewHR(bpm);
+    if (!gpsWorkoutRef.current) return;
     const now = Date.now();
     hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
-    const avg = Math.round(
-      hrReadingsRef.current.reduce((sum, reading) => sum + reading.bpm, 0) / hrReadingsRef.current.length,
-    );
+    hrSumRef.current += bpm;
+    const avg = Math.round(hrSumRef.current / hrReadingsRef.current.length);
     updateGPSWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
   }, [updateGPSWorkout]);
 
   const handleHRConnected = useCallback((deviceName: string) => {
+    setPreviewDeviceName(deviceName);
     updateGPSWorkout({ hrDeviceName: deviceName });
   }, [updateGPSWorkout]);
+
+  const handleHRModalClose = useCallback(() => {
+    setHRModalVisible(false);
+    if (!bleService.isConnected()) {
+      setPreviewHR(null);
+      setPreviewDeviceName(null);
+    }
+  }, []);
 
   const handleRecenter = useCallback(async () => {
     const gpsWorkout = gpsWorkoutRef.current;
@@ -428,14 +441,15 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const gpsQuality = recordingState === 'idle'
     ? { label: 'Ready', tone: 'fair' as const }
     : getGPSQualityState(lastPoint?.accuracy, Boolean(lastPoint));
-  const hrZoneColor = workout?.currentHR ? getHRZoneColor(workout.currentHR, maxHR) : colors.textSecondary;
+  const displayHR = workout?.currentHR ?? previewHR;
+  const hrZoneColor = displayHR ? getHRZoneColor(displayHR, maxHR) : colors.textSecondary;
   const qualityColor = getQualityColor(gpsQuality.tone, colors);
   const primaryMetricTone = recordingState === 'recording' ? colors.secondary : colors.primary;
   const mapOverlay = isDark ? 'rgba(17, 17, 26, 0.78)' : 'rgba(255, 255, 255, 0.82)';
   const mapScrimColor = isDark ? 'rgba(12, 11, 18, 0.18)' : 'rgba(245, 243, 255, 0.12)';
   const collapsedPillBg = isDark ? 'rgba(17, 17, 26, 0.88)' : 'rgba(255, 255, 255, 0.92)';
   const connectionLabel = bleService.isConnected()
-    ? `Connected to ${workout?.hrDeviceName ?? bleService.getDeviceName()}`
+    ? `Connected to ${workout?.hrDeviceName ?? previewDeviceName ?? bleService.getDeviceName()}`
     : 'Connect heart rate monitor';
   const expandedPanelHeight = Math.min(Math.max(560, windowHeight * 0.72), 700);
   const collapsedTranslateY = Math.max(expandedPanelHeight - COLLAPSED_PANEL_PEEK, 0);
@@ -534,7 +548,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       case 'speed': return formatSpeedKph(workout?.currentSpeedKph ?? 0);
       case 'avg_pace': return formatPaceSecPerKm(workout?.avgPaceSecPerKm ?? 0);
       case 'avg_speed': return formatSpeedKph(workout?.avgSpeedKph ?? 0);
-      case 'heart_rate': return workout?.currentHR ? String(workout.currentHR) : '\u2014';
+      case 'heart_rate': return displayHR ? String(displayHR) : '\u2014';
       case 'cadence': return workout?.currentCadence ? String(workout.currentCadence) : '\u2014';
       case 'elevation': return String(Math.round(workout?.elevationGainM ?? 0));
       case 'lap': return String((workout?.laps.length ?? 0) + 1);
@@ -543,7 +557,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   }
 
   function getMetricUnit(slot: CollapsedMetricSlot): string | undefined {
-    if (slot.id === 'heart_rate' && !workout?.currentHR) return undefined;
+    if (slot.id === 'heart_rate' && !displayHR) return undefined;
     if (slot.id === 'cadence' && !workout?.currentCadence) return undefined;
     return slot.unit;
   }
@@ -574,7 +588,11 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       value: resolveMetricValue('heart_rate'),
       unit: getMetricUnit({ id: 'heart_rate', label: 'HR', unit: 'bpm' }),
       accent: getMetricAccent('heart_rate'),
-      support: workout?.avgHR ? `Avg ${workout.avgHR} bpm` : 'Sensor optional',
+      support: workout?.avgHR
+        ? `Avg ${workout.avgHR} bpm`
+        : displayHR
+          ? 'Live reading'
+          : 'Sensor optional',
     },
     ...(showCadence
       ? [{
@@ -898,7 +916,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
 
       <HRSensorModal
         visible={hrModalVisible}
-        onClose={() => setHRModalVisible(false)}
+        onClose={handleHRModalClose}
         onConnected={handleHRConnected}
         onReading={handleHRReading}
       />

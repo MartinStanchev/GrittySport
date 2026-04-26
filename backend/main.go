@@ -104,7 +104,7 @@ func main() {
 	memoryService := memory.NewService(pool, geminiClient)
 
 	programService := services.NewProgramService(pool)
-	programHandler := handlers.NewProgramHandler(programService, chatService, usageService)
+	programHandler := handlers.NewProgramHandler(programService, chatService, memoryService, usageService)
 	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService)
 
 	workoutService := services.NewWorkoutService(pool)

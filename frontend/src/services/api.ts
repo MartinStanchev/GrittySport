@@ -287,8 +287,27 @@ export interface ChatMessageResponse {
   created_at: string;
 }
 
+export interface ChatSegmentHeader {
+  label: string;
+  subtitle?: string;
+  ref_type?: string;
+  ref_id?: string;
+}
+
+export interface ChatSegmentResponse {
+  id: string;
+  segment_type: string;
+  status: string;
+  start_message_id?: string;
+  end_message_id?: string;
+  header?: ChatSegmentHeader;
+  started_at: string;
+  completed_at?: string;
+}
+
 interface ChatHistoryResponse {
   messages: ChatMessageResponse[];
+  segments: ChatSegmentResponse[];
   has_more: boolean;
 }
 

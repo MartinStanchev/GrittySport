@@ -24,6 +24,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory, getWorkouts } from '../services/api';
+import type { ChatMessageResponse, ChatSegmentResponse } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
 import { ProgramEditCard } from '../components/ProgramEditCard';
@@ -45,9 +46,46 @@ import { TOOL_LABELS } from '../constants/toolLabels';
 
 const TOOL_CALL_RE = /^\[System: Grit called tools?: ([^\]]+?)(?:\. .*)?\]$/;
 
-function mapHistoryMessages(messages: { id: string; role: string; content: string }[]): ChatMessage[] {
+function buildSegmentHeaderMessage(seg: ChatSegmentResponse): ChatMessage {
+  const h = seg.header!;
+  return {
+    id: `seg-${seg.id}`,
+    role: 'system',
+    content: '',
+    messageType: 'segment_header',
+    segmentHeader: {
+      segmentId: seg.id,
+      segmentType: seg.segment_type,
+      label: h.label,
+      subtitle: h.subtitle,
+      refType: h.ref_type,
+      refId: h.ref_id,
+      startedAt: seg.started_at,
+    },
+  };
+}
+
+function mapHistoryMessages(
+  messages: ChatMessageResponse[],
+  segments: ChatSegmentResponse[] = [],
+): ChatMessage[] {
+  // Only segments with a header are renderable cues. general_coaching never has
+  // a header — its absence is the visual signal for "ordinary chat."
+  // Backend returns segments ordered by started_at ASC, so no re-sort needed.
+  const renderableSegments = segments
+    .filter((s) => s.header && s.segment_type !== 'general_coaching')
+    .map((s) => ({ seg: s, time: new Date(s.started_at).getTime() }));
+
+  let segIdx = 0;
   const result: ChatMessage[] = [];
+
   for (const m of messages) {
+    const msgTime = new Date(m.created_at).getTime();
+    while (segIdx < renderableSegments.length && renderableSegments[segIdx].time <= msgTime) {
+      result.push(buildSegmentHeaderMessage(renderableSegments[segIdx].seg));
+      segIdx++;
+    }
+
     if (m.role === 'system') {
       const match = m.content.match(TOOL_CALL_RE);
       if (match) {
@@ -65,6 +103,7 @@ function mapHistoryMessages(messages: { id: string; role: string; content: strin
       }
       continue;
     }
+
     result.push({
       id: m.id,
       role: m.role as 'user' | 'assistant',
@@ -72,6 +111,15 @@ function mapHistoryMessages(messages: { id: string; role: string; content: strin
       messageType: 'text',
     });
   }
+
+  // Drain any segments that started after the last message (e.g., a manual
+  // edit anchored on a system message that lands later in the timestamp
+  // ordering).
+  while (segIdx < renderableSegments.length) {
+    result.push(buildSegmentHeaderMessage(renderableSegments[segIdx].seg));
+    segIdx++;
+  }
+
   return result;
 }
 
@@ -308,7 +356,7 @@ export default function HomeScreen() {
       getChatHistory(25)
         .then((resp) => {
           if (resp.messages.length > 0) {
-            loadHistory(mapHistoryMessages(resp.messages), resp.has_more);
+            loadHistory(mapHistoryMessages(resp.messages, resp.segments), resp.has_more);
           }
           setHistoryLoaded(true);
         })
@@ -323,7 +371,7 @@ export default function HomeScreen() {
     setIsLoadingMore(true);
     getChatHistory(25, firstMsg.id)
       .then((resp) => {
-        prependHistory(mapHistoryMessages(resp.messages), resp.has_more);
+        prependHistory(mapHistoryMessages(resp.messages, resp.segments), resp.has_more);
       })
       .catch(() => setIsLoadingMore(false));
   }, [hasMore, isLoadingMore, messages, setIsLoadingMore, prependHistory]);
@@ -348,6 +396,25 @@ export default function HomeScreen() {
 
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => {
+      if (item.messageType === 'segment_header' && item.segmentHeader) {
+        return (
+          <View style={styles.segmentHeaderRow}>
+            <View style={[styles.segmentHeaderRule, { backgroundColor: colors.border }]} />
+            <View style={styles.segmentHeaderTextWrap}>
+              <Text style={[styles.segmentHeaderLabel, { color: colors.textSecondary }]}>
+                {item.segmentHeader.label}
+              </Text>
+              {item.segmentHeader.subtitle ? (
+                <Text style={[styles.segmentHeaderSubtitle, { color: colors.textSecondary }]}>
+                  {item.segmentHeader.subtitle}
+                </Text>
+              ) : null}
+            </View>
+            <View style={[styles.segmentHeaderRule, { backgroundColor: colors.border }]} />
+          </View>
+        );
+      }
+
       if (item.messageType === 'tool_action') {
         return (
           <View style={styles.toolActionRow}>
@@ -866,6 +933,32 @@ const styles = StyleSheet.create({
   toolActionLabel: {
     fontSize: 12,
     fontFamily: Fonts.body,
+  },
+  segmentHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    gap: 10,
+  },
+  segmentHeaderRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+  },
+  segmentHeaderTextWrap: {
+    alignItems: 'center',
+    maxWidth: '70%',
+  },
+  segmentHeaderLabel: {
+    fontSize: 12,
+    fontFamily: Fonts.heading,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  segmentHeaderSubtitle: {
+    fontSize: 11,
+    fontFamily: Fonts.body,
+    marginTop: 2,
+    textAlign: 'center',
   },
   loadMoreContainer: {
     alignItems: 'center',

@@ -1,22 +1,44 @@
 import { Ionicons } from '@expo/vector-icons';
 
+// Canonical activity types — snake_case, used by both frontend and backend.
+// Run/cycle/swim sub-flavors (easy/long/tempo/interval/trail) are encoded in
+// the activity's notes + prescription, not as separate types.
+export const ACTIVITY_TYPES = [
+  'run',
+  'walk',
+  'cycling',
+  'swim',
+  'open_water_swim',
+  'indoor_run',
+  'indoor_cycling',
+  'strength_training',
+  'mobility',
+  'yoga',
+  'recovery',
+  'rest',
+  'drill',
+  'cross_training',
+  'outdoor_activity',
+  'indoor_activity',
+] as const;
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
 export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   run: 'walk-outline',
-  easy_run: 'walk-outline',
-  interval: 'speedometer-outline',
   walk: 'walk-outline',
-  trail_run: 'walk-outline',
+  cycling: 'bicycle-outline',
   swim: 'water-outline',
   open_water_swim: 'water-outline',
-  strength: 'barbell-outline',
-  rest: 'bed-outline',
-  recovery: 'bed-outline',
+  indoor_run: 'walk-outline',
+  indoor_cycling: 'bicycle-outline',
+  strength_training: 'barbell-outline',
   mobility: 'body-outline',
   yoga: 'body-outline',
-  cycling: 'bicycle-outline',
-  indoor_cycling: 'bicycle-outline',
-  indoor_run: 'walk-outline',
+  recovery: 'bed-outline',
+  rest: 'bed-outline',
   drill: 'flag-outline',
+  cross_training: 'fitness-outline',
   outdoor_activity: 'sunny-outline',
   indoor_activity: 'home-outline',
 };
@@ -46,7 +68,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /** Day-of-week indices ordered Monday→Sunday. Use for rendering weekly schedules. */
-export const WEEK_DAYS_MON_SUN = [1, 2, 3, 4, 5, 6, 0] as const;
+export const WEEK_DAYS_MON_SUN: number[] = [1, 2, 3, 4, 5, 6, 0];
 
 export function dayAbbrev(dayOfWeek: number): string {
   return DAY_NAMES[dayOfWeek] ?? `Day ${dayOfWeek}`;
@@ -63,28 +85,19 @@ export function formatActivityDate(dateStr: string): string {
 
 export const ACTIVITY_DISPLAY_NAMES: Record<string, string> = {
   run: 'Run',
-  easy_run: 'Easy Run',
-  long_run: 'Long Run',
-  tempo_run: 'Tempo Run',
-  interval: 'Interval',
-  interval_run: 'Interval Run',
-  interval_training: 'Interval Training',
-  trail_run: 'Trail Run',
-  indoor_run: 'Indoor Run',
   walk: 'Walk',
+  cycling: 'Cycling',
   swim: 'Swim',
   open_water_swim: 'Open Water Swim',
-  strength: 'Strength',
-  strength_training: 'Strength Training',
-  cycling: 'Cycling',
+  indoor_run: 'Indoor Run',
   indoor_cycling: 'Indoor Cycling',
+  strength_training: 'Strength Training',
   mobility: 'Mobility',
   yoga: 'Yoga',
   recovery: 'Recovery',
   rest: 'Rest',
   drill: 'Drill',
   cross_training: 'Cross Training',
-  bike: 'Cycling',
   outdoor_activity: 'Outdoor Activity',
   indoor_activity: 'Indoor Activity',
 };
@@ -104,7 +117,7 @@ export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
   { type: 'indoor_cycling', label: 'Indoor Cycling' },
   { type: 'swim', label: 'Swim' },
   { type: 'open_water_swim', label: 'Open Water Swim' },
-  { type: 'strength', label: 'Strength' },
+  { type: 'strength_training', label: 'Strength Training' },
   { type: 'mobility', label: 'Mobility' },
   { type: 'drill', label: 'Drill' },
   { type: 'outdoor_activity', label: 'Outdoor Activity' },
@@ -112,7 +125,7 @@ export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
 ];
 
 const GPS_ROOTS = ['run', 'walk', 'swim', 'cycling', 'open_water_swim', 'outdoor_activity'];
-const MANUAL_ROOTS = ['strength', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling', 'indoor_activity'];
+const MANUAL_ROOTS = ['strength_training', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling', 'indoor_activity'];
 
 export function isGPSActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');

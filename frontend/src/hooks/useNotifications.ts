@@ -73,9 +73,8 @@ export function useNotifications(isAuthenticated: boolean) {
     });
 
     return () => {
-      if (responseListenerRef.current) {
-        Notifications.removeNotificationSubscription(responseListenerRef.current);
-      }
+      responseListenerRef.current?.remove();
+      responseListenerRef.current = null;
     };
   }, [isAuthenticated]);
 }

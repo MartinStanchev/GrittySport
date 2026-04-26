@@ -65,9 +65,10 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 
 	var maxHR int
 	var userName string
+	var userTZ *string
 	err = s.pool.QueryRow(ctx,
-		"SELECT max_heart_rate, name FROM users WHERE id = $1", userID,
-	).Scan(&maxHR, &userName)
+		"SELECT max_heart_rate, name, timezone FROM users WHERE id = $1", userID,
+	).Scan(&maxHR, &userName, &userTZ)
 	if err != nil {
 		maxHR = 185
 		userName = "there"
@@ -116,8 +117,10 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 		return fmt.Errorf("save review message: %w", err)
 	}
 
-	// Close any active segment and start a new post-workout review segment.
-	s.startReviewSegment(ctx, userID, "post_workout_review", savedMsg.ID)
+	// Close any active segment and start a new post-workout review segment,
+	// snapshotting workout summary fields for the chat-grouping header.
+	header := buildPostWorkoutHeader(workout, durationSec, userTZ)
+	s.startReviewSegment(ctx, userID, "post_workout_review", savedMsg.ID, header)
 
 	// Send push notification with a short preview
 	if s.notifService != nil {
@@ -186,7 +189,8 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	}
 
 	// Close any active segment and start a new missed workout segment.
-	s.startReviewSegment(ctx, userID, "missed_workout_checkin", savedMsg.ID)
+	header := buildMissedWorkoutHeader(activityID, activityType, phaseName)
+	s.startReviewSegment(ctx, userID, "missed_workout_checkin", savedMsg.ID, header)
 
 	// Mark as sent
 	_, err = s.pool.Exec(ctx,
@@ -298,13 +302,15 @@ func (s *Service) loadTrendSummary(ctx context.Context, userID, activityType str
 	return fmt.Sprintf("Last %d workouts:\n%s", len(summaries), strings.Join(summaries, "\n"))
 }
 
-// startReviewSegment closes any active segment (with async summarization) and starts a new one.
-func (s *Service) startReviewSegment(ctx context.Context, userID, segType, startMessageID string) {
+// startReviewSegment closes any active segment (with async summarization) and
+// starts a new one anchored to the review message, with a denormalized header
+// payload for the chat-grouping UI.
+func (s *Service) startReviewSegment(ctx context.Context, userID, segType, startMessageID string, header json.RawMessage) {
 	if s.memoryService == nil {
 		return
 	}
 	s.memoryService.CloseActiveAndSummarize(ctx, userID)
-	if _, err := s.memoryService.StartSegment(ctx, userID, segType, startMessageID); err != nil {
+	if _, err := s.memoryService.StartSegment(ctx, userID, segType, startMessageID, header); err != nil {
 		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to start review segment")
 	}
 }
@@ -375,4 +381,75 @@ func buildRecordedDataSummary(workout *models.Workout) string {
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// buildPostWorkoutHeader builds a denormalized SegmentHeader for a post-workout
+// review segment, snapshotting the activity type, distance/duration, and the
+// workout's start time formatted in the user's timezone (UTC fallback).
+func buildPostWorkoutHeader(workout *models.Workout, durationSec float64, userTZ *string) json.RawMessage {
+	statParts := []string{titleCaseActivity(workout.ActivityType)}
+
+	if len(workout.RecordedData) > 0 {
+		var rec map[string]any
+		if err := json.Unmarshal(workout.RecordedData, &rec); err == nil {
+			if km, ok := rec["distance_km"].(float64); ok && km > 0 {
+				statParts = append(statParts, fmt.Sprintf("%.1f km", km))
+			} else if m, ok := rec["distance_m"].(float64); ok && m > 0 {
+				statParts = append(statParts, fmt.Sprintf("%.0f m", m))
+			}
+		}
+	}
+	if durationSec > 0 {
+		statParts = append(statParts, formatDuration(durationSec))
+	}
+
+	return models.SegmentHeader{
+		Label:    strings.Join(statParts, " · "),
+		Subtitle: formatLocalTime(workout.StartedAt, userTZ),
+		RefType:  "workout",
+		RefID:    workout.ID,
+	}.Marshal()
+}
+
+// buildMissedWorkoutHeader builds a SegmentHeader for a missed-workout check-in.
+// We don't include a timestamp — the message timestamp itself is the anchor —
+// just the activity type and phase name as context.
+func buildMissedWorkoutHeader(activityID, activityType, phaseName string) json.RawMessage {
+	return models.SegmentHeader{
+		Label:    "Missed · " + titleCaseActivity(activityType),
+		Subtitle: phaseName,
+		RefType:  "activity",
+		RefID:    activityID,
+	}.Marshal()
+}
+
+func titleCaseActivity(s string) string {
+	s = strings.ReplaceAll(s, "_", " ")
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+func formatDuration(seconds float64) string {
+	mins := int(seconds / 60)
+	if mins < 60 {
+		return fmt.Sprintf("%d min", mins)
+	}
+	h := mins / 60
+	m := mins % 60
+	if m == 0 {
+		return fmt.Sprintf("%dh", h)
+	}
+	return fmt.Sprintf("%dh %dm", h, m)
+}
+
+func formatLocalTime(t time.Time, tz *string) string {
+	loc := time.UTC
+	if tz != nil && *tz != "" {
+		if l, err := time.LoadLocation(*tz); err == nil {
+			loc = l
+		}
+	}
+	return t.In(loc).Format("Mon Jan 2 · 15:04")
 }

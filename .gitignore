@@ -6,3 +6,4 @@ frontend/.env
 *.tcx
 *.gpx
 *.fit
+*.exe

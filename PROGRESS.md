@@ -72,6 +72,9 @@ Full details for each change are in the `progress/` folder.
 | [explicit-user-preferences](progress/explicit-user-preferences.md) | Explicit user preferences: save/forget tools, LLM condensing, separate assembly section, 5 free / unlimited premium |
 | [flex-inference-tier](progress/flex-inference-tier.md) | Gemini Flex tier for background ops (missed reviews, summarization) — 50% cost reduction with Standard fallback |
 | [push-notifications](progress/push-notifications.md) | Task 14: Push notifications via Expo Push API, dynamic type registry, workout reminders, notification preferences |
+| [hr-non-gps-and-set-detection](progress/hr-non-gps-and-set-detection.md) | HR sensor support for strength/mobility/drill/indoor workouts + HR-spike-driven next-set highlight |
+| [segment-grouped-chat-headers](progress/segment-grouped-chat-headers.md) | Eyebrow headers above Grit-initiated chat threads (reviews, missed check-ins, manual edits) anchored to chat_segments |
+| [activity-type-canonicalization](progress/activity-type-canonicalization.md) | Snake_case activity types end-to-end; collapse run sub-flavors into single `run` type with sub-flavor in `notes` |
 
 ## Instructions for Agents
 

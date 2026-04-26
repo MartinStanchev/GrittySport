@@ -14,22 +14,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
+import { ACTIVITY_TYPES, formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { Fonts } from '../constants/fonts';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
 import { KineticHeader } from '../components/Kinetic';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-const ACTIVITY_TYPES = [
-  'Easy Run', 'Long Run', 'Tempo Run', 'Interval Run', 'Trail Run', 'Indoor Run', 'Run',
-  'Walk', 'Swim', 'Open Water Swim',
-  'Strength Training', 'Cycling', 'Indoor Cycling',
-  'Mobility', 'Yoga', 'Recovery', 'Rest',
-  'Drill', 'Cross Training',
-  'Outdoor Activity', 'Indoor Activity',
-];
 
 interface TemplateActivity {
   day_of_week: number;

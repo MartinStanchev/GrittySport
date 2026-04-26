@@ -45,14 +45,13 @@ func intFromAny(v any, defaultVal int) int {
 }
 
 // ActivityTypes is the canonical set of activity types the LLM must choose from.
-// Human-readable format — stored as-is in the DB. The frontend normalizes to snake_case for icon/display lookup.
+// snake_case is the storage format across backend, DB, and frontend. Run sub-flavors
+// (easy/long/tempo/interval/trail) belong in notes + prescription, not activity_type.
 var ActivityTypes = []string{
-	"Easy Run", "Long Run", "Tempo Run", "Interval Run", "Trail Run", "Indoor Run", "Run",
-	"Walk", "Swim", "Open Water Swim",
-	"Strength Training", "Cycling", "Indoor Cycling",
-	"Mobility", "Yoga", "Recovery", "Rest",
-	"Drill", "Cross Training",
-	"Outdoor Activity", "Indoor Activity",
+	"run", "walk", "cycling", "swim", "open_water_swim",
+	"indoor_run", "indoor_cycling",
+	"strength_training", "mobility", "yoga", "recovery", "rest", "drill",
+	"cross_training", "outdoor_activity", "indoor_activity",
 }
 
 // phaseSchema returns the genai.Schema for a single phase used by save_draft_phase and update_draft_phase.

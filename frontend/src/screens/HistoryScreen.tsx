@@ -21,7 +21,7 @@ const PAGE_SIZE = 20;
 const ACTIVITY_FILTERS = [
   { key: '', label: 'All' },
   { key: 'run', label: 'Run' },
-  { key: 'strength', label: 'Strength' },
+  { key: 'strength_training', label: 'Strength' },
   { key: 'swim', label: 'Swim' },
   { key: 'cycling', label: 'Cycling' },
   { key: 'drill', label: 'Drill' },

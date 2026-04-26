@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
-import { getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { ACTIVITY_TYPES, getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
@@ -23,15 +23,6 @@ import { RouteMapPreview } from '../components/RouteMapPreview';
 import { KineticPanel } from '../components/Kinetic';
 import { useProgram } from '../contexts/ProgramContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
-
-const ACTIVITY_TYPES = [
-  'Easy Run', 'Long Run', 'Tempo Run', 'Interval Run', 'Trail Run', 'Indoor Run', 'Run',
-  'Walk', 'Swim', 'Open Water Swim',
-  'Strength Training', 'Cycling', 'Indoor Cycling',
-  'Mobility', 'Yoga', 'Recovery', 'Rest',
-  'Drill', 'Cross Training',
-  'Outdoor Activity', 'Indoor Activity',
-];
 
 export default function ActivityDetailScreen({ route, navigation }: any) {
   const { colors } = useTheme();
@@ -45,7 +36,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
 
   // Edit / create state
   const [editing, setEditing] = useState(isCreateMode);
-  const [editActivityType, setEditActivityType] = useState('Easy Run');
+  const [editActivityType, setEditActivityType] = useState<string>('run');
   const [editPrescription, setEditPrescription] = useState<Record<string, any>>({});
   const [editNotes, setEditNotes] = useState('');
   const [editDayOfWeek, setEditDayOfWeek] = useState<number>(createDayOfWeek ?? 1);

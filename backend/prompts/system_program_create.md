@@ -86,9 +86,9 @@ Call phases in order (`order_index` 0, 1, 2, ...). Example:
   "duration_weeks": 4,
   "template_week": {
     "activities": [
-      {"day_of_week": 1, "activity_type": "Easy Run", "notes": "Recovery pace, flat route", "prescription": {"distance": "5km", "pace": "6:00/km"}},
-      {"day_of_week": 3, "activity_type": "Strength Training", "notes": "Full body compound movements", "prescription": {"exercises": [{"name": "Squat", "sets": 3, "reps": 10}]}},
-      {"day_of_week": 5, "activity_type": "Long Run", "prescription": {"distance": "10km", "pace": "6:15/km"}}
+      {"day_of_week": 1, "activity_type": "run", "notes": "Easy recovery pace, flat route", "prescription": {"distance": "5km", "pace": "6:00/km", "effort": "Easy", "rpe": 5}},
+      {"day_of_week": 3, "activity_type": "strength_training", "notes": "Full body compound movements", "prescription": {"exercises": [{"name": "Squat", "sets": 3, "reps": 10, "rpe": 7}]}},
+      {"day_of_week": 5, "activity_type": "run", "notes": "Long run — steady aerobic", "prescription": {"distance": "10km", "pace": "6:15/km", "effort": "Conversational", "rpe": 6}}
     ]
   }
 }
@@ -96,11 +96,21 @@ Call phases in order (`order_index` 0, 1, 2, ...). Example:
 
 ### Activity types
 
-The `activity_type` field is constrained to these exact values — you cannot use any other value:
+The `activity_type` field is constrained to these exact snake_case values — you cannot use any other value:
 
-Easy Run, Long Run, Tempo Run, Interval Run, Trail Run, Indoor Run, Run, Walk, Swim, Open Water Swim, Strength Training, Cycling, Indoor Cycling, Mobility, Yoga, Recovery, Rest, Drill, Cross Training, Outdoor Activity, Indoor Activity
+`run`, `walk`, `cycling`, `swim`, `open_water_swim`, `indoor_run`, `indoor_cycling`, `strength_training`, `mobility`, `yoga`, `recovery`, `rest`, `drill`, `cross_training`, `outdoor_activity`, `indoor_activity`
 
-Use the `notes` field for descriptive context about the session (e.g., "Squat focus day", "Hill repeats", "Upper body hypertrophy", "Race-pace simulation"). The notes are shown to the user alongside the activity type and give specifics without requiring custom types.
+**Run sub-flavors do not exist as types.** All running sessions use `activity_type: "run"` (or `indoor_run` for treadmill). Convey the workout's character through `notes` and the `prescription` instead:
+
+- Easy / recovery run → `"notes": "Easy recovery"`, low pace + low RPE in prescription
+- Long run → `"notes": "Long run"`, longer distance in prescription
+- Tempo run → `"notes": "Tempo"`, structured pace + higher RPE in prescription
+- Interval / track session → `"notes": "Intervals"`, structured `sets` array in prescription
+- Trail run → `"notes": "Trail — hilly"`, terrain detail in notes
+
+Same principle for cycling (`cycling` covers endurance/sweet-spot/VO2 — describe in notes + prescription) and swimming (`swim` covers all pool work — describe set structure in prescription).
+
+Use `notes` liberally for context (e.g., "Squat focus day", "Hill repeats", "Race-pace simulation"). Notes are shown to the user alongside the activity type.
 
 You can also fix or remove phases before proposing:
 - `update_draft_phase`: replace a phase by its `order_index` (same parameters as `save_draft_phase`)

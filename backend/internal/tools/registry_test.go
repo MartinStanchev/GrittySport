@@ -194,7 +194,7 @@ func TestProposalStoreGetPhases(t *testing.T) {
 	}
 
 	// After propose_program (Set replaces proposal), decomposes from Program JSON.
-	programJSON := `{"name":"Test","phases":[{"name":"Alpha","order_index":0,"duration_weeks":2,"template_week":{"activities":[{"day_of_week":1,"activity_type":"Run"}]}},{"name":"Beta","order_index":1,"duration_weeks":3,"template_week":{"activities":[]}}]}`
+	programJSON := `{"name":"Test","phases":[{"name":"Alpha","order_index":0,"duration_weeks":2,"template_week":{"activities":[{"day_of_week":1,"activity_type":"run"}]}},{"name":"Beta","order_index":1,"duration_weeks":3,"template_week":{"activities":[]}}]}`
 	store.Set("user1", &PendingProposal{
 		Type:    "program_creation",
 		Program: []byte(programJSON),

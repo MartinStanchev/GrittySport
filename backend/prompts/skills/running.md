@@ -21,6 +21,9 @@
 ---
 
 ## Run Types
+
+All running sessions use `activity_type: "run"` (or `"indoor_run"` for treadmill). The session character is conveyed via the `notes` field and the structure of the `prescription`. Suggested notes labels: "Easy", "Tempo", "Intervals", "Long run", "Fartlek", "Hill repeats", "Strides", "Trail".
+
 - **Easy/Recovery Run**: Conversational pace, 60-70% max HR. Foundation of any program. Should make up 80% of weekly mileage.
 - **Tempo Run**: Comfortably hard, ~85% max HR. Sustainable for 20-40 min. Improves lactate threshold.
 - **Interval Training**: Short repeats (200m-1600m) at VO2max effort (~90-95% max HR) with recovery jogs. Builds speed and aerobic power.

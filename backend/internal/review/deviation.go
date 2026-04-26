@@ -300,35 +300,36 @@ func floatFromMap(m map[string]any, key string) float64 {
 }
 
 // activityTypeFamily groups related activity types into a family for comparison.
+// Indoor/outdoor variants of the same sport count as the same family for deviation matching.
 func activityTypeFamily(actType string) string {
 	t := strings.ToLower(actType)
-	switch {
-	case t == "run" || t == "easy_run" || t == "long_run" || t == "interval" || t == "trail_run" || t == "tempo_run":
+	switch t {
+	case "run", "indoor_run":
 		return "run"
-	case t == "cycling" || t == "bike":
+	case "cycling", "indoor_cycling":
 		return "cycling"
-	case t == "swim" || t == "swim_open_water":
+	case "swim", "open_water_swim":
 		return "swim"
-	case strings.Contains(t, "strength") || strings.Contains(t, "weight"):
+	case "strength_training":
 		return "strength"
-	case strings.Contains(t, "mobility") || strings.Contains(t, "yoga"):
+	case "mobility", "yoga":
 		return "mobility"
 	default:
 		return t
 	}
 }
 
-// activityTypesInFamily returns all known activity types for a given family.
+// activityTypesInFamily returns all canonical activity types for a given family.
 func activityTypesInFamily(family string) []string {
 	switch family {
 	case "run":
-		return []string{"run", "easy_run", "long_run", "interval", "trail_run", "tempo_run"}
+		return []string{"run", "indoor_run"}
 	case "cycling":
-		return []string{"cycling", "bike"}
+		return []string{"cycling", "indoor_cycling"}
 	case "swim":
-		return []string{"swim", "swim_open_water"}
+		return []string{"swim", "open_water_swim"}
 	case "strength":
-		return []string{"strength", "strength_training", "weight_training"}
+		return []string{"strength_training"}
 	case "mobility":
 		return []string{"mobility", "yoga"}
 	default:

@@ -2,15 +2,26 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getValidAccessToken, getWsBaseUrl, onChatCleared } from '../services/api';
 import { TOOL_LABELS } from '../constants/toolLabels';
 
+export interface SegmentHeaderData {
+  segmentId: string;
+  segmentType: string;
+  label: string;
+  subtitle?: string;
+  refType?: string;
+  refId?: string;
+  startedAt: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
-  messageType?: 'text' | 'program_proposal' | 'program_edit' | 'tool_action';
+  messageType?: 'text' | 'program_proposal' | 'program_edit' | 'tool_action' | 'segment_header';
   proposalData?: any;
   toolName?: string;
   toolDone?: boolean;
+  segmentHeader?: SegmentHeaderData;
 }
 
 interface WsIncoming {

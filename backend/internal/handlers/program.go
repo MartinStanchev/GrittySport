@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,7 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/memory"
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
@@ -18,11 +21,17 @@ import (
 type ProgramHandler struct {
 	programService *services.ProgramService
 	chatService    *services.ChatService
+	memoryService  *memory.Service
 	usageService   *usage.Service
 }
 
-func NewProgramHandler(programService *services.ProgramService, chatService *services.ChatService, usageSvc *usage.Service) *ProgramHandler {
-	return &ProgramHandler{programService: programService, chatService: chatService, usageService: usageSvc}
+func NewProgramHandler(programService *services.ProgramService, chatService *services.ChatService, memoryService *memory.Service, usageSvc *usage.Service) *ProgramHandler {
+	return &ProgramHandler{
+		programService: programService,
+		chatService:    chatService,
+		memoryService:  memoryService,
+		usageService:   usageSvc,
+	}
 }
 
 func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -153,13 +162,21 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Notify Grit of settings changes
+	// Notify Grit of settings changes (system message for context) and surface
+	// the edit as a header-only segment in the chat timeline.
 	if diff := buildCriteriaDiff(oldCriteria, input); diff != "" {
 		content := fmt.Sprintf(
 			"The user manually updated their program settings. Changes: %s. Take this into account in future coaching.",
 			diff,
 		)
-		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil)
+		if msg, err := h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil); err == nil {
+			h.recordManualEditEvent(r.Context(), userID, msg.ID, models.SegmentHeader{
+				Label:    "Updated program settings",
+				Subtitle: diff,
+				RefType:  "program",
+				RefID:    programID,
+			})
+		}
 	}
 
 	responses := make([]models.ProgramCriterionResponse, len(criteria))
@@ -278,14 +295,22 @@ func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Build diff and insert system message for Grit
+	// Build diff and insert system message for Grit, plus a header-only
+	// segment so the edit shows up as context in the chat timeline.
 	diff := buildActivityDiff(oldActivity, input)
 	if diff != "" {
 		content := fmt.Sprintf(
 			"The user manually edited the activity '%s' on %s. Changes: %s. Take this into account in future conversations.",
 			updated.ActivityType, updated.Date, diff,
 		)
-		_, _ = h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil)
+		if msg, err := h.chatService.SaveMessage(r.Context(), userID, "system", content, nil, nil); err == nil {
+			h.recordManualEditEvent(r.Context(), userID, msg.ID, models.SegmentHeader{
+				Label:    fmt.Sprintf("Edited %s · %s", updated.ActivityType, updated.Date),
+				Subtitle: diff,
+				RefType:  "activity",
+				RefID:    activityID,
+			})
+		}
 	}
 
 	writeJSON(w, http.StatusOK, updated)
@@ -321,6 +346,18 @@ func (h *ProgramHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+}
+
+// recordManualEditEvent inserts a header-only chat segment so manual program
+// edits surface as a "you edited X" cue in the timeline. Best-effort — any
+// error is logged but does not fail the edit request.
+func (h *ProgramHandler) recordManualEditEvent(ctx context.Context, userID, anchorMessageID string, header models.SegmentHeader) {
+	if h.memoryService == nil {
+		return
+	}
+	if _, err := h.memoryService.RecordEvent(ctx, userID, "manual_edit", anchorMessageID, header.Marshal()); err != nil {
+		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to record manual edit event segment")
+	}
 }
 
 func dayName(d int) string {

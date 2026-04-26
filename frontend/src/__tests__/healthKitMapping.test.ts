@@ -44,16 +44,16 @@ describe('mapHealthKitActivityType', () => {
     ['running', 'run'],
     ['cycling', 'cycling'],
     ['swimming', 'swim'],
-    ['traditionalStrengthTraining', 'strength'],
-    ['functionalStrengthTraining', 'strength'],
+    ['traditionalStrengthTraining', 'strength_training'],
+    ['functionalStrengthTraining', 'strength_training'],
     ['walking', 'walk'],
     ['yoga', 'yoga'],
-    ['hiking', 'trail_run'],
-    ['coreTraining', 'strength'],
+    ['hiking', 'run'],
+    ['coreTraining', 'strength_training'],
     ['flexibility', 'mobility'],
-    ['highIntensityIntervalTraining', 'interval'],
+    ['highIntensityIntervalTraining', 'run'],
     ['elliptical', 'indoor_run'],
-    ['crossTraining', 'strength'],
+    ['crossTraining', 'cross_training'],
     ['pilates', 'mobility'],
   ];
 
@@ -166,13 +166,13 @@ describe('buildSaveWorkoutInput', () => {
   test('indoor workout maps correctly', () => {
     const summary = makeSummary({
       workoutActivityType: 'traditionalStrengthTraining',
-      mappedActivityType: 'strength',
+      mappedActivityType: 'strength_training',
       distanceKm: null,
       isIndoor: true,
     });
     const input = buildSaveWorkoutInput(summary, [], []);
 
-    expect(input.activity_type).toBe('strength');
+    expect(input.activity_type).toBe('strength_training');
     expect(input.gps_route).toBeUndefined();
   });
 });

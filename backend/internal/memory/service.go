@@ -43,10 +43,10 @@ func (s *Service) GetLastMessageID(ctx context.Context, userID string) string {
 func (s *Service) GetActiveSegment(ctx context.Context, userID string) (*models.ChatSegment, error) {
 	var seg models.ChatSegment
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, started_at, completed_at, created_at
+		`SELECT id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, header, started_at, completed_at, created_at
 		 FROM chat_segments WHERE user_id = $1 AND status = 'active' LIMIT 1`,
 		userID,
-	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
+	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.Header, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -56,10 +56,10 @@ func (s *Service) GetActiveSegment(ctx context.Context, userID string) (*models.
 	return &seg, nil
 }
 
-// StartSegment creates a new active segment. Any existing active segment for
-// the user is closed first (without summarization — call SummarizeSegment
-// separately if needed).
-func (s *Service) StartSegment(ctx context.Context, userID, segmentType, startMessageID string) (*models.ChatSegment, error) {
+// StartSegment creates a new active segment with an optional header payload.
+// Any existing active segment for the user is closed first (without
+// summarization — call SummarizeSegment separately if needed).
+func (s *Service) StartSegment(ctx context.Context, userID, segmentType, startMessageID string, header json.RawMessage) (*models.ChatSegment, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("start segment tx: %w", err)
@@ -78,17 +78,35 @@ func (s *Service) StartSegment(ctx context.Context, userID, segmentType, startMe
 
 	var seg models.ChatSegment
 	err = tx.QueryRow(ctx,
-		`INSERT INTO chat_segments (user_id, segment_type, status, start_message_id)
-		 VALUES ($1, $2, 'active', $3)
-		 RETURNING id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, started_at, completed_at, created_at`,
-		userID, segmentType, startMessageID,
-	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
+		`INSERT INTO chat_segments (user_id, segment_type, status, start_message_id, header)
+		 VALUES ($1, $2, 'active', $3, $4)
+		 RETURNING id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, header, started_at, completed_at, created_at`,
+		userID, segmentType, startMessageID, header,
+	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.Header, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert segment: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit start segment: %w", err)
+	}
+	return &seg, nil
+}
+
+// RecordEvent inserts a one-shot completed segment that represents a notable
+// event (e.g., a manual program edit) so it surfaces as a header in the chat
+// timeline. Unlike StartSegment, this does NOT touch the user's currently
+// active conversation segment — events interleave with ongoing conversations.
+func (s *Service) RecordEvent(ctx context.Context, userID, segmentType, anchorMessageID string, header json.RawMessage) (*models.ChatSegment, error) {
+	var seg models.ChatSegment
+	err := s.pool.QueryRow(ctx,
+		`INSERT INTO chat_segments (user_id, segment_type, status, start_message_id, end_message_id, header, completed_at)
+		 VALUES ($1, $2, 'completed', $3, $3, $4, NOW())
+		 RETURNING id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, header, started_at, completed_at, created_at`,
+		userID, segmentType, anchorMessageID, header,
+	).Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.Header, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("record event segment: %w", err)
 	}
 	return &seg, nil
 }
@@ -123,6 +141,33 @@ func (s *Service) CloseActiveSegment(ctx context.Context, userID, endMessageID s
 		return "", fmt.Errorf("close active segment: %w", err)
 	}
 	return segmentID, nil
+}
+
+// GetSegmentsSince returns all segments for a user with started_at >= since,
+// ordered chronologically. Used by the chat-history endpoint to attach
+// segment metadata to the visible message window.
+func (s *Service) GetSegmentsSince(ctx context.Context, userID string, since time.Time) ([]models.ChatSegment, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, user_id, segment_type, status, start_message_id, end_message_id, summary, tags, header, started_at, completed_at, created_at
+		 FROM chat_segments
+		 WHERE user_id = $1 AND started_at >= $2
+		 ORDER BY started_at ASC`,
+		userID, since,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get segments since: %w", err)
+	}
+	defer rows.Close()
+
+	var segs []models.ChatSegment
+	for rows.Next() {
+		var seg models.ChatSegment
+		if err := rows.Scan(&seg.ID, &seg.UserID, &seg.SegmentType, &seg.Status, &seg.StartMessageID, &seg.EndMessageID, &seg.Summary, &seg.Tags, &seg.Header, &seg.StartedAt, &seg.CompletedAt, &seg.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan segment: %w", err)
+		}
+		segs = append(segs, seg)
+	}
+	return segs, nil
 }
 
 // getSegmentMessages fetches all messages between a segment's start and end message timestamps.

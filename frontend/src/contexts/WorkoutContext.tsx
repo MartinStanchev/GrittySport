@@ -33,6 +33,7 @@ export interface MobilityExerciseLog {
 
 export interface ActiveWorkout {
   workoutType: WorkoutType;
+  activityType: string;
   activityDisplayType: string;
   scheduledActivityId?: string;
   startedAt: Date;
@@ -44,7 +45,16 @@ export interface ActiveWorkout {
   drillDescription: string;
   drillNotes: string;
   workoutNotes: string;
+  // HR sensor (optional throughout the workout)
+  hrReadings: HRReading[];
+  currentHR: number | null;
+  avgHR: number | null;
+  hrDeviceName?: string;
 }
+
+type ManualWorkoutInitFields =
+  | 'phase' | 'workoutNotes' | 'finishedAt'
+  | 'hrReadings' | 'currentHR' | 'avgHR' | 'hrDeviceName';
 
 // ---- GPS workout types ----
 
@@ -107,7 +117,7 @@ export type StartGPSWorkoutOpts = Omit<ActiveGPSWorkout, GPSWorkoutInitFields>;
 interface WorkoutContextType {
   // Manual
   activeWorkout: ActiveWorkout | null;
-  startWorkout: (workout: Omit<ActiveWorkout, 'phase' | 'workoutNotes' | 'finishedAt'>) => void;
+  startWorkout: (workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => void;
   updateWorkout: (updates: Partial<ActiveWorkout>) => void;
   clearWorkout: () => void;
   // GPS
@@ -132,9 +142,18 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   activeGPSWorkoutRef.current = activeGPSWorkout;
 
   // Manual
-  const startWorkout = useCallback((workout: Omit<ActiveWorkout, 'phase' | 'workoutNotes' | 'finishedAt'>) => {
+  const startWorkout = useCallback((workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => {
     if (activeGPSWorkoutRef.current !== null) return; // GPS session in progress
-    setActiveWorkout({ ...workout, phase: 'recording', workoutNotes: '', finishedAt: undefined });
+    setActiveWorkout({
+      ...workout,
+      phase: 'recording',
+      workoutNotes: '',
+      finishedAt: undefined,
+      hrReadings: [],
+      currentHR: null,
+      avgHR: null,
+      hrDeviceName: undefined,
+    });
   }, []);
 
   const updateWorkout = useCallback((updates: Partial<ActiveWorkout>) => {
