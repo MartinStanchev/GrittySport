@@ -26,8 +26,8 @@ func TestFlexHTTPOptions(t *testing.T) {
 	if !ok {
 		t.Fatal("expected service_tier in ExtraBody")
 	}
-	if tier != "FLEX" {
-		t.Errorf("expected service_tier=FLEX, got %v", tier)
+	if tier != "flex" {
+		t.Errorf("expected service_tier=flex, got %v", tier)
 	}
 
 	if opts.Headers.Get("X-Server-Timeout") != "600" {
@@ -44,8 +44,8 @@ func TestApplyFlexTier_NilConfig(t *testing.T) {
 		t.Fatal("expected HTTPOptions to be set")
 	}
 	tier := cfg.HTTPOptions.ExtraBody["service_tier"]
-	if tier != "FLEX" {
-		t.Errorf("expected FLEX, got %v", tier)
+	if tier != "flex" {
+		t.Errorf("expected flex, got %v", tier)
 	}
 }
 
@@ -65,7 +65,7 @@ func TestApplyFlexTier_PreservesExisting(t *testing.T) {
 	if cfg.MaxOutputTokens != 1024 {
 		t.Error("applyFlexTier should preserve MaxOutputTokens")
 	}
-	if cfg.HTTPOptions == nil || cfg.HTTPOptions.ExtraBody["service_tier"] != "FLEX" {
+	if cfg.HTTPOptions == nil || cfg.HTTPOptions.ExtraBody["service_tier"] != "flex" {
 		t.Error("applyFlexTier should set Flex tier")
 	}
 }

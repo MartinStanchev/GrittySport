@@ -271,7 +271,7 @@ func flexHTTPOptions() *genai.HTTPOptions {
 	return &genai.HTTPOptions{
 		Headers:  http.Header{"X-Server-Timeout": []string{"600"}},
 		Timeout:  &timeout,
-		ExtraBody: map[string]any{"service_tier": "FLEX"},
+		ExtraBody: map[string]any{"service_tier": "flex"},
 	}
 }
 

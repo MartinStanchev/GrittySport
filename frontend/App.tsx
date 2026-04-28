@@ -21,7 +21,6 @@ import { useNotifications } from './src/hooks/useNotifications';
 function RootNavigator() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { colors } = useTheme();
-  useNotifications(isAuthenticated);
 
   if (isLoading) {
     return (
@@ -38,6 +37,7 @@ function RootNavigator() {
   return (
     <ProgramProvider>
       <WorkoutProvider>
+        <NotificationsBridge />
         <View style={styles.appContainer}>
           <ActiveWorkoutBanner />
           <BottomTabNavigator />
@@ -45,6 +45,12 @@ function RootNavigator() {
       </WorkoutProvider>
     </ProgramProvider>
   );
+}
+
+// NotificationsBridge mounts inside ProgramProvider so useNotifications can access requestOpenChat.
+function NotificationsBridge() {
+  useNotifications(true);
+  return null;
 }
 
 function AppContent() {

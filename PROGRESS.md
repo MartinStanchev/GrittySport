@@ -75,6 +75,7 @@ Full details for each change are in the `progress/` folder.
 | [hr-non-gps-and-set-detection](progress/hr-non-gps-and-set-detection.md) | HR sensor support for strength/mobility/drill/indoor workouts + HR-spike-driven next-set highlight |
 | [segment-grouped-chat-headers](progress/segment-grouped-chat-headers.md) | Eyebrow headers above Grit-initiated chat threads (reviews, missed check-ins, manual edits) anchored to chat_segments |
 | [activity-type-canonicalization](progress/activity-type-canonicalization.md) | Snake_case activity types end-to-end; collapse run sub-flavors into single `run` type with sub-flavor in `notes` |
+| [notification-ux-improvements](progress/notification-ux-improvements.md) | Contextual titles, structured JSON post-workout reviews with lock-screen preview, randomized missed-workout bodies, tap-to-open-chat deep linking |
 
 ## Instructions for Agents
 

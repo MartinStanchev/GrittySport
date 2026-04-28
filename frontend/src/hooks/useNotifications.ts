@@ -4,6 +4,10 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { navigationRef } from '../navigation/navigationRef';
 import { registerPushToken } from '../services/api';
+import { useProgram } from '../contexts/ProgramContext';
+
+// Notification types whose tap should open the chat modal on Home.
+const CHAT_OPEN_TYPES = new Set(['post_workout_review', 'missed_workout', 'pre_workout_checkin']);
 
 // Configure how foreground notifications appear
 Notifications.setNotificationHandler({
@@ -46,6 +50,7 @@ async function registerForPushNotifications(): Promise<string | null> {
  */
 export function useNotifications(isAuthenticated: boolean) {
   const responseListenerRef = useRef<Notifications.Subscription | null>(null);
+  const { requestOpenChat } = useProgram();
 
   useEffect(() => {
     if (!isAuthenticated || Platform.OS === 'web') return;
@@ -62,19 +67,21 @@ export function useNotifications(isAuthenticated: boolean) {
       })
       .catch((err) => console.warn('[Notifications] Registration error:', err));
 
-    // Handle notification taps (background → foreground): all types navigate to Home.
-    // Chat-type notifications (post_workout_review, missed_workout, pre_workout_checkin)
-    // will have their chat modal opened by HomeScreen once it detects the navigation.
+    // Handle notification taps (background → foreground).
+    // Chat-driven types open the chat modal on Home; reminders just land on Home.
     responseListenerRef.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data as Record<string, string> | undefined;
-      if (data?.type && navigationRef.isReady()) {
-        navigationRef.navigate('Home' as never);
+      if (!data?.type || !navigationRef.isReady()) return;
+
+      if (CHAT_OPEN_TYPES.has(data.type)) {
+        requestOpenChat();
       }
+      navigationRef.navigate('Home' as never);
     });
 
     return () => {
       responseListenerRef.current?.remove();
       responseListenerRef.current = null;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, requestOpenChat]);
 }

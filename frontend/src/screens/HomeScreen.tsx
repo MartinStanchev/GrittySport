@@ -71,19 +71,31 @@ function mapHistoryMessages(
 ): ChatMessage[] {
   // Only segments with a header are renderable cues. general_coaching never has
   // a header — its absence is the visual signal for "ordinary chat."
-  // Backend returns segments ordered by started_at ASC, so no re-sort needed.
-  const renderableSegments = segments
-    .filter((s) => s.header && s.segment_type !== 'general_coaching')
-    .map((s) => ({ seg: s, time: new Date(s.started_at).getTime() }));
+  const renderable = segments.filter(
+    (s) => s.header && s.segment_type !== 'general_coaching',
+  );
 
-  let segIdx = 0;
+  // Anchor each header to its start_message_id so the cue lands immediately
+  // BEFORE the message that opened the segment. Timestamp comparison would
+  // misorder it: segments are saved a few ms after the message, so
+  // segment.started_at > start_message.created_at.
+  const segByStartMsg = new Map<string, ChatSegmentResponse>();
+  const orphans: ChatSegmentResponse[] = [];
+  for (const s of renderable) {
+    if (s.start_message_id) {
+      segByStartMsg.set(s.start_message_id, s);
+    } else {
+      orphans.push(s);
+    }
+  }
+
   const result: ChatMessage[] = [];
 
   for (const m of messages) {
-    const msgTime = new Date(m.created_at).getTime();
-    while (segIdx < renderableSegments.length && renderableSegments[segIdx].time <= msgTime) {
-      result.push(buildSegmentHeaderMessage(renderableSegments[segIdx].seg));
-      segIdx++;
+    const seg = segByStartMsg.get(m.id);
+    if (seg) {
+      result.push(buildSegmentHeaderMessage(seg));
+      segByStartMsg.delete(m.id);
     }
 
     if (m.role === 'system') {
@@ -112,12 +124,13 @@ function mapHistoryMessages(
     });
   }
 
-  // Drain any segments that started after the last message (e.g., a manual
-  // edit anchored on a system message that lands later in the timestamp
-  // ordering).
-  while (segIdx < renderableSegments.length) {
-    result.push(buildSegmentHeaderMessage(renderableSegments[segIdx].seg));
-    segIdx++;
+  // Append any segments whose anchor message wasn't in this page (orphans, or
+  // anchors paginated out). They land at the end so they remain visible.
+  for (const seg of segByStartMsg.values()) {
+    result.push(buildSegmentHeaderMessage(seg));
+  }
+  for (const seg of orphans) {
+    result.push(buildSegmentHeaderMessage(seg));
   }
 
   return result;

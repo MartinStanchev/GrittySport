@@ -13,7 +13,7 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.local
     ports:
       - "8080:8080"
     depends_on:

@@ -115,13 +115,20 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		return false // no activities today or already reminded
 	}
 
-	// Build reminder body
-	body := "You have a " + activityType + " on the plan today."
+	label := notifications.FormatActivityLabel(activityType)
+	var title, body string
 	if count > 1 {
-		body = fmt.Sprintf("You have %d activities on the plan today, starting with %s.", count, activityType)
+		title = fmt.Sprintf("%d workouts today", count)
+		body = fmt.Sprintf("Starting with %s — let's get after it.", label)
+	} else {
+		title = label + " today"
+		body = "On the plan for today — tap to see the details."
 	}
 
-	err = s.notifService.SendToUser(ctx, userID, "workout_reminder", body, nil)
+	err = s.notifService.SendToUser(ctx, userID, "workout_reminder", notifications.Payload{
+		Title: title,
+		Body:  body,
+	})
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to send workout reminder")
 		return false

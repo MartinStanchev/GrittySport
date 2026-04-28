@@ -104,15 +104,15 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	prompt = strings.ReplaceAll(prompt, "{{.TrendSummary}}", trendSummary)
 	prompt = strings.ReplaceAll(prompt, "{{.EffortScore}}", fmt.Sprintf("%d (%s)", effortScore, effortLabel))
 
-	// Call Gemini — single non-streaming call, Grit initiates (Standard tier: user-facing)
-	response, err := s.generateReview(ctx, prompt, false)
+	// Call Gemini — structured JSON response (Standard tier: user-facing)
+	reviewText, notifPreview, err := s.generatePostWorkoutReview(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("generate review: %w", err)
 	}
 
 	// Save Grit's review message with workout_id in metadata for polling.
 	reviewMeta, _ := json.Marshal(map[string]string{"workout_id": workoutID})
-	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", response, nil, reviewMeta)
+	savedMsg, err := s.chatService.SaveMessage(ctx, userID, "assistant", reviewText, nil, reviewMeta)
 	if err != nil {
 		return fmt.Errorf("save review message: %w", err)
 	}
@@ -122,10 +122,12 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	header := buildPostWorkoutHeader(workout, durationSec, userTZ)
 	s.startReviewSegment(ctx, userID, "post_workout_review", savedMsg.ID, header)
 
-	// Send push notification with a short preview
+	// Send push notification — title from activity type, body from LLM preview (or template fallback)
 	if s.notifService != nil {
-		_ = s.notifService.SendToUser(ctx, userID, "post_workout_review", truncatePreview(response), map[string]string{
-			"workout_id": workoutID,
+		_ = s.notifService.SendToUser(ctx, userID, "post_workout_review", notifications.Payload{
+			Title: notifications.FormatActivityLabel(workout.ActivityType) + " review ready",
+			Body:  postWorkoutNotifBody(notifPreview),
+			Data:  map[string]string{"workout_id": workoutID},
 		})
 	}
 
@@ -177,7 +179,7 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	prompt = strings.ReplaceAll(prompt, "{{.PrescriptionSummary}}", prescriptionStr)
 
 	// Flex tier: background scheduler, no user waiting
-	response, err := s.generateReview(ctx, prompt, true)
+	response, err := s.generateMissedReview(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("generate missed review: %w", err)
 	}
@@ -201,10 +203,12 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 		log.Error().Err(err).Str("activity_id", activityID).Msg("Failed to mark missed_review_sent")
 	}
 
-	// Send push notification
+	// Send push notification — randomized template body, contextual title
 	if s.notifService != nil {
-		_ = s.notifService.SendToUser(ctx, userID, "missed_workout", truncatePreview(response), map[string]string{
-			"activity_id": activityID,
+		_ = s.notifService.SendToUser(ctx, userID, "missed_workout", notifications.Payload{
+			Title: "Missed your " + notifications.FormatActivityLabel(activityType),
+			Body:  notifications.PickMissedWorkoutBody(),
+			Data:  map[string]string{"activity_id": activityID},
 		})
 	}
 
@@ -217,24 +221,87 @@ func (s *Service) TriggerMissedReview(ctx context.Context, userID, activityID st
 	return nil
 }
 
-func (s *Service) generateReview(ctx context.Context, systemPrompt string, flex bool) (string, error) {
-	contents := []*genai.Content{
-		{
-			Role:  "user",
-			Parts: []*genai.Part{genai.NewPartFromText("Please review my workout.")},
+type postWorkoutReviewResponse struct {
+	NotificationPreview string `json:"notification_preview"`
+	Review              string `json:"review"`
+}
+
+// notifPreviewMaxLen caps the lock-screen preview so it doesn't get truncated by the OS.
+const notifPreviewMaxLen = 80
+
+const fallbackPostWorkoutBody = "Tap to see how it went."
+
+// reviewContents builds the user-side request that prompts Grit to write a review.
+func reviewContents() []*genai.Content {
+	return []*genai.Content{
+		{Role: "user", Parts: []*genai.Part{genai.NewPartFromText("Please review my workout.")}},
+	}
+}
+
+// generatePostWorkoutReview asks Gemini for a structured review and returns
+// (review_text, notification_preview). If the JSON is malformed, the raw text
+// is returned as the review and the preview is empty (caller falls back).
+func (s *Service) generatePostWorkoutReview(ctx context.Context, systemPrompt string) (string, string, error) {
+	config := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
+		},
+		ResponseMIMEType: "application/json",
+		ResponseSchema: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"notification_preview", "review"},
+			Properties: map[string]*genai.Schema{
+				"notification_preview": {
+					Type:        genai.TypeString,
+					Description: "One concrete, specific sentence about this workout — max 80 characters. Goes on the user's lock screen.",
+				},
+				"review": {
+					Type:        genai.TypeString,
+					Description: "The full post-workout review (under 150 words). Shown to the user in chat.",
+				},
+			},
 		},
 	}
 
+	raw, err := s.geminiClient.GenerateContent(ctx, reviewContents(), config)
+	if err != nil {
+		return "", "", err
+	}
+
+	var parsed postWorkoutReviewResponse
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		log.Warn().Err(err).Str("raw", raw).Msg("post-workout review JSON parse failed, using raw text")
+		return raw, "", nil
+	}
+	if parsed.Review == "" {
+		return "", "", fmt.Errorf("post-workout review JSON had empty review field")
+	}
+	return parsed.Review, parsed.NotificationPreview, nil
+}
+
+// generateMissedReview produces the missed-workout chat message via the Flex tier.
+func (s *Service) generateMissedReview(ctx context.Context, systemPrompt string) (string, error) {
 	config := &genai.GenerateContentConfig{
 		SystemInstruction: &genai.Content{
 			Parts: []*genai.Part{genai.NewPartFromText(systemPrompt)},
 		},
 	}
+	return s.geminiClient.GenerateContentFlex(ctx, reviewContents(), config)
+}
 
-	if flex {
-		return s.geminiClient.GenerateContentFlex(ctx, contents, config)
+// postWorkoutNotifBody returns the LLM preview, truncating if it exceeds the
+// lock-screen cap. Falls back to a template only when the preview is empty —
+// a too-long but specific preview still beats a generic body.
+func postWorkoutNotifBody(preview string) string {
+	preview = strings.TrimSpace(preview)
+	if preview == "" {
+		return fallbackPostWorkoutBody
 	}
-	return s.geminiClient.GenerateContent(ctx, contents, config)
+	runes := []rune(preview)
+	if len(runes) <= notifPreviewMaxLen {
+		return preview
+	}
+	return string(runes[:notifPreviewMaxLen-3]) + "..."
 }
 
 func (s *Service) computeAlignmentSummary(ctx context.Context, activityID string, workout *models.Workout) (string, string) {
@@ -353,14 +420,6 @@ func (s *Service) buildProgramContext(ctx context.Context, userID string) string
 	}
 
 	return b.String()
-}
-
-// truncatePreview returns up to 100 characters of text, adding "..." if truncated.
-func truncatePreview(text string) string {
-	if len(text) <= 100 {
-		return text
-	}
-	return text[:97] + "..."
 }
 
 func buildRecordedDataSummary(workout *models.Workout) string {

@@ -119,8 +119,16 @@ func (s *Service) SetPreference(ctx context.Context, userID, notifType string, e
 	return err
 }
 
+// Payload is the contextual content for a single push notification.
+// Title falls back to the registry's DefaultTitle if empty.
+type Payload struct {
+	Title string
+	Body  string
+	Data  map[string]string
+}
+
 // SendToUser sends a push notification to a user, checking preferences and tier.
-func (s *Service) SendToUser(ctx context.Context, userID, notifType, body string, data map[string]string) error {
+func (s *Service) SendToUser(ctx context.Context, userID, notifType string, payload Payload) error {
 	nt, ok := Lookup(notifType)
 	if !ok {
 		return fmt.Errorf("unknown notification type: %s", notifType)
@@ -158,21 +166,26 @@ func (s *Service) SendToUser(ctx context.Context, userID, notifType, body string
 	}
 	defer rows.Close()
 
+	title := payload.Title
+	if title == "" {
+		title = nt.DefaultTitle
+	}
+
 	var messages []ExpoPushMessage
 	for rows.Next() {
 		var token string
 		if err := rows.Scan(&token); err != nil {
 			continue
 		}
-		msgData := make(map[string]string, len(data)+1)
-		for k, v := range data {
+		msgData := make(map[string]string, len(payload.Data)+1)
+		for k, v := range payload.Data {
 			msgData[k] = v
 		}
 		msgData["type"] = notifType
 		messages = append(messages, ExpoPushMessage{
 			To:    token,
-			Title: nt.DefaultTitle,
-			Body:  body,
+			Title: title,
+			Body:  payload.Body,
 			Data:  msgData,
 			Sound: "default",
 		})

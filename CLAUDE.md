@@ -7,7 +7,7 @@ The app is free to use with basic features and we're implementing premium featur
 
 ## Way of working
 
-The code should always be kept in good readable condition and best practices should be followed. After you implement a feature, invoke the code simplifier agent to go over the feature and check for any code that needs to be simplified, removed or deduplicated. This will help with technical debt. 
+The code should always be kept in good readable condition and best practices should be followed. After you implement a feature, ALWAYS invoke the code simplifier agent to go over the feature and check for any code that needs to be simplified, removed or deduplicated. This will help with technical debt.
 
 When starting to explore how a feature is done, you can always refer to the changelog that we have in the @PROGRESS.md file. 
 
