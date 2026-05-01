@@ -411,11 +411,10 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
         Alert.alert('No Activities', 'No matching program activities within the last week.');
         return;
       }
-      const workoutDate = new Date(workout.started_at);
       const options = activities.slice(0, 5).map((a) => ({
         id: a.id,
         activityType: a.activity_type,
-        dateLabel: formatRelativeDay(a.date, workoutDate),
+        dateLabel: formatRelativeDay(a.date),
       }));
       openLinkSheet(options);
     } catch {
