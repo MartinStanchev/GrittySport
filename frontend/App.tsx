@@ -14,6 +14,7 @@ import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthStackNavigator from './src/navigation/AuthStackNavigator';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
+import { OfflineBanner } from './src/components/OfflineBanner';
 import { navigationRef } from './src/navigation/navigationRef';
 import { syncPendingWorkouts } from './src/services/syncService';
 import { useNotifications } from './src/hooks/useNotifications';
@@ -39,6 +40,7 @@ function RootNavigator() {
       <WorkoutProvider>
         <NotificationsBridge />
         <View style={styles.appContainer}>
+          <OfflineBanner />
           <ActiveWorkoutBanner />
           <BottomTabNavigator />
         </View>

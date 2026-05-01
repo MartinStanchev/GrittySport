@@ -378,7 +378,7 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                   onPress={async () => {
                     const file = await pickWorkoutFile();
                     if (file) {
-                      navigation.navigate('WorkoutFilePreview', {
+                      navigation.navigate('ImportPreview', {
                         fileUri: file.uri,
                         fileName: file.fileName,
                         scheduledActivityId: activity.id,

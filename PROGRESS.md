@@ -76,6 +76,10 @@ Full details for each change are in the `progress/` folder.
 | [segment-grouped-chat-headers](progress/segment-grouped-chat-headers.md) | Eyebrow headers above Grit-initiated chat threads (reviews, missed check-ins, manual edits) anchored to chat_segments |
 | [activity-type-canonicalization](progress/activity-type-canonicalization.md) | Snake_case activity types end-to-end; collapse run sub-flavors into single `run` type with sub-flavor in `notes` |
 | [notification-ux-improvements](progress/notification-ux-improvements.md) | Contextual titles, structured JSON post-workout reviews with lock-screen preview, randomized missed-workout bodies, tap-to-open-chat deep linking |
+| [offline-mode](progress/offline-mode.md) | Task 15.1: SQLite cache for user/program/upcoming + offline auth fallback (no more spurious logout when network drops) + offline banner |
+| [strength-pause-button](progress/strength-pause-button.md) | Pause/Resume button for manual workouts (strength/mobility/drill); pause-aware elapsed timer + frozen mobility countdown and set detection |
+| [unified-import-preview](progress/unified-import-preview.md) | Apple Health imports now use the same full-screen preview as file imports (route map, stats, HR chart, link-to-scheduled UI) — bottom sheet removed |
+| [linkable-activity-window](progress/linkable-activity-window.md) | New `/activities/linkable` endpoint: ±3 day window, excludes already-linked, same-type-first then date priority [-1,-2,-3,today,+1,+2,+3] |
 
 ## Instructions for Agents
 

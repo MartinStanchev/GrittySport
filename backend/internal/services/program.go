@@ -798,7 +798,6 @@ func (s *ProgramService) VerifyProgramOwnership(ctx context.Context, programID, 
 	return nil
 }
 
-
 func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID string, limit int) ([]models.UpcomingActivityResponse, error) {
 	if limit <= 0 {
 		limit = 6
@@ -862,6 +861,100 @@ func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID strin
 		}
 	}
 	return activities, nil
+}
+
+// LinkableCandidate carries a linkable activity together with the values
+// needed to sort it (date and intra-day order). Exposed for testability.
+type LinkableCandidate struct {
+	Activity   models.LinkableActivityResponse
+	Date       time.Time
+	OrderIndex int
+}
+
+// linkableDatePriority assigns a sort key for a candidate date relative to
+// refDay; lower wins. With the chosen ordering, past days come first
+// (-1, -2, -3), then today, then future (+1, +2, +3). windowDays bounds the
+// future tail.
+func linkableDatePriority(d, refDay time.Time, windowDays int) int {
+	diff := int(d.Sub(refDay).Hours() / 24)
+	if diff < 0 {
+		return -diff - 1
+	}
+	return windowDays + diff
+}
+
+// SortLinkableCandidates orders candidates by: same-type first, then date
+// priority around refDay, then intra-day order_index. Mutates in place.
+func SortLinkableCandidates(items []LinkableCandidate, refDay time.Time, windowDays int) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Activity.SameType != items[j].Activity.SameType {
+			return items[i].Activity.SameType
+		}
+		pi := linkableDatePriority(items[i].Date, refDay, windowDays)
+		pj := linkableDatePriority(items[j].Date, refDay, windowDays)
+		if pi != pj {
+			return pi < pj
+		}
+		return items[i].OrderIndex < items[j].OrderIndex
+	})
+}
+
+// GetLinkableActivities returns scheduled activities from the user's active
+// program, within +/- windowDays of refDate, that are not yet linked to a
+// recorded workout. Results are sorted with same-type matches first, then by
+// date priority [-1, -2, -3, today, +1, +2, +3] (past days preferred), then by
+// order_index within the same day.
+func (s *ProgramService) GetLinkableActivities(ctx context.Context, userID, activityType string, refDate time.Time, windowDays int) ([]models.LinkableActivityResponse, error) {
+	if windowDays <= 0 {
+		windowDays = 3
+	}
+	refDay := time.Date(refDate.Year(), refDate.Month(), refDate.Day(), 0, 0, 0, 0, time.UTC)
+	minDate := refDay.AddDate(0, 0, -windowDays)
+	maxDate := refDay.AddDate(0, 0, windowDays)
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT sa.id, sa.activity_type, sa.day_of_week, sa.prescription, sa.notes,
+		        w.week_number, ph.name, sa.order_index,
+		        COALESCE(w.start_date, p.start_date + ((w.week_number - 1) * 7 || ' days')::interval) AS raw_start
+		 FROM scheduled_activities sa
+		 JOIN weeks w ON w.id = sa.week_id
+		 JOIN phases ph ON ph.id = w.phase_id
+		 JOIN programs p ON p.id = ph.program_id
+		 LEFT JOIN workouts wo ON wo.scheduled_activity_id = sa.id AND wo.user_id = $1
+		 WHERE p.user_id = $1 AND p.status = 'active' AND wo.id IS NULL`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var all []LinkableCandidate
+	for rows.Next() {
+		var a models.LinkableActivityResponse
+		var rawStart time.Time
+		var orderIndex int
+		if err := rows.Scan(&a.ID, &a.ActivityType, &a.DayOfWeek, &a.Prescription, &a.Notes, &a.WeekNumber, &a.PhaseName, &orderIndex, &rawStart); err != nil {
+			return nil, err
+		}
+		weekMonday := models.MondayOf(rawStart)
+		actDate := weekMonday.AddDate(0, 0, models.DowOffset(a.DayOfWeek))
+		if actDate.Before(minDate) || actDate.After(maxDate) {
+			continue
+		}
+		a.Date = actDate.Format("2006-01-02")
+		a.SameType = strings.EqualFold(a.ActivityType, activityType)
+		all = append(all, LinkableCandidate{Activity: a, Date: actDate, OrderIndex: orderIndex})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	SortLinkableCandidates(all, refDay, windowDays)
+
+	out := make([]models.LinkableActivityResponse, 0, len(all))
+	for _, it := range all {
+		out = append(out, it.Activity)
+	}
+	return out, nil
 }
 
 func (s *ProgramService) GetScheduledActivity(ctx context.Context, activityID, userID string) (*models.ScheduledActivity, error) {

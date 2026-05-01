@@ -1,31 +1,26 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Animated,
   FlatList,
   Platform,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon } from '../constants/activityIcons';
-import { saveWorkout } from '../services/api';
-import { useProgram } from '../contexts/ProgramContext';
-import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitWorkoutSummary } from '../services/healthKitService';
-import { getImportedUUIDs, markImported } from '../services/importedWorkoutsStore';
+import { getImportedUUIDs } from '../services/importedWorkoutsStore';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 type Props = NativeStackScreenProps<any, 'Import'>;
@@ -112,172 +107,6 @@ function WorkoutRow({
   );
 }
 
-// ── Import Detail Sheet ──────────────────────────────────────────────────────
-
-function ImportDetailSheet({
-  workout,
-  visible,
-  onClose,
-  onImported,
-  navigation,
-  colors,
-}: {
-  workout: HealthKitWorkoutSummary | null;
-  visible: boolean;
-  onClose: () => void;
-  onImported: () => void;
-  navigation: any;
-  colors: ThemeColors;
-}) {
-  const [importing, setImporting] = useState(false);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-  const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
-  const { requestOpenChat } = useProgram();
-  const slideAnim = useState(() => new Animated.Value(400))[0];
-  const opacityAnim = useState(() => new Animated.Value(0))[0];
-
-  useEffect(() => {
-    if (visible && workout) {
-      Animated.parallel([
-        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 320 }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, { toValue: 400, duration: 180, useNativeDriver: true }),
-        Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-      ]).start();
-      setSavedWorkoutId(null);
-    }
-  }, [visible, workout, slideAnim, opacityAnim]);
-
-  async function handleImport() {
-    if (!workout) return;
-    setImporting(true);
-    setLoadingDetails(true);
-    try {
-      const [hrReadings, gpsPoints] = await Promise.all([
-        healthKit.getWorkoutHeartRate(workout.startDate, workout.endDate),
-        workout.isIndoor ? Promise.resolve([]) : healthKit.getWorkoutRoute(workout.uuid),
-      ]);
-      setLoadingDetails(false);
-
-      const input = healthKit.buildSaveWorkoutInput(
-        workout,
-        hrReadings,
-        gpsPoints,
-      );
-
-      const result = await saveWorkout(input);
-      await markImported(workout.uuid, result.id);
-      onImported();
-      setSavedWorkoutId(result.id);
-    } catch (e: any) {
-      Alert.alert('Import Failed', e?.message ?? 'Could not import workout.');
-    } finally {
-      setImporting(false);
-      setLoadingDetails(false);
-    }
-  }
-
-  if (!visible || !workout) return null;
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      <Animated.View style={[styles.sheetOverlay, { opacity: opacityAnim, backgroundColor: colors.overlay }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-      </Animated.View>
-      <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
-        <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-
-        <ScrollView style={styles.sheetScroll} bounces={false}>
-          <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
-            {savedWorkoutId ? 'Imported' : 'Import Workout'}
-          </Text>
-
-          <View style={[styles.sheetSummary, { backgroundColor: colors.surfaceAlt }]}>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Type</Text>
-              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
-                {workout.mappedActivityType.replace(/_/g, ' ')}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Date</Text>
-              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
-                {formatDate(workout.startDate)} at {formatTime(workout.startDate)}
-              </Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Duration</Text>
-              <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{formatDuration(workout.durationSeconds)}</Text>
-            </View>
-            {workout.distanceKm != null && workout.distanceKm > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Distance</Text>
-                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{workout.distanceKm.toFixed(2)} km</Text>
-              </View>
-            )}
-            {workout.totalEnergyBurnedKcal != null && (
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Calories</Text>
-                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>
-                  {Math.round(workout.totalEnergyBurnedKcal)} kcal
-                </Text>
-              </View>
-            )}
-            {workout.sourceDevice && (
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Device</Text>
-                <Text style={[styles.summaryValue, { color: colors.textPrimary }]}>{workout.sourceDevice}</Text>
-              </View>
-            )}
-          </View>
-
-          {savedWorkoutId && (
-            <PostWorkoutReview
-              workoutId={savedWorkoutId}
-              activityType={workout.mappedActivityType}
-              onContinueInChat={() => {
-                onClose();
-                requestOpenChat();
-                navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
-              }}
-            />
-          )}
-        </ScrollView>
-
-        {!savedWorkoutId && (
-          <View style={[styles.sheetActions, { borderTopColor: colors.border }]}>
-            {loadingDetails && (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Fetching heart rate & route data...</Text>
-              </View>
-            )}
-            <TouchableOpacity
-              style={[styles.importButton, { backgroundColor: colors.primary }, importing && styles.importButtonDisabled]}
-              onPress={handleImport}
-              disabled={importing}
-            >
-              {importing && !loadingDetails ? (
-                <ActivityIndicator size="small" color={colors.surface} />
-              ) : (
-                <Text style={[styles.importButtonText, { color: colors.surface }]}>
-                  Import Workout
-                </Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose} disabled={importing}>
-              <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </Animated.View>
-    </View>
-  );
-}
-
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ImportScreen({ navigation }: Props) {
@@ -288,7 +117,6 @@ export default function ImportScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
-  const [selectedWorkout, setSelectedWorkout] = useState<HealthKitWorkoutSummary | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -318,9 +146,14 @@ export default function ImportScreen({ navigation }: Props) {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh on focus so newly-imported UUIDs grey out when returning from preview.
+  // Wrapper is needed because useFocusEffect expects a sync callback (void return),
+  // not the Promise returned by `loadData`.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -397,23 +230,15 @@ export default function ImportScreen({ navigation }: Props) {
             <WorkoutRow
               workout={item}
               imported={importedUUIDs.has(item.uuid)}
-              onPress={() => {
-                if (!importedUUIDs.has(item.uuid)) setSelectedWorkout(item);
-              }}
+              onPress={() => navigation.navigate('ImportPreview', {
+                healthKitUuid: item.uuid,
+                preselectedType: item.mappedActivityType,
+              })}
               colors={colors}
             />
           )}
         />
       )}
-
-      <ImportDetailSheet
-        workout={selectedWorkout}
-        visible={selectedWorkout != null}
-        onClose={() => setSelectedWorkout(null)}
-        onImported={loadData}
-        navigation={navigation}
-        colors={colors}
-      />
     </View>
   );
 }
@@ -476,58 +301,4 @@ const styles = StyleSheet.create({
   importedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   importedBadgeText: { fontSize: 12, fontFamily: Fonts.bodyMedium },
   sourceDevice: { fontSize: 12, fontFamily: Fonts.body, marginTop: 4 },
-
-  // Bottom sheet
-  sheetOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    // backgroundColor applied inline via theme overlay
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  sheetScroll: { paddingHorizontal: 20 },
-  sheetTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-
-  // Summary
-  sheetSummary: {
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
-    marginBottom: 16,
-  },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryLabel: { fontSize: 14 },
-  summaryValue: { fontSize: 14, fontWeight: '500' },
-
-  // Actions
-  sheetActions: { padding: 20, gap: 10, borderTopWidth: 1 },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' },
-  loadingText: { fontSize: 13 },
-  importButton: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  importButtonDisabled: { opacity: 0.6 },
-  importButtonText: { fontSize: 16, fontWeight: '600' },
-  cancelButton: {
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: { fontSize: 15, fontWeight: '500' },
 });

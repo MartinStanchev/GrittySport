@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { WorkoutAnalytics } from '../types/gps';
 
 function resolveBaseUrl(): string {
-  if (!__DEV__) return 'https://api.grittyfitness.com';
+  if (!__DEV__) return 'https://gritty-fitness-k9cj7.ondigitalocean.app';
 
   // Web always uses localhost since it runs in the same browser
   if (Platform.OS === 'web') return 'http://localhost:8080';
@@ -61,6 +61,11 @@ export class AuthError extends Error {
   }
 }
 
+// True when an error is *not* a server-originated response (likely offline / DNS / TLS).
+export function isNetworkError(e: unknown): boolean {
+  return !(e instanceof ApiError || e instanceof AuthError);
+}
+
 type AuthLostListener = () => void;
 const authLostListeners: AuthLostListener[] = [];
 
@@ -100,12 +105,16 @@ export async function getValidAccessToken(): Promise<string | null> {
 
   if (!isTokenExpired(token)) return token;
 
-  const refreshed = await attemptRefresh();
-  if (refreshed) return getAccessToken();
-
-  await clearTokens();
-  notifyAuthLost();
-  return null;
+  try {
+    const refreshed = await attemptRefresh();
+    if (refreshed) return getAccessToken();
+    await clearTokens();
+    notifyAuthLost();
+    return null;
+  } catch {
+    // Network error — keep tokens so the user stays signed in for the next attempt.
+    return null;
+  }
 }
 
 export async function getRefreshToken(): Promise<string | null> {
@@ -124,6 +133,9 @@ export async function clearTokens(): Promise<void> {
 
 let refreshPromise: Promise<boolean> | null = null;
 
+// Returns true on success, false when the server explicitly rejects the refresh
+// token (genuine auth failure). Throws on network errors so callers don't
+// confuse "offline" with "logged out".
 async function attemptRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
@@ -143,8 +155,6 @@ async function attemptRefresh(): Promise<boolean> {
       const data = await response.json();
       await setTokens(data.access_token, data.refresh_token);
       return true;
-    } catch {
-      return false;
     } finally {
       refreshPromise = null;
     }
@@ -169,18 +179,13 @@ async function apiFetch<T>(
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
   };
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers: { ...headers, ...(options?.headers as Record<string, string>) },
-    });
-  } catch (err) {
-    if (__DEV__) {
-      console.error(`[API] Network error for ${url}:`, err);
-    }
+  const response = await fetch(url, {
+    ...options,
+    headers: { ...headers, ...(options?.headers as Record<string, string>) },
+  }).catch((err) => {
+    if (__DEV__) console.error(`[API] Network error for ${url}:`, err);
     throw err;
-  }
+  });
 
   if (__DEV__) {
     console.log(`[API] Response ${response.status} from ${url}`);
@@ -412,6 +417,15 @@ export interface UpcomingActivity {
   date: string;
 }
 
+export interface LinkableActivity extends UpcomingActivity {
+  same_type: boolean;
+}
+
+export interface LinkableActivityOpts {
+  referenceDate?: string; // YYYY-MM-DD; defaults to today server-side
+  windowDays?: number; // 1-14, defaults to 3 server-side
+}
+
 export interface CriterionInput {
   key: string;
   label: string;
@@ -489,6 +503,16 @@ export async function updateProgramCriteria(
 
 export async function getUpcomingActivities(): Promise<UpcomingActivity[]> {
   return apiFetch<UpcomingActivity[]>('/api/v1/activities/upcoming');
+}
+
+export async function getLinkableActivities(
+  activityType: string,
+  opts: LinkableActivityOpts = {},
+): Promise<LinkableActivity[]> {
+  const params = new URLSearchParams({ activity_type: activityType });
+  if (opts.referenceDate) params.set('reference_date', opts.referenceDate);
+  if (opts.windowDays) params.set('window_days', String(opts.windowDays));
+  return apiFetch<LinkableActivity[]>(`/api/v1/activities/linkable?${params.toString()}`);
 }
 
 // Activity detail types

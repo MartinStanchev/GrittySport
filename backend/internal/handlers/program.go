@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -207,6 +209,46 @@ func (h *ProgramHandler) GetUpcoming(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get upcoming activities")
 		return
+	}
+	writeJSON(w, http.StatusOK, activities)
+}
+
+func (h *ProgramHandler) GetLinkable(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	activityType := strings.TrimSpace(r.URL.Query().Get("activity_type"))
+	if activityType == "" {
+		writeError(w, http.StatusBadRequest, "activity_type is required")
+		return
+	}
+
+	refDate := time.Now().UTC()
+	if rd := r.URL.Query().Get("reference_date"); rd != "" {
+		t, err := time.Parse("2006-01-02", rd)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "reference_date must be YYYY-MM-DD")
+			return
+		}
+		refDate = t
+	}
+
+	windowDays := 3
+	if wd := r.URL.Query().Get("window_days"); wd != "" {
+		n, err := strconv.Atoi(wd)
+		if err != nil || n <= 0 || n > 14 {
+			writeError(w, http.StatusBadRequest, "window_days must be 1-14")
+			return
+		}
+		windowDays = n
+	}
+
+	activities, err := h.programService.GetLinkableActivities(r.Context(), userID, activityType, refDate, windowDays)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get linkable activities")
+		return
+	}
+	if activities == nil {
+		activities = []models.LinkableActivityResponse{}
 	}
 	writeJSON(w, http.StatusOK, activities)
 }

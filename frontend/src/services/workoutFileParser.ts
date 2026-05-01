@@ -11,7 +11,7 @@ import { parseZIPFile } from './parsers/zipHandler';
 
 export type { ZipParseResult } from './parsers/zipHandler';
 
-export type SourceFormat = 'gpx' | 'tcx' | 'fit' | 'csv';
+export type SourceFormat = 'gpx' | 'tcx' | 'fit' | 'csv' | 'apple_health';
 
 export interface WorkoutFileParseResult {
   name: string;
@@ -27,6 +27,8 @@ export interface WorkoutFileParseResult {
   totalDistanceM: number;
   durationSec: number;
   elevationGainM: number;
+  caloriesKcal?: number;
+  sourceDevice?: string;
 }
 
 export type ParseResult =
@@ -179,10 +181,14 @@ export function buildFileSavePayload(
     finishedAt,
   });
 
+  const recordedData = summaryData as Record<string, any>;
+  if (result.caloriesKcal != null) recordedData.calories = Math.round(result.caloriesKcal);
+  if (result.sourceDevice) recordedData.source_device = result.sourceDevice;
+
   return {
     scheduled_activity_id: scheduledActivityId,
     activity_type: activityType,
-    recorded_data: summaryData as Record<string, any>,
+    recorded_data: recordedData,
     source: result.sourceFormat,
     started_at: startedAt.toISOString(),
     finished_at: finishedAt.toISOString(),

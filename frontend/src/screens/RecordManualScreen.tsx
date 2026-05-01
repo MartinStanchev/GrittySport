@@ -796,22 +796,31 @@ export default function RecordManualScreen() {
     enabled:
       activeWorkout?.phase === 'recording' &&
       activeWorkout?.workoutType === 'strength' &&
+      activeWorkout?.lastPauseStart == null &&
       (activeWorkout?.hrReadings.length ?? 0) > 0,
   });
 
-  // Elapsed timer — always derived from startedAt
+  // Elapsed timer — derived from startedAt minus paused time (frozen while paused)
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording') return;
-    const tick = () => setElapsed(Math.floor((Date.now() - activeWorkout.startedAt.getTime()) / 1000));
+    const tick = () => {
+      const totalMs = Date.now() - activeWorkout.startedAt.getTime();
+      let pausedMs = activeWorkout.pausedDurationSec * 1000;
+      if (activeWorkout.lastPauseStart != null) {
+        pausedMs += Date.now() - activeWorkout.lastPauseStart;
+      }
+      setElapsed(Math.max(0, Math.floor((totalMs - pausedMs) / 1000)));
+    };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [activeWorkout?.startedAt, activeWorkout?.phase]);
+  }, [activeWorkout?.startedAt, activeWorkout?.phase, activeWorkout?.lastPauseStart, activeWorkout?.pausedDurationSec]);
 
-  // Mobility countdown timers
+  // Mobility countdown timers — frozen while the workout is paused
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording' || activeWorkout.workoutType !== 'mobility') return;
+    if (activeWorkout.lastPauseStart != null) return;
     if (!activeWorkout.mobilityExercises.some((e) => e.timerActive)) return;
     const interval = setInterval(() => {
       updateWorkout({
@@ -963,8 +972,32 @@ export default function RecordManualScreen() {
     return { ...hrSummary, notes: activeWorkout.drillNotes };
   }
 
+  function handlePause() {
+    if (!activeWorkout || activeWorkout.lastPauseStart != null) return;
+    updateWorkout({ lastPauseStart: Date.now() });
+  }
+
+  function handleResume() {
+    if (!activeWorkout?.lastPauseStart) return;
+    const additionalPause = (Date.now() - activeWorkout.lastPauseStart) / 1000;
+    updateWorkout({
+      pausedDurationSec: activeWorkout.pausedDurationSec + additionalPause,
+      lastPauseStart: null,
+    });
+  }
+
   function handleFinishWorkout() {
-    updateWorkout({ phase: 'summary', finishedAt: new Date() });
+    if (!activeWorkout) return;
+    // Flush any in-progress pause into the total before transitioning to summary
+    const extraPause = activeWorkout.lastPauseStart
+      ? (Date.now() - activeWorkout.lastPauseStart) / 1000
+      : 0;
+    updateWorkout({
+      phase: 'summary',
+      finishedAt: new Date(),
+      pausedDurationSec: activeWorkout.pausedDurationSec + extraPause,
+      lastPauseStart: null,
+    });
   }
 
   async function handleSave() {
@@ -1018,8 +1051,13 @@ export default function RecordManualScreen() {
 
   const phase = !activeWorkout ? 'type-select' : activeWorkout.phase;
   const elapsedSeconds = activeWorkout?.phase === 'summary' && activeWorkout.finishedAt
-    ? Math.floor((activeWorkout.finishedAt.getTime() - activeWorkout.startedAt.getTime()) / 1000)
+    ? Math.max(
+        0,
+        Math.floor((activeWorkout.finishedAt.getTime() - activeWorkout.startedAt.getTime()) / 1000)
+          - Math.floor(activeWorkout.pausedDurationSec),
+      )
     : elapsed;
+  const isPaused = activeWorkout?.lastPauseStart != null;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1027,8 +1065,17 @@ export default function RecordManualScreen() {
       {phase === 'recording' && (
         <View style={[styles.timerBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
           <View>
-            <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>ELAPSED</Text>
-            <Text style={[styles.timerValue, { color: colors.textPrimary }]}>{formatTime(elapsedSeconds)}</Text>
+            <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>
+              {isPaused ? 'PAUSED' : 'ELAPSED'}
+            </Text>
+            <Text
+              style={[
+                styles.timerValue,
+                { color: isPaused ? colors.textSecondary : colors.textPrimary },
+              ]}
+            >
+              {formatTime(elapsedSeconds)}
+            </Text>
           </View>
           <HRSensorPill
             currentHR={activeWorkout?.currentHR ?? null}
@@ -1043,6 +1090,23 @@ export default function RecordManualScreen() {
             }}
             colors={colors}
           />
+          <Pressable
+            style={[
+              styles.pauseBtn,
+              {
+                backgroundColor: isPaused ? colors.primary : 'transparent',
+                borderColor: isPaused ? colors.primary : colors.border,
+              },
+            ]}
+            onPress={isPaused ? handleResume : handlePause}
+            accessibilityLabel={isPaused ? 'Resume workout' : 'Pause workout'}
+          >
+            <Ionicons
+              name={isPaused ? 'play' : 'pause'}
+              size={16}
+              color={isPaused ? '#FFF' : colors.textPrimary}
+            />
+          </Pressable>
           <Pressable style={[styles.finishBtn, { backgroundColor: colors.primary }]} onPress={handleFinishWorkout}>
             <Text style={styles.finishBtnText}>Finish</Text>
           </Pressable>
@@ -1162,6 +1226,14 @@ const styles = StyleSheet.create({
   timerValue: { fontSize: 28, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'] },
   finishBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
   finishBtnText: { color: '#FFF', fontFamily: Fonts.headingMedium, fontSize: 14 },
+  pauseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   hrPill: {
     flexDirection: 'row',
     alignItems: 'center',

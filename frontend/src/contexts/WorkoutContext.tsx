@@ -50,11 +50,15 @@ export interface ActiveWorkout {
   currentHR: number | null;
   avgHR: number | null;
   hrDeviceName?: string;
+  // Pause tracking — total paused seconds and timestamp (ms) of the current pause if any
+  pausedDurationSec: number;
+  lastPauseStart: number | null;
 }
 
 type ManualWorkoutInitFields =
   | 'phase' | 'workoutNotes' | 'finishedAt'
-  | 'hrReadings' | 'currentHR' | 'avgHR' | 'hrDeviceName';
+  | 'hrReadings' | 'currentHR' | 'avgHR' | 'hrDeviceName'
+  | 'pausedDurationSec' | 'lastPauseStart';
 
 // ---- GPS workout types ----
 
@@ -153,6 +157,8 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       currentHR: null,
       avgHR: null,
       hrDeviceName: undefined,
+      pausedDurationSec: 0,
+      lastPauseStart: null,
     });
   }, []);
 

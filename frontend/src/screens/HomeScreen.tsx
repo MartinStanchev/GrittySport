@@ -597,7 +597,7 @@ export default function HomeScreen() {
           onLogActivity={() => navigation.navigate('LogActivity')}
           onImportFile={async () => {
             const file = await pickWorkoutFile();
-            if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+            if (file) navigation.navigate('ImportPreview', { fileUri: file.uri, fileName: file.fileName });
           }}
         />
       </ScrollView>

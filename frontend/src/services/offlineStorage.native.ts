@@ -1,19 +1,10 @@
 import * as SQLite from 'expo-sqlite';
+import type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
+
+export { CacheKeys } from './offlineStorageTypes';
+export type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
 const DB_NAME = 'gritty.db';
-
-export interface LocalPendingWorkout {
-  id: string;
-  activity_type: string;
-  recorded_data: string; // JSON string
-  gps_route?: string; // JSON string
-  heart_rate_data?: string; // JSON string
-  source: string;
-  started_at: string;
-  finished_at?: string;
-  scheduled_activity_id?: string;
-  notes?: string;
-}
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -34,6 +25,11 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
         notes TEXT,
         synced INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS cache_kv (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
   }
@@ -78,4 +74,39 @@ export async function markSynced(id: string): Promise<void> {
 export async function clearSynced(): Promise<void> {
   const database = await getDB();
   await database.runAsync(`DELETE FROM pending_workouts WHERE synced = 1`);
+}
+
+export async function setCached<T>(key: CacheKey, value: T): Promise<void> {
+  try {
+    const database = await getDB();
+    await database.runAsync(
+      `INSERT OR REPLACE INTO cache_kv (key, value, updated_at) VALUES (?, ?, datetime('now'))`,
+      [key, JSON.stringify(value)],
+    );
+  } catch {
+    // Cache write is best-effort — never fail an otherwise-successful fetch.
+  }
+}
+
+export async function getCached<T>(key: CacheKey): Promise<T | null> {
+  try {
+    const database = await getDB();
+    const row = await database.getFirstAsync<{ value: string }>(
+      `SELECT value FROM cache_kv WHERE key = ?`,
+      [key],
+    );
+    if (!row) return null;
+    return JSON.parse(row.value) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearCached(key: CacheKey): Promise<void> {
+  try {
+    const database = await getDB();
+    await database.runAsync(`DELETE FROM cache_kv WHERE key = ?`, [key]);
+  } catch {
+    // Cache delete is best-effort.
+  }
 }

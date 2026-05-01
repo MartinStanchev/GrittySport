@@ -258,7 +258,7 @@ export default function HistoryScreen({ navigation }: Props) {
             <Pressable
               onPress={async () => {
                 const file = await pickWorkoutFile();
-                if (file) navigation.navigate('WorkoutFilePreview', { fileUri: file.uri, fileName: file.fileName });
+                if (file) navigation.navigate('ImportPreview', { fileUri: file.uri, fileName: file.fileName });
               }}
               style={[styles.addBtn, { backgroundColor: colors.surface }]}
             >

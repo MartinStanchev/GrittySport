@@ -7,10 +7,12 @@ jest.mock('@kingstinct/react-native-healthkit', () => ({}));
 import {
   mapHealthKitActivityType,
   resolveActivityTypeName,
-  buildSaveWorkoutInput,
+  buildHealthKitParseResult,
 } from '../services/healthKitService';
 // eslint-disable-next-line import/first
 import type { HealthKitWorkoutSummary } from '../services/healthKitService';
+// eslint-disable-next-line import/first
+import { buildFileSavePayload } from '../services/workoutFileParser';
 // eslint-disable-next-line import/first
 import type { GPSPoint, HRReading } from '../types/gps';
 
@@ -74,7 +76,7 @@ describe('mapHealthKitActivityType', () => {
   });
 });
 
-// ── buildSaveWorkoutInput ────────────────────────────────────────────────────
+// ── buildHealthKitParseResult ────────────────────────────────────────────────
 
 function makeSummary(overrides: Partial<HealthKitWorkoutSummary> = {}): HealthKitWorkoutSummary {
   return {
@@ -92,87 +94,94 @@ function makeSummary(overrides: Partial<HealthKitWorkoutSummary> = {}): HealthKi
   };
 }
 
-describe('buildSaveWorkoutInput', () => {
-  test('basic workout without HR or GPS', () => {
-    const summary = makeSummary();
-    const input = buildSaveWorkoutInput(summary, [], []);
+describe('buildHealthKitParseResult', () => {
+  test('basic workout without HR or GPS uses summary distance', () => {
+    const result = buildHealthKitParseResult(makeSummary(), [], []);
 
-    expect(input.source).toBe('apple_health');
-    expect(input.activity_type).toBe('run');
-    expect(input.started_at).toBe('2026-03-01T08:00:00.000Z');
-    expect(input.finished_at).toBe('2026-03-01T08:30:00.000Z');
-    expect(input.recorded_data.distance_km).toBe(5);
-    expect(input.recorded_data.calories).toBe(350);
-    expect(input.recorded_data.source_name).toBe('apple_health');
-    expect(input.recorded_data.source_device).toBe('Apple Watch');
-    expect(input.gps_route).toBeUndefined();
-    expect(input.heart_rate_data).toBeUndefined();
+    expect(result.sourceFormat).toBe('apple_health');
+    expect(result.type).toBe('running');
+    expect(result.startTime).toEqual(new Date('2026-03-01T08:00:00Z'));
+    expect(result.endTime).toEqual(new Date('2026-03-01T08:30:00Z'));
+    expect(result.durationSec).toBe(1800);
+    expect(result.totalDistanceM).toBe(5000);
+    expect(result.points).toEqual([]);
+    expect(result.hrReadings).toEqual([]);
+    expect(result.caloriesKcal).toBe(350);
+    expect(result.sourceDevice).toBe('Apple Watch');
   });
 
-  test('workout with HR readings populates heart_rate_data and recorded_data avg/max', () => {
+  test('GPS points override summary distance', () => {
+    const points: GPSPoint[] = [
+      { lat: 42.0, lng: -71.0, altitude: 10, accuracy: 5, speed: 3.0, timestamp: 1000, distance_from_prev: 0 },
+      { lat: 42.001, lng: -71.0, altitude: 15, accuracy: 5, speed: 3.0, timestamp: 2000, distance_from_prev: 111 },
+      { lat: 42.002, lng: -71.0, altitude: 12, accuracy: 5, speed: 3.0, timestamp: 3000, distance_from_prev: 111 },
+    ];
+    const result = buildHealthKitParseResult(makeSummary(), [], points);
+
+    expect(result.totalDistanceM).toBe(222);
+    expect(result.points).toHaveLength(3);
+  });
+
+  test('handles null distance and calories gracefully', () => {
+    const summary = makeSummary({ distanceKm: null, totalEnergyBurnedKcal: null });
+    const result = buildHealthKitParseResult(summary, [], []);
+
+    expect(result.totalDistanceM).toBe(0);
+    expect(result.caloriesKcal).toBeUndefined();
+  });
+});
+
+// ── End-to-end: parse result feeds buildFileSavePayload ──────────────────────
+
+describe('buildHealthKitParseResult + buildFileSavePayload', () => {
+  test('produces save payload with apple_health source and HR/GPS data', () => {
     const summary = makeSummary();
     const hr: HRReading[] = [
       { bpm: 140, timestamp: 1000 },
       { bpm: 160, timestamp: 2000 },
       { bpm: 150, timestamp: 3000 },
     ];
-    const input = buildSaveWorkoutInput(summary, hr, []);
-
-    expect(input.heart_rate_data).toBeDefined();
-    expect((input.heart_rate_data as any).readings).toHaveLength(3);
-    expect((input.heart_rate_data as any).device_name).toBe('Apple Watch');
-    expect(input.recorded_data.avg_hr).toBe(150);
-    expect(input.recorded_data.max_hr).toBe(160);
-  });
-
-  test('workout with GPS route populates gps_route', () => {
-    const summary = makeSummary({ distanceKm: 5.0 });
     const points: GPSPoint[] = [
       { lat: 42.0, lng: -71.0, altitude: 10, accuracy: 5, speed: 3.0, timestamp: 1000, distance_from_prev: 0 },
       { lat: 42.001, lng: -71.0, altitude: 15, accuracy: 5, speed: 3.0, timestamp: 2000, distance_from_prev: 111 },
-      { lat: 42.002, lng: -71.0, altitude: 12, accuracy: 5, speed: 3.0, timestamp: 3000, distance_from_prev: 111 },
     ];
-    const input = buildSaveWorkoutInput(summary, [], points);
+    const result = buildHealthKitParseResult(summary, hr, points);
 
-    expect(input.gps_route).toBeDefined();
-    const route = input.gps_route as any;
-    expect(route.sport).toBe('run');
-    expect(route.points).toHaveLength(3);
-    expect(route.elevation_gain_m).toBe(5);
-    expect(route.duration_sec).toBe(1800);
-    expect(route.laps).toEqual([]);
+    const payload = buildFileSavePayload(result, 'run');
+
+    expect(payload.source).toBe('apple_health');
+    expect(payload.activity_type).toBe('run');
+    expect(payload.started_at).toBe('2026-03-01T08:00:00.000Z');
+    expect(payload.finished_at).toBe('2026-03-01T08:30:00.000Z');
+    expect(payload.recorded_data.calories).toBe(350);
+    expect(payload.recorded_data.source_device).toBe('Apple Watch');
+    expect(payload.recorded_data.avg_hr).toBe(150);
+    expect(payload.recorded_data.max_hr).toBe(160);
+    expect(payload.gps_route).toBeDefined();
+    expect((payload.gps_route as any).points).toHaveLength(2);
+    expect(payload.heart_rate_data).toBeDefined();
+    expect((payload.heart_rate_data as any).readings).toHaveLength(3);
   });
 
-  test('links to scheduled activity when provided', () => {
-    const summary = makeSummary();
-    const input = buildSaveWorkoutInput(summary, [], [], 'activity-uuid-456');
-
-    expect(input.scheduled_activity_id).toBe('activity-uuid-456');
-  });
-
-  test('no scheduled_activity_id when not provided', () => {
-    const input = buildSaveWorkoutInput(makeSummary(), [], []);
-    expect(input.scheduled_activity_id).toBeUndefined();
-  });
-
-  test('handles null distance and calories gracefully', () => {
-    const summary = makeSummary({ distanceKm: null, totalEnergyBurnedKcal: null });
-    const input = buildSaveWorkoutInput(summary, [], []);
-
-    expect(input.recorded_data.distance_km).toBeUndefined();
-    expect(input.recorded_data.calories).toBeUndefined();
-  });
-
-  test('indoor workout maps correctly', () => {
+  test('indoor strength workout produces empty gps payload', () => {
     const summary = makeSummary({
       workoutActivityType: 'traditionalStrengthTraining',
       mappedActivityType: 'strength_training',
       distanceKm: null,
       isIndoor: true,
     });
-    const input = buildSaveWorkoutInput(summary, [], []);
+    const result = buildHealthKitParseResult(summary, [], []);
+    const payload = buildFileSavePayload(result, 'strength_training');
 
-    expect(input.activity_type).toBe('strength_training');
-    expect(input.gps_route).toBeUndefined();
+    expect(payload.activity_type).toBe('strength_training');
+    expect(payload.source).toBe('apple_health');
+    expect((payload.gps_route as any).points).toEqual([]);
+  });
+
+  test('passes scheduled_activity_id through', () => {
+    const result = buildHealthKitParseResult(makeSummary(), [], []);
+    const payload = buildFileSavePayload(result, 'run', undefined, 'activity-uuid-456');
+
+    expect(payload.scheduled_activity_id).toBe('activity-uuid-456');
   });
 });

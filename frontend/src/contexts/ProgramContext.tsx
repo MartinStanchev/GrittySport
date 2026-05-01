@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { getPrograms, getUpcomingActivities } from '../services/api';
+import { getPrograms, getUpcomingActivities, isNetworkError } from '../services/api';
 import type { ProgramSummary, UpcomingActivity } from '../services/api';
+import { CacheKeys, getCached, setCached } from '../services/offlineStorage';
 import { useAuth } from './AuthContext';
 
 interface ProgramContextType {
@@ -33,7 +34,13 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
       const programs = await getPrograms();
       const active = programs.find((p) => p.status === 'active') || null;
       setActiveProgram(active);
+      void setCached(CacheKeys.activeProgram, active);
     } catch (e) {
+      if (isNetworkError(e)) {
+        const cached = await getCached<ProgramSummary | null>(CacheKeys.activeProgram);
+        setActiveProgram(cached ?? null);
+        return;
+      }
       if (__DEV__) console.error('[Program] Failed to fetch programs:', e);
       setActiveProgram(null);
     }
@@ -43,7 +50,13 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     try {
       const activities = await getUpcomingActivities();
       setUpcomingActivities(activities);
+      void setCached(CacheKeys.upcomingActivities, activities);
     } catch (e) {
+      if (isNetworkError(e)) {
+        const cached = await getCached<UpcomingActivity[]>(CacheKeys.upcomingActivities);
+        setUpcomingActivities(cached ?? []);
+        return;
+      }
       if (__DEV__) console.error('[Program] Failed to fetch upcoming:', e);
       setUpcomingActivities([]);
     }

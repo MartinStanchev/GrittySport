@@ -12,12 +12,13 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { formatActivityType } from '../constants/activityIcons';
+import { formatRelativeDay } from '../utils/dates';
 import {
-  getUpcomingActivities,
+  getLinkableActivities,
   getWorkoutReview,
   linkWorkoutToActivity,
   triggerWorkoutReview,
-  type UpcomingActivity,
+  type LinkableActivity,
 } from '../services/api';
 
 const POLL_INTERVAL_MS = 2000;
@@ -64,7 +65,7 @@ export function PostWorkoutReview({
     scheduledActivityId ? 'polling' : 'linking',
   );
   const [reviewContent, setReviewContent] = useState('');
-  const [compatibleActivities, setCompatibleActivities] = useState<UpcomingActivity[]>([]);
+  const [compatibleActivities, setCompatibleActivities] = useState<LinkableActivity[]>([]);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
   const reviewTriggered = useRef(false);
@@ -99,18 +100,12 @@ export function PostWorkoutReview({
     if (phase !== 'linking') return;
     let active = true;
 
-    getUpcomingActivities()
+    getLinkableActivities(activityType)
       .then((activities) => {
         if (!active) return;
-        const wType = activityType.toLowerCase();
-        const compatible = activities.filter((a) => {
-          const aType = a.activity_type.toLowerCase().replace(/\s+/g, '_');
-          return aType.includes(wType) || wType.includes(aType);
-        });
-        if (compatible.length > 0) {
-          setCompatibleActivities(compatible.slice(0, 5));
+        if (activities.length > 0) {
+          setCompatibleActivities(activities.slice(0, 5));
         } else {
-          // No compatible activities — skip linking, trigger review
           triggerAndPoll();
         }
       })
@@ -223,7 +218,7 @@ export function PostWorkoutReview({
                   {formatActivityType(a.activity_type)}
                 </Text>
                 <Text style={[styles.linkOptionMeta, { color: colors.textSecondary }]}>
-                  {a.date} — {a.phase_name}, Week {a.week_number}
+                  {formatRelativeDay(a.date)} — {a.phase_name}, Week {a.week_number}
                 </Text>
               </View>
             </Pressable>

@@ -347,6 +347,11 @@ type UpcomingActivityResponse struct {
 	Date         string          `json:"date"`
 }
 
+type LinkableActivityResponse struct {
+	UpcomingActivityResponse
+	SameType bool `json:"same_type"`
+}
+
 type ActivityDetailResponse struct {
 	ID           string          `json:"id"`
 	ProgramID    string          `json:"program_id"`
@@ -366,7 +371,6 @@ type ActivityDetailResponse struct {
 	LinkedWorkoutSource     *string         `json:"linked_workout_source,omitempty"`
 	LinkedGPSRoute          json.RawMessage `json:"linked_gps_route,omitempty"`
 }
-
 
 type UpdateActivityInput struct {
 	Prescription json.RawMessage `json:"prescription,omitempty"`

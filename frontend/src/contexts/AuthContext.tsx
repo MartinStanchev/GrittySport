@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as api from '../services/api';
 import type { UserResponse } from '../services/api';
+import { CacheKeys, clearCached, getCached, setCached } from '../services/offlineStorage';
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -39,46 +40,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     setUser(profile);
+    void setCached(CacheKeys.userProfile, profile);
+  }
+
+  async function restoreFromCacheIfOffline() {
+    // Only restore when tokens are still on disk: a missing token means either a
+    // fresh install or a genuine auth failure (refresh got 401), in which case
+    // the user really is logged out.
+    if (!(await api.getAccessToken())) return;
+    const cached = await getCached<UserResponse>(CacheKeys.userProfile);
+    if (cached) {
+      setUser(cached);
+      if (__DEV__) console.warn('[Auth] Offline boot, using cached profile');
+    }
   }
 
   async function checkAuthState() {
     try {
-      const accessToken = await api.getAccessToken();
-      if (!accessToken) return;
-
-      const parts = accessToken.split('.');
-      if (parts.length !== 3) {
-        await api.clearTokens();
+      const validToken = await api.getValidAccessToken();
+      if (!validToken) {
+        await restoreFromCacheIfOffline();
         return;
       }
 
-      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = JSON.parse(atob(payload));
-      const expiresAt = ((decoded.exp as number) ?? 0) * 1000;
-
-      if (expiresAt <= Date.now()) {
-        const refreshToken = await api.getRefreshToken();
-        if (!refreshToken) return;
-
-        const response = await fetch(`${api.API_BASE_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          await api.setTokens(data.access_token, data.refresh_token);
-        } else {
-          await api.clearTokens();
+      try {
+        await fetchAndSetUser();
+      } catch (e) {
+        if (api.isNetworkError(e)) {
+          await restoreFromCacheIfOffline();
           return;
         }
-      }
-
-      await fetchAndSetUser();
-    } catch (e) {
-      if (__DEV__) {
-        console.error('[Auth] Failed to restore session:', e);
+        if (__DEV__) console.error('[Auth] Session invalid:', e);
       }
     } finally {
       setIsLoading(false);
@@ -97,12 +89,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await api.clearTokens();
+    await clearCached(CacheKeys.userProfile);
     setUser(null);
   }
 
   async function updateUser(input: api.UpdateUserInput) {
     const updated = await api.updateMe(input);
     setUser(updated);
+    void setCached(CacheKeys.userProfile, updated);
   }
 
   return (

@@ -5,7 +5,7 @@ import LogActivityScreen from '../screens/LogActivityScreen';
 import RecordGPSScreen from '../screens/RecordGPSScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import ImportScreen from '../screens/ImportScreen';
-import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
+import ImportPreviewScreen from '../screens/ImportPreviewScreen';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createNativeStackNavigator();
@@ -52,8 +52,8 @@ export default function HistoryStackNavigator() {
         options={{ title: 'Import Workouts' }}
       />
       <Stack.Screen
-        name="WorkoutFilePreview"
-        component={WorkoutFilePreviewScreen}
+        name="ImportPreview"
+        component={ImportPreviewScreen}
         options={{ title: 'Import Workout' }}
       />
     </Stack.Navigator>

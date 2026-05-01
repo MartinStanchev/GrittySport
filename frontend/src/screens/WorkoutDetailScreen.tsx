@@ -6,8 +6,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
-import { formatDuration, formatFullDate } from '../utils/dates';
-import { getWorkout, getUpcomingActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout } from '../services/api';
+import { formatDuration, formatFullDate, formatRelativeDay } from '../utils/dates';
+import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
 import { formatPaceSecPerKm, formatSpeedKph, isRunSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories } from '../services/gpsUtils';
@@ -405,18 +405,17 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
   const handleLinkToProgram = useCallback(async () => {
     if (!workout) return;
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const activities = await getUpcomingActivities();
+      const referenceDate = new Date(workout.started_at).toISOString().split('T')[0];
+      const activities = await getLinkableActivities(workout.activity_type, { referenceDate });
       if (activities.length === 0) {
-        Alert.alert('No Activities', 'No upcoming program activities found.');
+        Alert.alert('No Activities', 'No matching program activities within the last week.');
         return;
       }
+      const workoutDate = new Date(workout.started_at);
       const options = activities.slice(0, 5).map((a) => ({
         id: a.id,
         activityType: a.activity_type,
-        dateLabel: a.date === today
-          ? 'Today'
-          : new Date(a.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        dateLabel: formatRelativeDay(a.date, workoutDate),
       }));
       openLinkSheet(options);
     } catch {

@@ -32,15 +32,21 @@ export function ActiveWorkoutBanner() {
     return () => { unsubState(); unsubReady(); };
   }, []);
 
-  // Manual workout timer
+  // Manual workout timer — frozen while paused
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording') return;
-    const tick = () =>
-      setElapsed(Math.floor((Date.now() - activeWorkout.startedAt.getTime()) / 1000));
+    const tick = () => {
+      const totalMs = Date.now() - activeWorkout.startedAt.getTime();
+      let pausedMs = activeWorkout.pausedDurationSec * 1000;
+      if (activeWorkout.lastPauseStart != null) {
+        pausedMs += Date.now() - activeWorkout.lastPauseStart;
+      }
+      setElapsed(Math.max(0, Math.floor((totalMs - pausedMs) / 1000)));
+    };
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [activeWorkout?.startedAt, activeWorkout?.phase]);
+  }, [activeWorkout?.startedAt, activeWorkout?.phase, activeWorkout?.lastPauseStart, activeWorkout?.pausedDurationSec]);
 
   if (workoutMode === null) return null;
 
@@ -74,9 +80,10 @@ export function ActiveWorkoutBanner() {
   }
 
   if (workoutMode === 'manual' && activeWorkout && activeWorkout.phase === 'recording') {
+    const isPaused = activeWorkout.lastPauseStart != null;
     return (
       <Pressable style={[styles.banner, { backgroundColor: colors.primary, paddingTop: insets.top + 10 }]} onPress={handlePress}>
-        <View style={styles.pulsingDot} />
+        <View style={[styles.pulsingDot, isPaused && styles.pausedDot]} />
         <Ionicons name="fitness-outline" size={16} color="#FFF" style={styles.icon} />
         <Text style={styles.type} numberOfLines={1}>
           {activeWorkout.activityDisplayType}

@@ -1,6 +1,7 @@
 import { LogBox, Platform } from 'react-native';
-import type { SaveWorkoutInput } from './api';
-import type { GPSPoint, GPSRouteData, HRData, HRReading } from '../types/gps';
+import type { GPSPoint, HRReading } from '../types/gps';
+import type { WorkoutFileParseResult } from './workoutFileParser';
+import { computeElevationGain } from './gpsUtils';
 
 const IS_IOS = Platform.OS === 'ios';
 
@@ -145,6 +146,26 @@ export async function requestPermissions(): Promise<boolean> {
   return true;
 }
 
+function summarizeSample(s: any): HealthKitWorkoutSummary {
+  const startDate = new Date(s.startDate);
+  const endDate = new Date(s.endDate);
+  const durationSeconds = s.duration?.quantity ?? (endDate.getTime() - startDate.getTime()) / 1000;
+  const hkTypeName = resolveActivityTypeName(s.workoutActivityType as any);
+
+  return {
+    uuid: s.uuid,
+    workoutActivityType: hkTypeName,
+    mappedActivityType: mapHealthKitActivityType(hkTypeName),
+    startDate,
+    endDate,
+    durationSeconds,
+    distanceKm: s.totalDistance?.quantity ? s.totalDistance.quantity / 1000 : null,
+    totalEnergyBurnedKcal: s.totalEnergyBurned?.quantity ?? null,
+    sourceDevice: s.sourceRevision?.source?.name ?? null,
+    isIndoor: s.metadataIndoorWorkout ?? false,
+  };
+}
+
 export async function getRecentWorkouts(
   since: Date,
 ): Promise<HealthKitWorkoutSummary[]> {
@@ -159,34 +180,26 @@ export async function getRecentWorkouts(
   });
 
   const samples = extractSamples(result);
-
   const sinceMs = since.getTime();
   const summaries: HealthKitWorkoutSummary[] = [];
 
   for (const s of samples) {
-    const startDate = new Date(s.startDate);
-    if (startDate.getTime() < sinceMs) continue;
-
-    const endDate = new Date(s.endDate);
-    const durationSeconds = s.duration?.quantity ?? (endDate.getTime() - startDate.getTime()) / 1000;
-
-    const hkTypeName = resolveActivityTypeName(s.workoutActivityType as any);
-
-    summaries.push({
-      uuid: s.uuid,
-      workoutActivityType: hkTypeName,
-      mappedActivityType: mapHealthKitActivityType(hkTypeName),
-      startDate,
-      endDate,
-      durationSeconds,
-      distanceKm: s.totalDistance?.quantity ? s.totalDistance.quantity / 1000 : null,
-      totalEnergyBurnedKcal: s.totalEnergyBurned?.quantity ?? null,
-      sourceDevice: (s as any).sourceRevision?.source?.name ?? null,
-      isIndoor: (s as any).metadataIndoorWorkout ?? false,
-    });
+    const summary = summarizeSample(s);
+    if (summary.startDate.getTime() < sinceMs) continue;
+    summaries.push(summary);
   }
 
   return summaries;
+}
+
+export async function getWorkoutByUUID(uuid: string): Promise<HealthKitWorkoutSummary | null> {
+  const hk = getHK();
+  const result = await hk.queryWorkoutSamples({
+    limit: 1,
+    filter: { uuid },
+  });
+  const samples = extractSamples(result);
+  return samples.length > 0 ? summarizeSample(samples[0]) : null;
 }
 
 export async function getWorkoutHeartRate(
@@ -259,90 +272,37 @@ export async function getWorkoutRoute(
   }
 }
 
-// ── Build SaveWorkoutInput ───────────────────────────────────────────────────
+// ── Build shared WorkoutFileParseResult ──────────────────────────────────────
 
-export function buildSaveWorkoutInput(
+export function buildHealthKitParseResult(
   summary: HealthKitWorkoutSummary,
   hrReadings: HRReading[],
   gpsPoints: GPSPoint[],
-  scheduledActivityId?: string,
-): SaveWorkoutInput {
-  const hasRoute = gpsPoints.length > 0;
-  const hasHR = hrReadings.length > 0;
+): WorkoutFileParseResult {
+  const totalDistanceM = gpsPoints.length > 0
+    ? gpsPoints.reduce((s, p) => s + p.distance_from_prev, 0)
+    : (summary.distanceKm ?? 0) * 1000;
 
-  const avgHR = hasHR
-    ? Math.round(hrReadings.reduce((s, r) => s + r.bpm, 0) / hrReadings.length)
-    : undefined;
-  const maxHR = hasHR ? Math.max(...hrReadings.map((r) => r.bpm)) : undefined;
-
-  const recordedData: Record<string, any> = {
-    source_name: 'apple_health',
-    source_device: summary.sourceDevice,
+  return {
+    name: 'Apple Health Workout',
+    type: summary.workoutActivityType,
+    sourceFormat: 'apple_health',
+    points: gpsPoints,
+    hrReadings,
+    cadenceReadings: [],
+    powerReadings: [],
+    laps: [],
+    startTime: summary.startDate,
+    endTime: summary.endDate,
+    totalDistanceM,
+    durationSec: summary.durationSeconds,
+    elevationGainM: computeElevationGain(gpsPoints),
+    caloriesKcal: summary.totalEnergyBurnedKcal ?? undefined,
+    sourceDevice: summary.sourceDevice ?? undefined,
   };
-  if (summary.distanceKm != null) recordedData.distance_km = round2(summary.distanceKm);
-  if (summary.totalEnergyBurnedKcal != null) recordedData.calories = Math.round(summary.totalEnergyBurnedKcal);
-  if (avgHR != null) recordedData.avg_hr = avgHR;
-  if (maxHR != null) recordedData.max_hr = maxHR;
-
-  const input: SaveWorkoutInput = {
-    activity_type: summary.mappedActivityType,
-    source: 'apple_health',
-    started_at: summary.startDate.toISOString(),
-    finished_at: summary.endDate.toISOString(),
-    recorded_data: recordedData,
-  };
-
-  if (scheduledActivityId) {
-    input.scheduled_activity_id = scheduledActivityId;
-  }
-
-  if (hasRoute) {
-    const totalDistanceM = gpsPoints.reduce((s, p) => s + p.distance_from_prev, 0);
-    const distKm = totalDistanceM / 1000;
-    const route: GPSRouteData = {
-      sport: summary.mappedActivityType,
-      distance_km: round2(distKm || (summary.distanceKm ?? 0)),
-      duration_sec: summary.durationSeconds,
-      avg_pace_sec_per_km: distKm > 0 ? round2(summary.durationSeconds / distKm) : 0,
-      avg_speed_kph: summary.durationSeconds > 0 ? round2((distKm / summary.durationSeconds) * 3600) : 0,
-      elevation_gain_m: computeElevationGain(gpsPoints),
-      avg_hr: avgHR,
-      max_hr: maxHR,
-      points: gpsPoints,
-      laps: [],
-      auto_paused_duration_sec: 0,
-    };
-    input.gps_route = route as any;
-  }
-
-  if (hasHR) {
-    const hrData: HRData = {
-      readings: hrReadings,
-      device_name: summary.sourceDevice ?? undefined,
-    };
-    input.heart_rate_data = hrData as any;
-  }
-
-  return input;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function computeElevationGain(points: GPSPoint[]): number {
-  let gain = 0;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1].altitude;
-    const curr = points[i].altitude;
-    if (prev != null && curr != null && curr > prev) {
-      gain += curr - prev;
-    }
-  }
-  return round2(gain);
-}
 
 function haversineMetres(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;

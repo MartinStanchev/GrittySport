@@ -18,38 +18,40 @@ var testPool *pgxpool.Pool
 const testJWTSecret = "test-secret-key-for-integration-tests"
 
 func TestMain(m *testing.M) {
-	dbURL := os.Getenv("TEST_DATABASE_URL")
-	if dbURL == "" {
-		os.Exit(0) // skip all tests silently
-	}
-
 	ctx := context.Background()
-	var err error
-	testPool, err = db.Connect(ctx, dbURL)
-	if err != nil {
-		panic("failed to connect to test database: " + err.Error())
-	}
-	defer testPool.Close()
+	dbURL := os.Getenv("TEST_DATABASE_URL")
+	if dbURL != "" {
+		var err error
+		testPool, err = db.Connect(ctx, dbURL)
+		if err != nil {
+			panic("failed to connect to test database: " + err.Error())
+		}
+		defer testPool.Close()
 
-	migrationsPath := os.Getenv("MIGRATIONS_PATH")
-	if migrationsPath == "" {
-		migrationsPath = "../../../../db/migrations"
-	}
-
-	if err := db.RunMigrations(ctx, testPool, migrationsPath); err != nil {
-		panic("failed to run migrations: " + err.Error())
+		migrationsPath := os.Getenv("MIGRATIONS_PATH")
+		if migrationsPath == "" {
+			migrationsPath = "../../../../db/migrations"
+		}
+		if err := db.RunMigrations(ctx, testPool, migrationsPath); err != nil {
+			panic("failed to run migrations: " + err.Error())
+		}
 	}
 
 	code := m.Run()
 
-	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
-	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
-	_, _ = testPool.Exec(ctx, "DELETE FROM users")
+	if testPool != nil {
+		_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
+		_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+		_, _ = testPool.Exec(ctx, "DELETE FROM users")
+	}
 	os.Exit(code)
 }
 
 func cleanTables(t *testing.T) {
 	t.Helper()
+	if testPool == nil {
+		t.Skip("TEST_DATABASE_URL not set")
+	}
 	ctx := context.Background()
 	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")

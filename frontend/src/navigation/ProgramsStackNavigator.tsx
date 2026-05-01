@@ -6,7 +6,7 @@ import RecordManualScreen from '../screens/RecordManualScreen';
 import RecordGPSScreen from '../screens/RecordGPSScreen';
 import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
-import WorkoutFilePreviewScreen from '../screens/WorkoutFilePreviewScreen';
+import ImportPreviewScreen from '../screens/ImportPreviewScreen';
 import CreateProgramBasicsScreen from '../screens/CreateProgramBasicsScreen';
 import CreateProgramScheduleScreen from '../screens/CreateProgramScheduleScreen';
 import CreateProgramReviewScreen from '../screens/CreateProgramReviewScreen';
@@ -61,8 +61,8 @@ export default function ProgramsStackNavigator() {
         options={{ title: 'Workout' }}
       />
       <Stack.Screen
-        name="WorkoutFilePreview"
-        component={WorkoutFilePreviewScreen}
+        name="ImportPreview"
+        component={ImportPreviewScreen}
         options={{ title: 'Import Workout' }}
       />
       <Stack.Screen

@@ -165,6 +165,7 @@ func main() {
 		r.Get("/programs/{id}/criteria", programHandler.GetCriteria)
 		r.Put("/programs/{id}/criteria", programHandler.UpdateCriteria)
 		r.Get("/activities/upcoming", programHandler.GetUpcoming)
+		r.Get("/activities/linkable", programHandler.GetLinkable)
 		r.Get("/activities/{activityId}", programHandler.GetActivity)
 		r.Post("/programs/{id}/weeks/{weekId}/activities", programHandler.CreateActivity)
 		r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
