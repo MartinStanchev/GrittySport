@@ -11,7 +11,7 @@ import { ProgramProvider } from './src/contexts/ProgramContext';
 import { WorkoutProvider } from './src/contexts/WorkoutContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
-import AuthStackNavigator from './src/navigation/AuthStackNavigator';
+import AuthScreen from './src/screens/auth/AuthScreen';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { OfflineBanner } from './src/components/OfflineBanner';
@@ -31,7 +31,7 @@ function RootNavigator() {
     );
   }
 
-  if (!isAuthenticated) return <AuthStackNavigator />;
+  if (!isAuthenticated) return <AuthScreen />;
 
   if (!user?.profile_completed) return <ProfileSetupScreen />;
 

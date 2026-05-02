@@ -16,57 +16,59 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 	return &AuthHandler{authService: authService}
 }
 
-type registerRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
+type otpRequestBody struct {
+	Email string `json:"email"`
 }
 
-type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+type otpVerifyBody struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
 }
 
 type refreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req registerRequest
+func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
+	var req otpRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	resp, err := h.authService.Register(r.Context(), req.Email, req.Password, req.Name)
+	err := h.authService.RequestOTP(r.Context(), req.Email)
 	if err != nil {
 		var valErrs *services.ValidationErrors
 		if errors.As(err, &valErrs) {
 			writeValidationErrors(w, valErrs.Errors)
 			return
 		}
-		if errors.Is(err, services.ErrEmailExists) {
-			writeError(w, http.StatusConflict, "email already exists")
+		if errors.Is(err, services.ErrRateLimited) {
+			writeError(w, http.StatusTooManyRequests, "too many requests; please wait before trying again")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, resp)
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req loginRequest
+func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
+	var req otpVerifyBody
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
-	resp, err := h.authService.Login(r.Context(), req.Email, req.Password)
+	resp, err := h.authService.VerifyOTP(r.Context(), req.Email, req.Code)
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidCredentials) {
-			writeError(w, http.StatusUnauthorized, "invalid credentials")
+		if errors.Is(err, services.ErrInvalidOTP) {
+			writeError(w, http.StatusUnauthorized, "invalid or expired code")
+			return
+		}
+		if errors.Is(err, services.ErrOTPLocked) {
+			writeError(w, http.StatusTooManyRequests, "too many attempts; request a new code")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal server error")

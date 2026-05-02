@@ -16,10 +16,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ageBasedMaxHR, inchesToCm, lbsToKg } from '../../utils/units';
 
 export default function ProfileSetupScreen() {
-  const { updateUser } = useAuth();
+  const { updateUser, user } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
+  const [name, setName] = useState(user?.name ?? '');
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
@@ -32,7 +33,12 @@ export default function ProfileSetupScreen() {
   async function handleContinue() {
     const parsedHeight = parseFloat(height);
     const parsedWeight = parseFloat(weight);
+    const trimmedName = name.trim();
 
+    if (!trimmedName) {
+      Alert.alert('Name Required', 'Please tell Grit what to call you.');
+      return;
+    }
     if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 120) {
       Alert.alert('Invalid Age', 'Please enter an age between 10 and 120.');
       return;
@@ -53,6 +59,7 @@ export default function ProfileSetupScreen() {
       const weightKg = units === 'imperial' ? lbsToKg(parsedWeight) : parsedWeight;
 
       await updateUser({
+        name: trimmedName,
         birth_year: birthYear,
         height_cm: heightCm,
         weight_kg: weightKg,
@@ -110,6 +117,17 @@ export default function ProfileSetupScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Name</Text>
+        <TextInput
+          style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
+          value={name}
+          onChangeText={setName}
+          placeholder="What should Grit call you?"
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="words"
+          maxLength={60}
+        />
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>Age</Text>
         <TextInput

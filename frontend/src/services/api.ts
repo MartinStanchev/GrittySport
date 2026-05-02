@@ -210,6 +210,9 @@ async function apiFetch<T>(
     throw new ApiError(response.status, error.error || error.message || 'Request failed');
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
   return response.json();
 }
 
@@ -235,26 +238,20 @@ interface AuthResponse {
   refresh_token: string;
 }
 
-export async function register(
-  email: string,
-  password: string,
-  name: string,
-): Promise<AuthResponse> {
-  const resp = await apiFetch<AuthResponse>('/api/auth/register', {
+export async function requestOtp(email: string): Promise<void> {
+  await apiFetch<void>('/api/auth/otp/request', {
     method: 'POST',
-    body: JSON.stringify({ email, password, name }),
+    body: JSON.stringify({ email }),
   });
-  await setTokens(resp.access_token, resp.refresh_token);
-  return resp;
 }
 
-export async function login(
+export async function verifyOtp(
   email: string,
-  password: string,
+  code: string,
 ): Promise<AuthResponse> {
-  const resp = await apiFetch<AuthResponse>('/api/auth/login', {
+  const resp = await apiFetch<AuthResponse>('/api/auth/otp/verify', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, code }),
   });
   await setTokens(resp.access_token, resp.refresh_token);
   return resp;

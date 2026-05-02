@@ -25,6 +25,11 @@ export const authStyles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
   },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
   error: {
     fontSize: 14,
     textAlign: 'center',

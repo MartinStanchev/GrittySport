@@ -64,8 +64,8 @@ func createTestUser(t *testing.T, tier string) string {
 	t.Helper()
 	var id string
 	err := testPool.QueryRow(context.Background(),
-		`INSERT INTO users (email, password_hash, name, subscription_tier)
-		 VALUES ($1, 'hash', 'Test', $2) RETURNING id`,
+		`INSERT INTO users (email, name, subscription_tier)
+		 VALUES ($1, 'Test', $2) RETURNING id`,
 		"test"+time.Now().Format("150405.000")+"@test.com", tier,
 	).Scan(&id)
 	if err != nil {

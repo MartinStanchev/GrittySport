@@ -31,7 +31,7 @@ func generateTestToken(t *testing.T, userID, email string, exp time.Time) string
 }
 
 func setupMiddleware() func(http.Handler) http.Handler {
-	authService := services.NewAuthService(nil, testJWTSecret)
+	authService := services.NewAuthService(nil, testJWTSecret, nil, 0)
 	return middleware.JWTAuth(authService)
 }
 

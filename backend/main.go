@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/db"
+	"github.com/grittyfitness/api/internal/email"
 	"github.com/grittyfitness/api/internal/handlers"
 	"github.com/grittyfitness/api/internal/memory"
 	appmw "github.com/grittyfitness/api/internal/middleware"
@@ -93,7 +96,13 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load skills")
 	}
 
-	authService := services.NewAuthService(pool, jwtSecret)
+	mailer := email.New(email.Config{
+		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
+		From:         envOrDefault("EMAIL_FROM", "Gritty Fitness <noreply@grittyfitness.app>"),
+	})
+	refreshTTL := time.Duration(envInt("REFRESH_TOKEN_TTL_DAYS", 180)) * 24 * time.Hour
+
+	authService := services.NewAuthService(pool, jwtSecret, mailer, refreshTTL)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)
@@ -140,8 +149,8 @@ func main() {
 	})
 
 	r.Route("/api/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
+		r.Post("/otp/request", authHandler.RequestOTP)
+		r.Post("/otp/verify", authHandler.VerifyOTP)
 		r.Post("/refresh", authHandler.Refresh)
 	})
 
@@ -190,4 +199,20 @@ func main() {
 	if err := http.ListenAndServe(":"+port, r); err != nil {
 		log.Fatal().Err(err).Msg("Server failed to start")
 	}
+}
+
+func envOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func envInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }

@@ -10,12 +10,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grittyfitness/api/internal/db"
+	"github.com/grittyfitness/api/internal/email"
 	"github.com/grittyfitness/api/internal/services"
 )
 
 var testPool *pgxpool.Pool
 
-const testJWTSecret = "test-secret-key-for-integration-tests"
+const (
+	testJWTSecret  = "test-secret-key-for-integration-tests"
+	testRefreshTTL = 180 * 24 * time.Hour
+)
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
@@ -40,6 +44,8 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	if testPool != nil {
+		ctx := context.Background()
+		_, _ = testPool.Exec(ctx, "DELETE FROM email_otps")
 		_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 		_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
 		_, _ = testPool.Exec(ctx, "DELETE FROM users")
@@ -53,281 +59,375 @@ func cleanTables(t *testing.T) {
 		t.Skip("TEST_DATABASE_URL not set")
 	}
 	ctx := context.Background()
+	_, _ = testPool.Exec(ctx, "DELETE FROM email_otps")
 	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
 	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 }
 
-func newService() *services.AuthService {
-	return services.NewAuthService(testPool, testJWTSecret)
+func newService(mailer email.Sender) *services.AuthService {
+	return services.NewAuthService(testPool, testJWTSecret, mailer, testRefreshTTL)
 }
 
-func TestRegister_Success(t *testing.T) {
-	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
-
-	resp, err := svc.Register(ctx, "test@example.com", "password123", "Test User")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+// requestAndExtractCode triggers an OTP send through the service and returns
+// the most recent code that the MockSender captured.
+func requestAndExtractCode(t *testing.T, svc *services.AuthService, mock *email.MockSender, addr string) string {
+	t.Helper()
+	if err := svc.RequestOTP(context.Background(), addr); err != nil {
+		t.Fatalf("RequestOTP(%s) failed: %v", addr, err)
 	}
-
-	if resp.User.Email != "test@example.com" {
-		t.Errorf("expected email 'test@example.com', got '%s'", resp.User.Email)
+	sent := mock.Sent()
+	if len(sent) == 0 {
+		t.Fatalf("expected MockSender to have a sent OTP")
 	}
-	if resp.User.Name != "Test User" {
-		t.Errorf("expected name 'Test User', got '%s'", resp.User.Name)
-	}
-	if resp.User.ID == "" {
-		t.Error("expected non-empty user ID")
-	}
-	if resp.AccessToken == "" {
-		t.Error("expected non-empty access token")
-	}
-	if resp.RefreshToken == "" {
-		t.Error("expected non-empty refresh token")
-	}
+	return sent[len(sent)-1].Code
 }
 
-func TestRegister_DuplicateEmail(t *testing.T) {
+func TestRequestOTP_SendsCodeAndPersistsRow(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 
-	_, err := svc.Register(ctx, "dup@example.com", "password123", "User One")
-	if err != nil {
-		t.Fatalf("first register failed: %v", err)
+	if err := svc.RequestOTP(context.Background(), "Otp@Example.com"); err != nil {
+		t.Fatalf("RequestOTP failed: %v", err)
 	}
 
-	_, err = svc.Register(ctx, "dup@example.com", "password456", "User Two")
-	if err != services.ErrEmailExists {
-		t.Errorf("expected ErrEmailExists, got: %v", err)
+	sent := mock.Sent()
+	if len(sent) != 1 {
+		t.Fatalf("expected 1 email sent, got %d", len(sent))
 	}
-}
-
-func TestRegister_DuplicateEmailCaseInsensitive(t *testing.T) {
-	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
-
-	_, err := svc.Register(ctx, "Test@Example.com", "password123", "User One")
-	if err != nil {
-		t.Fatalf("first register failed: %v", err)
+	if sent[0].Email != "otp@example.com" {
+		t.Errorf("expected normalized lowercase email, got %q", sent[0].Email)
+	}
+	if len(sent[0].Code) != 6 {
+		t.Errorf("expected 6-digit code, got %q", sent[0].Code)
 	}
 
-	_, err = svc.Register(ctx, "test@example.com", "password456", "User Two")
-	if err != services.ErrEmailExists {
-		t.Errorf("expected ErrEmailExists, got: %v", err)
+	var count int
+	if err := testPool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM email_otps WHERE email = $1 AND consumed_at IS NULL`,
+		"otp@example.com").Scan(&count); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 unconsumed OTP row, got %d", count)
 	}
 }
 
-func TestRegister_InvalidEmail(t *testing.T) {
+func TestRequestOTP_InvalidEmail(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 
-	_, err := svc.Register(ctx, "not-an-email", "password123", "User")
+	err := svc.RequestOTP(context.Background(), "not-an-email")
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
 	var valErrs *services.ValidationErrors
-	if !isValidationError(err, &valErrs) {
-		t.Fatalf("expected ValidationErrors, got: %T", err)
-	}
-	if valErrs.Errors[0].Field != "email" {
-		t.Errorf("expected email field error, got: %s", valErrs.Errors[0].Field)
+	if !errors.As(err, &valErrs) {
+		t.Fatalf("expected ValidationErrors, got %T", err)
 	}
 }
 
-func TestRegister_ShortPassword(t *testing.T) {
+func TestRequestOTP_ResendCooldown(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 
-	_, err := svc.Register(ctx, "test@example.com", "short", "User")
-	if err == nil {
-		t.Fatal("expected validation error")
+	if err := svc.RequestOTP(context.Background(), "rl@example.com"); err != nil {
+		t.Fatalf("first request failed: %v", err)
 	}
-	var valErrs *services.ValidationErrors
-	if !isValidationError(err, &valErrs) {
-		t.Fatalf("expected ValidationErrors, got: %T", err)
-	}
-	if valErrs.Errors[0].Field != "password" {
-		t.Errorf("expected password field error, got: %s", valErrs.Errors[0].Field)
+	err := svc.RequestOTP(context.Background(), "rl@example.com")
+	if !errors.Is(err, services.ErrRateLimited) {
+		t.Errorf("expected ErrRateLimited on immediate retry, got %v", err)
 	}
 }
 
-func TestRegister_EmptyName(t *testing.T) {
+func TestVerifyOTP_NewUser_CreatesUserAndIdentity(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	_, err := svc.Register(ctx, "test@example.com", "password123", "")
-	if err == nil {
-		t.Fatal("expected validation error")
-	}
-	var valErrs *services.ValidationErrors
-	if !isValidationError(err, &valErrs) {
-		t.Fatalf("expected ValidationErrors, got: %T", err)
-	}
-}
+	code := requestAndExtractCode(t, svc, mock, "new@example.com")
 
-func TestLogin_Success(t *testing.T) {
-	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
-
-	_, err := svc.Register(ctx, "login@example.com", "password123", "Login User")
+	resp, err := svc.VerifyOTP(ctx, "new@example.com", code)
 	if err != nil {
-		t.Fatalf("register failed: %v", err)
+		t.Fatalf("VerifyOTP failed: %v", err)
 	}
-
-	resp, err := svc.Login(ctx, "login@example.com", "password123")
-	if err != nil {
-		t.Fatalf("login failed: %v", err)
+	if resp.User.Email != "new@example.com" {
+		t.Errorf("expected email new@example.com, got %s", resp.User.Email)
 	}
-
-	if resp.User.Email != "login@example.com" {
-		t.Errorf("expected email 'login@example.com', got '%s'", resp.User.Email)
+	if resp.User.ProfileCompleted {
+		t.Error("expected new user profile_completed=false")
+	}
+	if resp.User.Name == "" {
+		t.Error("expected derived name (email local-part) on new user")
 	}
 	if resp.AccessToken == "" || resp.RefreshToken == "" {
 		t.Error("expected tokens to be non-empty")
 	}
+
+	var provider string
+	if err := testPool.QueryRow(ctx,
+		`SELECT provider FROM auth_identities WHERE user_id = $1`,
+		resp.User.ID).Scan(&provider); err != nil {
+		t.Fatalf("auth_identities lookup failed: %v", err)
+	}
+	if provider != "email" {
+		t.Errorf("expected email auth_identity, got %s", provider)
+	}
 }
 
-func TestLogin_WrongPassword(t *testing.T) {
+func TestVerifyOTP_ExistingIdentity_ReusesUser(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	_, err := svc.Register(ctx, "user@example.com", "password123", "User")
+	first := requestAndExtractCode(t, svc, mock, "loyal@example.com")
+	firstResp, err := svc.VerifyOTP(ctx, "loyal@example.com", first)
 	if err != nil {
-		t.Fatalf("register failed: %v", err)
+		t.Fatalf("first verify failed: %v", err)
 	}
 
-	_, err = svc.Login(ctx, "user@example.com", "wrongpassword")
-	if err != services.ErrInvalidCredentials {
-		t.Errorf("expected ErrInvalidCredentials, got: %v", err)
+	mock.Reset()
+	// Bypass the 60s cooldown by clearing the in-memory limiter via a fresh service.
+	svc2 := newService(mock)
+	second := requestAndExtractCode(t, svc2, mock, "loyal@example.com")
+	secondResp, err := svc2.VerifyOTP(ctx, "loyal@example.com", second)
+	if err != nil {
+		t.Fatalf("second verify failed: %v", err)
+	}
+
+	if firstResp.User.ID != secondResp.User.ID {
+		t.Errorf("expected same user ID across logins; got %s and %s", firstResp.User.ID, secondResp.User.ID)
 	}
 }
 
-func TestLogin_NonexistentEmail(t *testing.T) {
+func TestVerifyOTP_LinksEmailIdentityForExistingUser(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	_, err := svc.Login(ctx, "nobody@example.com", "password123")
-	if err != services.ErrInvalidCredentials {
-		t.Errorf("expected ErrInvalidCredentials, got: %v", err)
+	// Pre-existing user without an email auth_identity (simulates a user
+	// signed up via SSO with the same email — feature isn't built yet but the
+	// linking path should already work).
+	var existingID string
+	if err := testPool.QueryRow(ctx,
+		`INSERT INTO users (email, name, profile_completed) VALUES ($1, $2, true)
+		 RETURNING id`,
+		"sso@example.com", "Existing User").Scan(&existingID); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	code := requestAndExtractCode(t, svc, mock, "sso@example.com")
+	resp, err := svc.VerifyOTP(ctx, "sso@example.com", code)
+	if err != nil {
+		t.Fatalf("VerifyOTP failed: %v", err)
+	}
+	if resp.User.ID != existingID {
+		t.Errorf("expected existing user ID, got %s", resp.User.ID)
+	}
+	if resp.User.Name != "Existing User" {
+		t.Errorf("expected existing user name preserved, got %s", resp.User.Name)
+	}
+
+	var count int
+	if err := testPool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM auth_identities WHERE user_id = $1 AND provider = 'email'`,
+		existingID).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected email identity linked exactly once, got %d", count)
+	}
+}
+
+func TestVerifyOTP_WrongCodeIncrementsAttempts(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	ctx := context.Background()
+
+	_ = requestAndExtractCode(t, svc, mock, "wrong@example.com")
+
+	_, err := svc.VerifyOTP(ctx, "wrong@example.com", "000000")
+	if !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP, got %v", err)
+	}
+
+	var attempts int
+	if err := testPool.QueryRow(ctx,
+		`SELECT attempts FROM email_otps WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+		"wrong@example.com").Scan(&attempts); err != nil {
+		t.Fatalf("query attempts: %v", err)
+	}
+	if attempts != 1 {
+		t.Errorf("expected attempts=1, got %d", attempts)
+	}
+}
+
+func TestVerifyOTP_LocksAfterMaxAttempts(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	ctx := context.Background()
+
+	_ = requestAndExtractCode(t, svc, mock, "lock@example.com")
+
+	for i := 0; i < 5; i++ {
+		_, _ = svc.VerifyOTP(ctx, "lock@example.com", "000000")
+	}
+
+	_, err := svc.VerifyOTP(ctx, "lock@example.com", "000000")
+	if !errors.Is(err, services.ErrOTPLocked) {
+		t.Errorf("expected ErrOTPLocked after max attempts, got %v", err)
+	}
+}
+
+func TestVerifyOTP_ExpiredCode(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	ctx := context.Background()
+
+	code := requestAndExtractCode(t, svc, mock, "exp@example.com")
+
+	_, err := testPool.Exec(ctx,
+		`UPDATE email_otps SET expires_at = $1 WHERE email = $2`,
+		time.Now().Add(-1*time.Hour), "exp@example.com")
+	if err != nil {
+		t.Fatalf("expire: %v", err)
+	}
+
+	_, err = svc.VerifyOTP(ctx, "exp@example.com", code)
+	if !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP for expired code, got %v", err)
+	}
+}
+
+func TestVerifyOTP_NoOutstandingCode(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+
+	_, err := svc.VerifyOTP(context.Background(), "ghost@example.com", "123456")
+	if !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP, got %v", err)
+	}
+}
+
+func TestVerifyOTP_ConsumedCodeCannotBeReused(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	ctx := context.Background()
+
+	code := requestAndExtractCode(t, svc, mock, "once@example.com")
+
+	if _, err := svc.VerifyOTP(ctx, "once@example.com", code); err != nil {
+		t.Fatalf("first verify failed: %v", err)
+	}
+	_, err := svc.VerifyOTP(ctx, "once@example.com", code)
+	if !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP for reuse, got %v", err)
 	}
 }
 
 func TestRefreshToken_Success(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	regResp, err := svc.Register(ctx, "refresh@example.com", "password123", "Refresh User")
+	code := requestAndExtractCode(t, svc, mock, "refresh@example.com")
+	verifyResp, err := svc.VerifyOTP(ctx, "refresh@example.com", code)
 	if err != nil {
-		t.Fatalf("register failed: %v", err)
+		t.Fatalf("verify failed: %v", err)
 	}
 
-	resp, err := svc.RefreshToken(ctx, regResp.RefreshToken)
+	resp, err := svc.RefreshToken(ctx, verifyResp.RefreshToken)
 	if err != nil {
 		t.Fatalf("refresh failed: %v", err)
 	}
-
 	if resp.User.Email != "refresh@example.com" {
-		t.Errorf("expected email 'refresh@example.com', got '%s'", resp.User.Email)
+		t.Errorf("expected email preserved, got %s", resp.User.Email)
 	}
-	if resp.AccessToken == "" || resp.RefreshToken == "" {
-		t.Error("expected tokens to be non-empty")
-	}
-	if resp.RefreshToken == regResp.RefreshToken {
-		t.Error("expected new refresh token to differ from old one")
+	if resp.RefreshToken == verifyResp.RefreshToken {
+		t.Error("expected rotated refresh token")
 	}
 }
 
-func TestRefreshToken_OldTokenDeleted(t *testing.T) {
+func TestRefreshToken_RotatedTokenInvalidated(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	regResp, err := svc.Register(ctx, "rotate@example.com", "password123", "Rotate User")
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
+	code := requestAndExtractCode(t, svc, mock, "rotate@example.com")
+	verifyResp, _ := svc.VerifyOTP(ctx, "rotate@example.com", code)
 
-	oldToken := regResp.RefreshToken
-
-	_, err = svc.RefreshToken(ctx, oldToken)
-	if err != nil {
+	old := verifyResp.RefreshToken
+	if _, err := svc.RefreshToken(ctx, old); err != nil {
 		t.Fatalf("first refresh failed: %v", err)
 	}
-
-	_, err = svc.RefreshToken(ctx, oldToken)
-	if err != services.ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken for rotated token, got: %v", err)
+	_, err := svc.RefreshToken(ctx, old)
+	if !errors.Is(err, services.ErrInvalidToken) {
+		t.Errorf("expected ErrInvalidToken on reused token, got %v", err)
 	}
 }
 
 func TestRefreshToken_Invalid(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
-	ctx := context.Background()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 
-	_, err := svc.RefreshToken(ctx, "00000000-0000-0000-0000-000000000000")
-	if err != services.ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken, got: %v", err)
+	_, err := svc.RefreshToken(context.Background(), "00000000-0000-0000-0000-000000000000")
+	if !errors.Is(err, services.ErrInvalidToken) {
+		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }
 
 func TestRefreshToken_Expired(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	regResp, err := svc.Register(ctx, "expired@example.com", "password123", "Expired User")
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
+	code := requestAndExtractCode(t, svc, mock, "stale@example.com")
+	verifyResp, _ := svc.VerifyOTP(ctx, "stale@example.com", code)
+
+	if _, err := testPool.Exec(ctx,
+		`UPDATE refresh_tokens SET expires_at = $1 WHERE token = $2`,
+		time.Now().Add(-1*time.Hour), verifyResp.RefreshToken); err != nil {
+		t.Fatalf("expire: %v", err)
 	}
 
-	_, err = testPool.Exec(ctx,
-		"UPDATE refresh_tokens SET expires_at = $1 WHERE token = $2",
-		time.Now().Add(-1*time.Hour), regResp.RefreshToken,
-	)
-	if err != nil {
-		t.Fatalf("failed to expire token: %v", err)
-	}
-
-	_, err = svc.RefreshToken(ctx, regResp.RefreshToken)
-	if err != services.ErrInvalidToken {
-		t.Errorf("expected ErrInvalidToken for expired token, got: %v", err)
+	_, err := svc.RefreshToken(ctx, verifyResp.RefreshToken)
+	if !errors.Is(err, services.ErrInvalidToken) {
+		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }
 
 func TestValidateAccessToken_Valid(t *testing.T) {
 	cleanTables(t)
-	svc := newService()
+	mock := &email.MockSender{}
+	svc := newService(mock)
 	ctx := context.Background()
 
-	regResp, err := svc.Register(ctx, "validate@example.com", "password123", "Validate User")
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
+	code := requestAndExtractCode(t, svc, mock, "v@example.com")
+	verifyResp, _ := svc.VerifyOTP(ctx, "v@example.com", code)
 
-	userID, email, err := svc.ValidateAccessToken(regResp.AccessToken)
+	userID, em, err := svc.ValidateAccessToken(verifyResp.AccessToken)
 	if err != nil {
 		t.Fatalf("validate failed: %v", err)
 	}
-	if userID != regResp.User.ID {
-		t.Errorf("expected user ID '%s', got '%s'", regResp.User.ID, userID)
+	if userID != verifyResp.User.ID {
+		t.Errorf("user ID mismatch")
 	}
-	if email != "validate@example.com" {
-		t.Errorf("expected email 'validate@example.com', got '%s'", email)
+	if em != "v@example.com" {
+		t.Errorf("expected email v@example.com, got %s", em)
 	}
-}
-
-func isValidationError(err error, target **services.ValidationErrors) bool {
-	return errors.As(err, target)
 }

@@ -2,24 +2,36 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"math/big"
 	"net/mail"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/grittyfitness/api/internal/email"
 	"github.com/grittyfitness/api/internal/models"
 )
 
+const (
+	accessTokenTTL  = 15 * time.Minute
+	otpTTL          = 10 * time.Minute
+	otpResendWindow = 60 * time.Second
+	otpHourlyMax    = 5
+)
+
 var (
-	ErrEmailExists        = errors.New("email already exists")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrInvalidToken       = errors.New("invalid or expired token")
+	ErrInvalidToken = errors.New("invalid or expired token")
+	ErrInvalidOTP   = errors.New("invalid or expired code")
+	ErrOTPLocked    = errors.New("too many attempts; request a new code")
+	ErrRateLimited  = errors.New("too many requests; please wait before trying again")
 )
 
 type ValidationError struct {
@@ -36,92 +48,125 @@ func (e *ValidationErrors) Error() string {
 }
 
 type AuthService struct {
-	pool      *pgxpool.Pool
-	jwtSecret []byte
+	pool       *pgxpool.Pool
+	jwtSecret  []byte
+	mailer     email.Sender
+	refreshTTL time.Duration
+
+	limiterMu sync.Mutex
+	recent    map[string][]time.Time
 }
 
-func NewAuthService(pool *pgxpool.Pool, jwtSecret string) *AuthService {
+func NewAuthService(pool *pgxpool.Pool, jwtSecret string, mailer email.Sender, refreshTTL time.Duration) *AuthService {
 	return &AuthService{
-		pool:      pool,
-		jwtSecret: []byte(jwtSecret),
+		pool:       pool,
+		jwtSecret:  []byte(jwtSecret),
+		mailer:     mailer,
+		refreshTTL: refreshTTL,
+		recent:     make(map[string][]time.Time),
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password, name string) (*models.AuthResponse, error) {
-	if errs := validateRegister(email, password, name); len(errs) > 0 {
-		return nil, &ValidationErrors{Errors: errs}
+// RequestOTP processes the same way regardless of whether the email exists — no enumeration.
+func (s *AuthService) RequestOTP(ctx context.Context, rawEmail string) error {
+	addr, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return &ValidationErrors{Errors: []ValidationError{{Field: "email", Message: "invalid email address"}}}
 	}
 
-	email = strings.ToLower(strings.TrimSpace(email))
-	name = strings.TrimSpace(name)
+	if err := s.checkRateLimit(addr); err != nil {
+		return err
+	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	code, err := generateNumericCode(6)
+	if err != nil {
+		return fmt.Errorf("generate code: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(code), 10)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.pool.Exec(ctx,
+		`INSERT INTO email_otps (email, code_hash, purpose, expires_at)
+		 VALUES ($1, $2, 'login', $3)`,
+		addr, string(hash), time.Now().Add(otpTTL),
+	)
+	if err != nil {
+		return fmt.Errorf("insert otp: %w", err)
+	}
+
+	if err := s.mailer.SendOTP(ctx, addr, code); err != nil {
+		return fmt.Errorf("send otp: %w", err)
+	}
+	s.recordSend(addr)
+	return nil
+}
+
+func (s *AuthService) VerifyOTP(ctx context.Context, rawEmail, code string) (*models.AuthResponse, error) {
+	addr, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return nil, ErrInvalidOTP
+	}
+
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
 
-	var user models.UserResponse
-	err = s.pool.QueryRow(ctx,
-		`INSERT INTO users (email, password_hash, name, profile_completed) VALUES ($1, $2, $3, false)
-		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		           birth_year, height_cm, weight_kg, profile_completed,
-		           subscription_tier, subscription_expires_at`,
-		email, string(hash), name,
-	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
-		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
+	var otpID, codeHash string
+	var attempts int
+	var expiresAt time.Time
+	err = tx.QueryRow(ctx,
+		`SELECT id, code_hash, attempts, expires_at
+		 FROM email_otps
+		 WHERE email = $1 AND purpose = 'login' AND consumed_at IS NULL
+		 ORDER BY created_at DESC LIMIT 1`,
+		addr,
+	).Scan(&otpID, &codeHash, &attempts, &expiresAt)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return nil, ErrEmailExists
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrInvalidOTP
 		}
 		return nil, err
 	}
 
-	accessToken, refreshToken, err := s.generateTokenPair(ctx, user)
+	if attempts >= models.OTPMaxAttempts {
+		return nil, ErrOTPLocked
+	}
+	if time.Now().After(expiresAt) {
+		return nil, ErrInvalidOTP
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(codeHash), []byte(code)); err != nil {
+		// Persist the bumped attempt counter even though we'll roll back the rest.
+		_, _ = tx.Exec(ctx, `UPDATE email_otps SET attempts = attempts + 1 WHERE id = $1`, otpID)
+		_ = tx.Commit(ctx)
+		return nil, ErrInvalidOTP
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE email_otps SET consumed_at = now() WHERE id = $1`, otpID); err != nil {
+		return nil, err
+	}
+
+	user, err := s.findOrCreateUserByEmail(ctx, tx, addr)
 	if err != nil {
+		return nil, err
+	}
+
+	accessToken, refreshToken, err := s.issueTokens(ctx, tx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
 	return &models.AuthResponse{
 		User:         user,
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	}, nil
-}
-
-func (s *AuthService) Login(ctx context.Context, email, password string) (*models.AuthResponse, error) {
-	email = strings.ToLower(strings.TrimSpace(email))
-
-	var user models.User
-	err := s.pool.QueryRow(ctx,
-		`SELECT id, email, password_hash, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		        birth_year, height_cm, weight_kg, profile_completed,
-		        subscription_tier, subscription_started_at, subscription_expires_at
-		 FROM users WHERE email = $1`,
-		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
-		&user.SubscriptionTier, &user.SubscriptionStartedAt, &user.SubscriptionExpiresAt)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrInvalidCredentials
-		}
-		return nil, err
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, ErrInvalidCredentials
-	}
-
-	userResp := user.ToResponse()
-	accessToken, refreshToken, err := s.generateTokenPair(ctx, userResp)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.AuthResponse{
-		User:         userResp,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
@@ -160,16 +205,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 		return nil, ErrInvalidToken
 	}
 
-	_, err = tx.Exec(ctx, "DELETE FROM refresh_tokens WHERE token = $1", token)
-	if err != nil {
+	if _, err := tx.Exec(ctx, "DELETE FROM refresh_tokens WHERE token = $1", token); err != nil {
 		return nil, err
 	}
 
-	var newRefreshToken string
-	err = tx.QueryRow(ctx,
-		`INSERT INTO refresh_tokens (user_id, expires_at) VALUES ($1, $2) RETURNING token`,
-		userResp.ID, time.Now().Add(30*24*time.Hour),
-	).Scan(&newRefreshToken)
+	userResp.ApplyEffectiveTier()
+	accessToken, refreshToken, err := s.issueTokens(ctx, tx, userResp)
 	if err != nil {
 		return nil, err
 	}
@@ -178,15 +219,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 		return nil, err
 	}
 
-	accessToken, err := s.generateAccessToken(userResp)
-	if err != nil {
-		return nil, err
-	}
-
 	return &models.AuthResponse{
 		User:         userResp,
 		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
+		RefreshToken: refreshToken,
 	}, nil
 }
 
@@ -215,21 +251,91 @@ func (s *AuthService) ValidateAccessToken(tokenString string) (userID, email str
 	return sub, em, nil
 }
 
-func (s *AuthService) generateTokenPair(ctx context.Context, user models.UserResponse) (string, string, error) {
+// findOrCreateUserByEmail handles three cases: (a) email identity exists; (b) user
+// exists without an email identity — silently link it (SSO user adding OTP); (c) no
+// user yet — create one with profile_completed=false so the frontend shows ProfileSetupScreen.
+func (s *AuthService) findOrCreateUserByEmail(ctx context.Context, tx pgx.Tx, addr string) (models.UserResponse, error) {
+	var user models.UserResponse
+
+	err := tx.QueryRow(ctx,
+		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, u.max_heart_rate, u.weekly_effort_goal,
+		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed,
+		        u.subscription_tier, u.subscription_expires_at
+		 FROM auth_identities ai
+		 JOIN users u ON ai.user_id = u.id
+		 WHERE ai.provider = $1 AND ai.provider_user_id = $2`,
+		models.AuthProviderEmail, addr,
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
+	if err == nil {
+		_, _ = tx.Exec(ctx,
+			`UPDATE auth_identities SET last_used_at = now()
+			 WHERE provider = $1 AND provider_user_id = $2`,
+			models.AuthProviderEmail, addr)
+		user.ApplyEffectiveTier()
+		return user, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return user, err
+	}
+
+	err = tx.QueryRow(ctx,
+		`SELECT id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
+		        birth_year, height_cm, weight_kg, profile_completed,
+		        subscription_tier, subscription_expires_at
+		 FROM users WHERE email = $1`,
+		addr,
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
+	if err == nil {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO auth_identities (user_id, provider, provider_user_id) VALUES ($1, $2, $3)`,
+			user.ID, models.AuthProviderEmail, addr); err != nil {
+			return user, err
+		}
+		user.ApplyEffectiveTier()
+		return user, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return user, err
+	}
+
+	err = tx.QueryRow(ctx,
+		`INSERT INTO users (email, name, profile_completed) VALUES ($1, $2, false)
+		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
+		           birth_year, height_cm, weight_kg, profile_completed,
+		           subscription_tier, subscription_expires_at`,
+		addr, emailLocalPart(addr),
+	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
+	if err != nil {
+		return user, err
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO auth_identities (user_id, provider, provider_user_id) VALUES ($1, $2, $3)`,
+		user.ID, models.AuthProviderEmail, addr); err != nil {
+		return user, err
+	}
+	user.ApplyEffectiveTier()
+	return user, nil
+}
+
+func (s *AuthService) issueTokens(ctx context.Context, tx pgx.Tx, user models.UserResponse) (string, string, error) {
 	accessToken, err := s.generateAccessToken(user)
 	if err != nil {
 		return "", "", err
 	}
-
 	var refreshToken string
-	err = s.pool.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`INSERT INTO refresh_tokens (user_id, expires_at) VALUES ($1, $2) RETURNING token`,
-		user.ID, time.Now().Add(30*24*time.Hour),
+		user.ID, time.Now().Add(s.refreshTTL),
 	).Scan(&refreshToken)
 	if err != nil {
 		return "", "", err
 	}
-
 	return accessToken, refreshToken, nil
 }
 
@@ -238,27 +344,68 @@ func (s *AuthService) generateAccessToken(user models.UserResponse) (string, err
 		"sub":   user.ID,
 		"email": user.Email,
 		"name":  user.Name,
-		"exp":   time.Now().Add(15 * time.Minute).Unix(),
+		"exp":   time.Now().Add(accessTokenTTL).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(s.jwtSecret)
 }
 
-func validateRegister(email, password, name string) []ValidationError {
-	var errs []ValidationError
+// checkRateLimit is in-process only — resets on restart, acceptable at current scale.
+func (s *AuthService) checkRateLimit(addr string) error {
+	s.limiterMu.Lock()
+	defer s.limiterMu.Unlock()
 
-	email = strings.TrimSpace(email)
-	if _, err := mail.ParseAddress(email); err != nil || email == "" {
-		errs = append(errs, ValidationError{Field: "email", Message: "invalid email address"})
+	now := time.Now()
+	hourAgo := now.Add(-time.Hour)
+	pruned := s.recent[addr][:0]
+	for _, t := range s.recent[addr] {
+		if t.After(hourAgo) {
+			pruned = append(pruned, t)
+		}
 	}
+	s.recent[addr] = pruned
 
-	if len(password) < 8 {
-		errs = append(errs, ValidationError{Field: "password", Message: "password must be at least 8 characters"})
+	if len(pruned) >= otpHourlyMax {
+		return ErrRateLimited
 	}
-
-	if strings.TrimSpace(name) == "" {
-		errs = append(errs, ValidationError{Field: "name", Message: "name is required"})
+	if len(pruned) > 0 && now.Sub(pruned[len(pruned)-1]) < otpResendWindow {
+		return ErrRateLimited
 	}
+	return nil
+}
 
-	return errs
+func (s *AuthService) recordSend(addr string) {
+	s.limiterMu.Lock()
+	s.recent[addr] = append(s.recent[addr], time.Now())
+	s.limiterMu.Unlock()
+}
+
+func normalizeEmail(raw string) (string, error) {
+	addr := strings.ToLower(strings.TrimSpace(raw))
+	if addr == "" {
+		return "", errors.New("empty email")
+	}
+	if _, err := mail.ParseAddress(addr); err != nil {
+		return "", err
+	}
+	return addr, nil
+}
+
+func emailLocalPart(addr string) string {
+	if i := strings.IndexByte(addr, '@'); i > 0 {
+		return addr[:i]
+	}
+	return addr
+}
+
+func generateNumericCode(digits int) (string, error) {
+	max := big.NewInt(1)
+	for i := 0; i < digits; i++ {
+		max.Mul(max, big.NewInt(10))
+	}
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%0*d", digits, n.Int64()), nil
 }
