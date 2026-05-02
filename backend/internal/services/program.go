@@ -180,8 +180,12 @@ func (s *ProgramService) loadWeeks(ctx context.Context, phaseID string) ([]model
 
 func (s *ProgramService) loadActivities(ctx context.Context, weekID string) ([]models.ScheduledActivity, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, week_id, day_of_week, activity_type, prescription, notes, order_index, created_at, updated_at
-		 FROM scheduled_activities WHERE week_id = $1 ORDER BY day_of_week, order_index`, weekID)
+		`SELECT sa.id, sa.week_id, sa.day_of_week, sa.activity_type, sa.prescription, sa.notes,
+		        sa.order_index, sa.created_at, sa.updated_at,
+		        (SELECT w.id FROM workouts w WHERE w.scheduled_activity_id = sa.id LIMIT 1) AS linked_workout_id
+		 FROM scheduled_activities sa
+		 WHERE sa.week_id = $1
+		 ORDER BY sa.day_of_week, sa.order_index`, weekID)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +194,7 @@ func (s *ProgramService) loadActivities(ctx context.Context, weekID string) ([]m
 	var activities []models.ScheduledActivity
 	for rows.Next() {
 		var a models.ScheduledActivity
-		if err := rows.Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.WeekID, &a.DayOfWeek, &a.ActivityType, &a.Prescription, &a.Notes, &a.OrderIndex, &a.CreatedAt, &a.UpdatedAt, &a.LinkedWorkoutID); err != nil {
 			return nil, err
 		}
 		activities = append(activities, a)

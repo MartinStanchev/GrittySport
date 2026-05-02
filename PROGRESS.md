@@ -81,6 +81,7 @@ Full details for each change are in the `progress/` folder.
 | [unified-import-preview](progress/unified-import-preview.md) | Apple Health imports now use the same full-screen preview as file imports (route map, stats, HR chart, link-to-scheduled UI) — bottom sheet removed |
 | [linkable-activity-window](progress/linkable-activity-window.md) | New `/activities/linkable` endpoint: ±3 day window, excludes already-linked, same-type-first then date priority [-1,-2,-3,today,+1,+2,+3] |
 | [passwordless-auth-otp](progress/passwordless-auth-otp.md) | Phase 1 auth modernization: drop passwords, email OTP via Resend, `auth_identities` table for future SSO/passkey, 6-month sessions, in-memory rate limit |
+| [program-detail-week-month-redesign](progress/program-detail-week-month-redesign.md) | Program detail rework: Week/Month tabs, apex load chart, sport-color rows with notes/intensity inline, monthly heatmap calendar; backend exposes `linked_workout_id` on schedule |
 
 ## Instructions for Agents
 

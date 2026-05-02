@@ -136,3 +136,94 @@ export function isManualActivity(type: string): boolean {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');
   return MANUAL_ROOTS.some((t) => normalized.includes(t));
 }
+
+// Sport-family colors used on program detail / month heatmap. Static across
+// themes — surfaces and text adapt via theme tokens, but sport identity stays
+// stable so users learn to recognize each family at a glance.
+const SPORT_COLOR_MAP: Record<string, string> = {
+  run: '#0EA5B0',
+  walk: '#0EA5B0',
+  indoor_run: '#0EA5B0',
+  cycling: '#E68A2E',
+  indoor_cycling: '#E68A2E',
+  swim: '#3B82F6',
+  open_water_swim: '#3B82F6',
+  strength_training: '#7C5CFC',
+  mobility: '#34C759',
+  yoga: '#34C759',
+  recovery: '#9E9EAE',
+  rest: '#9E9EAE',
+  drill: '#E68A2E',
+  cross_training: '#7C5CFC',
+  outdoor_activity: '#34C759',
+  indoor_activity: '#7C5CFC',
+};
+
+export function getActivityColor(type: string): string {
+  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  for (const [key, color] of Object.entries(SPORT_COLOR_MAP)) {
+    if (normalized.includes(key)) return color;
+  }
+  return '#7C5CFC';
+}
+
+const INTENSITY_KEYWORDS: Array<[string, number]> = [
+  ['recovery', 1],
+  ['easy', 2],
+  ['moderate', 3],
+  ['steady', 3],
+  ['tempo', 4],
+  ['threshold', 4],
+  ['hard', 4],
+  ['vo2', 5],
+  ['race', 5],
+  ['max', 5],
+];
+
+// Map prescription intensity to a 1–5 "load" level. Numeric values are clamped;
+// RPE-style 0–10 inputs are halved. Falls back to a sensible default per sport
+// so the apex chart and month heatmap always have something to render.
+export function getIntensityLevel(prescription: Record<string, any> | undefined, activityType: string): number {
+  const raw = prescription?.intensity;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+    const str = String(raw).toLowerCase();
+    const numMatch = str.match(/(\d+(?:\.\d+)?)/);
+    if (numMatch) {
+      const num = parseFloat(numMatch[1]);
+      if (!Number.isNaN(num)) {
+        const scaled = num > 5 ? num / 2 : num;
+        return Math.max(1, Math.min(5, Math.round(scaled)));
+      }
+    }
+    for (const [keyword, level] of INTENSITY_KEYWORDS) {
+      if (str.includes(keyword)) return level;
+    }
+  }
+  const normalized = activityType.toLowerCase();
+  if (normalized.includes('rest') || normalized.includes('recovery')) return 1;
+  if (normalized.includes('mobility') || normalized.includes('yoga')) return 1;
+  if (normalized.includes('walk')) return 1;
+  return 3;
+}
+
+export function intensityLabel(level: number): string {
+  return ['', 'Recovery', 'Easy', 'Moderate', 'Hard', 'Race'][level] || '';
+}
+
+/** Returns the activity with the highest intensity level from a non-empty list. */
+export function dominantActivity(activities: { prescription?: Record<string, any>; activity_type: string }[]): { prescription?: Record<string, any>; activity_type: string } {
+  return activities.reduce((a, b) =>
+    getIntensityLevel(a.prescription, a.activity_type) >= getIntensityLevel(b.prescription, b.activity_type) ? a : b,
+  );
+}
+
+// Pull a short duration / distance string for a row subtitle. Returns an empty
+// array if the prescription has neither — caller can fall back to the type label.
+export function prescriptionPrimaryStats(prescription: Record<string, any> | undefined): string[] {
+  if (!prescription) return [];
+  const stats: string[] = [];
+  if (prescription.duration) stats.push(String(prescription.duration));
+  const distance = prescription.distance || prescription.total_distance;
+  if (distance) stats.push(String(distance));
+  return stats;
+}

@@ -380,6 +380,7 @@ export interface ScheduledActivityResponse {
   prescription: Record<string, any>;
   notes?: string;
   order_index: number;
+  linked_workout_id?: string;
 }
 
 export interface WeekResponse {

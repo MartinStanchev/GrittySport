@@ -185,25 +185,27 @@ func (w *Week) ToResponse(programStart time.Time) WeekResponse {
 }
 
 type ScheduledActivity struct {
-	ID           string          `json:"id"`
-	WeekID       string          `json:"week_id"`
-	DayOfWeek    int             `json:"day_of_week"`
-	ActivityType string          `json:"activity_type"`
-	Prescription json.RawMessage `json:"prescription"`
-	Notes        *string         `json:"notes,omitempty"`
-	OrderIndex   int             `json:"order_index"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID              string          `json:"id"`
+	WeekID          string          `json:"week_id"`
+	DayOfWeek       int             `json:"day_of_week"`
+	ActivityType    string          `json:"activity_type"`
+	Prescription    json.RawMessage `json:"prescription"`
+	Notes           *string         `json:"notes,omitempty"`
+	OrderIndex      int             `json:"order_index"`
+	LinkedWorkoutID *string         `json:"linked_workout_id,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type ScheduledActivityResponse struct {
-	ID           string          `json:"id"`
-	DayOfWeek    int             `json:"day_of_week"`
-	Date         string          `json:"date"`
-	ActivityType string          `json:"activity_type"`
-	Prescription json.RawMessage `json:"prescription"`
-	Notes        *string         `json:"notes,omitempty"`
-	OrderIndex   int             `json:"order_index"`
+	ID              string          `json:"id"`
+	DayOfWeek       int             `json:"day_of_week"`
+	Date            string          `json:"date"`
+	ActivityType    string          `json:"activity_type"`
+	Prescription    json.RawMessage `json:"prescription"`
+	Notes           *string         `json:"notes,omitempty"`
+	OrderIndex      int             `json:"order_index"`
+	LinkedWorkoutID *string         `json:"linked_workout_id,omitempty"`
 }
 
 // DowOffset converts a JS-convention day_of_week (0=Sun, 1=Mon…6=Sat) to a
@@ -223,13 +225,14 @@ func MondayOf(t time.Time) time.Time {
 func (a *ScheduledActivity) ToResponseWithDate(weekStart time.Time) ScheduledActivityResponse {
 	date := weekStart.AddDate(0, 0, DowOffset(a.DayOfWeek)).Format("2006-01-02")
 	return ScheduledActivityResponse{
-		ID:           a.ID,
-		DayOfWeek:    a.DayOfWeek,
-		Date:         date,
-		ActivityType: a.ActivityType,
-		Prescription: a.Prescription,
-		Notes:        a.Notes,
-		OrderIndex:   a.OrderIndex,
+		ID:              a.ID,
+		DayOfWeek:       a.DayOfWeek,
+		Date:            date,
+		ActivityType:    a.ActivityType,
+		Prescription:    a.Prescription,
+		Notes:           a.Notes,
+		OrderIndex:      a.OrderIndex,
+		LinkedWorkoutID: a.LinkedWorkoutID,
 	}
 }
 
