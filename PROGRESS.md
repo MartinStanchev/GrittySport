@@ -82,6 +82,7 @@ Full details for each change are in the `progress/` folder.
 | [linkable-activity-window](progress/linkable-activity-window.md) | New `/activities/linkable` endpoint: ±3 day window, excludes already-linked, same-type-first then date priority [-1,-2,-3,today,+1,+2,+3] |
 | [passwordless-auth-otp](progress/passwordless-auth-otp.md) | Phase 1 auth modernization: drop passwords, email OTP via Resend, `auth_identities` table for future SSO/passkey, 6-month sessions, in-memory rate limit |
 | [program-detail-week-month-redesign](progress/program-detail-week-month-redesign.md) | Program detail rework: Week/Month tabs, apex load chart, sport-color rows with notes/intensity inline, monthly heatmap calendar; backend exposes `linked_workout_id` on schedule |
+| [program-detail-followup-fixes](progress/program-detail-followup-fixes.md) | Calendar cell tap opens ActivityDetail for single-activity days; remove apex chart tap; remove misleading Low/High legend |
 
 ## Instructions for Agents
 

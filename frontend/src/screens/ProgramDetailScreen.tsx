@@ -273,6 +273,17 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     setView('week');
   }, [flatWeeks]);
 
+  const handleMonthCellPress = useCallback(
+    (date: Date, activities: ScheduledActivityResponse[]) => {
+      if (activities.length === 1) {
+        navigation.navigate('ActivityDetail', { activityId: activities[0].id });
+        return;
+      }
+      jumpToDate(date);
+    },
+    [navigation, jumpToDate],
+  );
+
   if (loading) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
@@ -357,7 +368,6 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
                 week={selectedWeek}
                 today={today}
                 highlightDayIdx={highlightDayIdx}
-                onSelectDay={setHighlightDayIdx}
                 colors={colors}
               />
               <DayTimeline
@@ -393,7 +403,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
           activitiesByDate={activitiesByDate}
           flatWeeks={flatWeeks}
           today={today}
-          onDayPress={jumpToDate}
+          onCellPress={handleMonthCellPress}
           colors={colors}
         />
       )}
@@ -625,11 +635,10 @@ type ApexProps = {
   week: FlatWeek;
   today: Date;
   highlightDayIdx: number;
-  onSelectDay: (idx: number) => void;
   colors: ThemeColors;
 };
 
-function ApexBarChart({ week, today, highlightDayIdx, onSelectDay, colors }: ApexProps) {
+function ApexBarChart({ week, today, highlightDayIdx, colors }: ApexProps) {
   const dayBuckets = useMemo(() => {
     const result: ScheduledActivityResponse[][] = WEEK_DAYS_MON_SUN.map(() => []);
     for (const a of week.activities) {
@@ -662,12 +671,7 @@ function ApexBarChart({ week, today, highlightDayIdx, onSelectDay, colors }: Ape
           const dayInitial = ['M', 'T', 'W', 'T', 'F', 'S', 'S'][idx];
 
           return (
-            <Pressable
-              key={idx}
-              onPress={() => onSelectDay(idx)}
-              style={styles.apexBarCol}
-              hitSlop={4}
-            >
+            <View key={idx} style={styles.apexBarCol}>
               {acts.length > 1 ? (
                 <View style={[styles.apexBarMulti, { height: barH }]}>
                   {acts.map((a, ai) => (
@@ -709,7 +713,7 @@ function ApexBarChart({ week, today, highlightDayIdx, onSelectDay, colors }: Ape
                 {dayInitial}
               </Text>
               {isToday && <View style={[styles.apexTodayDot, { backgroundColor: colors.primary }]} />}
-            </Pressable>
+            </View>
           );
         })}
       </View>
@@ -927,11 +931,11 @@ type MonthViewProps = {
   activitiesByDate: Map<string, ScheduledActivityResponse[]>;
   flatWeeks: FlatWeek[];
   today: Date;
-  onDayPress: (d: Date) => void;
+  onCellPress: (d: Date, activities: ScheduledActivityResponse[]) => void;
   colors: ThemeColors;
 };
 
-function MonthView({ monthAnchor, setMonthAnchor, activitiesByDate, flatWeeks, today, onDayPress, colors }: MonthViewProps) {
+function MonthView({ monthAnchor, setMonthAnchor, activitiesByDate, flatWeeks, today, onCellPress, colors }: MonthViewProps) {
   const monthStart = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
   const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
   const programStart = startOfDay(new Date(flatWeeks[0].weekMonday));
@@ -1034,36 +1038,25 @@ function MonthView({ monthAnchor, setMonthAnchor, activitiesByDate, flatWeeks, t
               </View>
             </View>
             <View style={styles.monthCellRow}>
-              {row.map((date, ci) => (
-                <MonthCell
-                  key={ci}
-                  date={date}
-                  activities={activitiesByDate.get(toDateKey(date)) ?? []}
-                  inMonth={date.getMonth() === monthStart.getMonth()}
-                  isToday={sameDay(date, today)}
-                  inProgram={date >= programStart && date <= programEnd}
-                  onPress={() => onDayPress(date)}
-                  colors={colors}
-                />
-              ))}
+              {row.map((date, ci) => {
+                const acts = activitiesByDate.get(toDateKey(date)) ?? [];
+                return (
+                  <MonthCell
+                    key={ci}
+                    date={date}
+                    activities={acts}
+                    inMonth={date.getMonth() === monthStart.getMonth()}
+                    isToday={sameDay(date, today)}
+                    inProgram={date >= programStart && date <= programEnd}
+                    onPress={() => onCellPress(date, acts)}
+                    colors={colors}
+                  />
+                );
+              })}
             </View>
           </View>
         );
       })}
-
-      <View style={styles.legendRow}>
-        <Text style={[styles.legendText, { color: colors.textSecondary }]}>Low</Text>
-        {[0.1, 0.26, 0.44, 0.62, 0.8].map((op, i) => (
-          <View
-            key={i}
-            style={[
-              styles.legendCell,
-              { backgroundColor: alpha(getActivityColor('run'), op) },
-            ]}
-          />
-        ))}
-        <Text style={[styles.legendText, { color: colors.textSecondary }]}>High</Text>
-      </View>
 
       {monthlyStats.length > 0 && (
         <View style={[styles.monthlyStats, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -1711,21 +1704,6 @@ const styles = StyleSheet.create({
     width: 5,
     height: 5,
     borderRadius: 3,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 14,
-  },
-  legendText: {
-    fontSize: 10,
-    fontFamily: Fonts.body,
-  },
-  legendCell: {
-    flex: 1,
-    height: 7,
-    borderRadius: 4,
   },
   monthlyStats: {
     marginTop: 14,
