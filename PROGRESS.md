@@ -83,6 +83,7 @@ Full details for each change are in the `progress/` folder.
 | [passwordless-auth-otp](progress/passwordless-auth-otp.md) | Phase 1 auth modernization: drop passwords, email OTP via Resend, `auth_identities` table for future SSO/passkey, 6-month sessions, in-memory rate limit |
 | [program-detail-week-month-redesign](progress/program-detail-week-month-redesign.md) | Program detail rework: Week/Month tabs, apex load chart, sport-color rows with notes/intensity inline, monthly heatmap calendar; backend exposes `linked_workout_id` on schedule |
 | [program-detail-followup-fixes](progress/program-detail-followup-fixes.md) | Calendar cell tap opens ActivityDetail for single-activity days; remove apex chart tap; remove misleading Low/High legend |
+| [manual-program-creation-v2](progress/manual-program-creation-v2.md) | 4-step manual program flow: Basics (goal-mode, event chips, race countdown) → Phases (presets, arc bar) → Week template (color-coded, stats footer) → Review (reuses ProposalReviewView); keeps PrescriptionEditor + free-text goal + detailed start date |
 
 ## Instructions for Agents
 

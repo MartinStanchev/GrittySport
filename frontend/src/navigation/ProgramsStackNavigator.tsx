@@ -8,6 +8,7 @@ import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ImportPreviewScreen from '../screens/ImportPreviewScreen';
 import CreateProgramBasicsScreen from '../screens/CreateProgramBasicsScreen';
+import CreateProgramPhasesScreen from '../screens/CreateProgramPhasesScreen';
 import CreateProgramScheduleScreen from '../screens/CreateProgramScheduleScreen';
 import CreateProgramReviewScreen from '../screens/CreateProgramReviewScreen';
 import { useTheme } from '../contexts/ThemeContext';
@@ -71,6 +72,11 @@ export default function ProgramsStackNavigator() {
         options={{ title: 'New Program' }}
       />
       <Stack.Screen
+        name="CreateProgramPhases"
+        component={CreateProgramPhasesScreen}
+        options={{ title: 'Phases' }}
+      />
+      <Stack.Screen
         name="CreateProgramSchedule"
         component={CreateProgramScheduleScreen}
         options={{ title: 'Schedule' }}
@@ -78,7 +84,7 @@ export default function ProgramsStackNavigator() {
       <Stack.Screen
         name="CreateProgramReview"
         component={CreateProgramReviewScreen}
-        options={{ title: 'Review' }}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

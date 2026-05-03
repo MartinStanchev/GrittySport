@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { ACTIVITY_TYPES, formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { Fonts } from '../constants/fonts';
+import { PHASE_COLORS } from '../constants/sports';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
 import { KineticHeader } from '../components/Kinetic';
@@ -51,100 +51,29 @@ interface Props {
   route: any;
 }
 
-const DEFAULT_PHASE: Phase = {
-  name: 'Training', order_index: 0, duration_weeks: 4, template_week: { activities: [] },
-};
-
 export default function CreateProgramScheduleScreen({ navigation, route }: Props) {
   const { colors } = useTheme();
-  const { name, sport, goal, startDate, phases: initialPhases } = route.params;
   const insets = useSafeAreaInsets();
+  const params = route.params || {};
+  const { name, sport, goalMode, event, eventDate, durationWeeks, goal, startDate } = params;
 
-  const [phases, setPhases] = useState<Phase[]>(initialPhases ?? [DEFAULT_PHASE]);
+  const [phases, setPhases] = useState<Phase[]>(params.phases ?? []);
   const [selectedPhaseIdx, setSelectedPhaseIdx] = useState(0);
   const [editing, setEditing] = useState<EditingActivity | null>(null);
-  const [renamingPhase, setRenamingPhase] = useState<number | null>(null);
-  const [renameText, setRenameText] = useState('');
-
-  // Save schedule state back to Basics screen when navigating away
-  const isNavigatingRef = useRef(false);
-  const phasesRef = useRef(phases);
-  phasesRef.current = phases;
-
-  useEffect(() => {
-    return navigation.addListener('beforeRemove', (e: any) => {
-      if (isNavigatingRef.current) return;
-      isNavigatingRef.current = true;
-      e.preventDefault();
-      navigation.navigate('CreateProgramBasics', { phases: phasesRef.current });
-    });
-  }, [navigation]);
 
   const selectedPhase = phases[selectedPhaseIdx];
+  const phaseColor = PHASE_COLORS[selectedPhaseIdx % PHASE_COLORS.length];
 
-  const updatePhase = useCallback((index: number, updater: (p: Phase) => Phase) => {
+  const updatePhase = (index: number, updater: (p: Phase) => Phase) => {
     setPhases(prev => prev.map((p, i) => (i === index ? updater(p) : p)));
-  }, []);
-
-  const addPhase = useCallback(() => {
-    setPhases(prev => [
-      ...prev,
-      {
-        name: `Phase ${prev.length + 1}`,
-        order_index: prev.length,
-        duration_weeks: 4,
-        template_week: { activities: [] },
-      },
-    ]);
-    setSelectedPhaseIdx(phases.length);
-  }, [phases.length]);
-
-  const deletePhase = useCallback((index: number) => {
-    if (phases.length <= 1) return;
-    Alert.alert('Delete Phase', `Delete "${phases[index].name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          setPhases(prev => {
-            const updated = prev.filter((_, i) => i !== index)
-              .map((p, i) => ({ ...p, order_index: i }));
-            return updated;
-          });
-          setSelectedPhaseIdx(prev => Math.min(prev, phases.length - 2));
-        },
-      },
-    ]);
-  }, [phases]);
-
-  const applyPreset = useCallback(() => {
-    const totalWeeks = 12;
-    setPhases([
-      { name: 'Base', order_index: 0, duration_weeks: Math.ceil(totalWeeks * 0.4), template_week: { activities: [] } },
-      { name: 'Build', order_index: 1, duration_weeks: Math.ceil(totalWeeks * 0.35), template_week: { activities: [] } },
-      { name: 'Peak', order_index: 2, duration_weeks: totalWeeks - Math.ceil(totalWeeks * 0.4) - Math.ceil(totalWeeks * 0.35), template_week: { activities: [] } },
-    ]);
-    setSelectedPhaseIdx(0);
-  }, []);
-
-  const startRename = useCallback((index: number) => {
-    setRenamingPhase(index);
-    setRenameText(phases[index].name);
-  }, [phases]);
-
-  const confirmRename = useCallback(() => {
-    if (renamingPhase !== null && renameText.trim()) {
-      updatePhase(renamingPhase, p => ({ ...p, name: renameText.trim() }));
-    }
-    setRenamingPhase(null);
-  }, [renamingPhase, renameText, updatePhase]);
-
-  const getActivitiesForDay = (dayOfWeek: number): TemplateActivity[] => {
-    return selectedPhase.template_week.activities
-      .filter(a => a.day_of_week === dayOfWeek)
-      .sort((a, b) => a.order_index - b.order_index);
   };
+
+  const getActivitiesForDay = (dayOfWeek: number): TemplateActivity[] =>
+    selectedPhase
+      ? selectedPhase.template_week.activities
+          .filter(a => a.day_of_week === dayOfWeek)
+          .sort((a, b) => a.order_index - b.order_index)
+      : [];
 
   const openNewActivity = (dayOfWeek: number) => {
     setEditing({
@@ -163,7 +92,7 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
       activityIndex: actIndex,
       dayOfWeek: act.day_of_week,
       activity_type: act.activity_type,
-      prescription: typeof act.prescription === 'object' ? { ...act.prescription } : {},
+      prescription: { ...act.prescription },
       notes: act.notes || '',
     });
   };
@@ -208,6 +137,12 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
   const totalWeeks = phases.reduce((sum, p) => sum + p.duration_weeks, 0);
   const hasActivities = phases.some(p => p.template_week.activities.length > 0);
 
+  // Stats for the currently selected phase — rough heuristic (55min/activity) for at-a-glance feedback.
+  const activities = selectedPhase?.template_week.activities ?? [];
+  const sessionCount = activities.length;
+  const restDays = 7 - new Set(activities.map(a => a.day_of_week)).size;
+  const estTotalMin = sessionCount * 55;
+
   const handleReview = () => {
     const start = new Date(startDate + 'T00:00:00');
     const end = new Date(start);
@@ -217,6 +152,10 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
     navigation.navigate('CreateProgramReview', {
       name,
       sport,
+      goalMode,
+      event,
+      eventDate,
+      durationWeeks,
       goal,
       startDate,
       endDate,
@@ -229,111 +168,125 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
       <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent}>
         <KineticHeader
           eyebrow="Program Builder"
-          title="Build the week"
-          subtitle="Shape the repeating template for each phase and adjust the total duration."
+          title="Weekly Template"
+          subtitle="Shape the repeating template for each phase. Each week of the phase mirrors what you build here."
           style={styles.header}
         />
-        <StepIndicator current={2} total={3} />
+        <StepIndicator current={3} total={4} />
 
-        {/* Phase tabs */}
-        <View style={[styles.phaseSection, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
-          <View style={styles.phaseHeader}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Phases</Text>
-            <Pressable style={[styles.presetButton, { backgroundColor: colors.primaryLight }]} onPress={applyPreset}>
-              <Text style={[styles.presetButtonText, { color: colors.primary }]}>Base / Build / Peak</Text>
-            </Pressable>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phaseTabs}>
-            {phases.map((phase, i) => (
+        {/* Phase tabs (color-coded) */}
+        <View style={styles.phaseTabs}>
+          {phases.map((p, i) => {
+            const c = PHASE_COLORS[i % PHASE_COLORS.length];
+            const active = i === selectedPhaseIdx;
+            return (
               <Pressable
                 key={i}
-                style={[styles.phaseTab, { backgroundColor: colors.surfaceAlt }, i === selectedPhaseIdx && { backgroundColor: colors.primary }]}
+                style={[
+                  styles.phaseTab,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  active && { backgroundColor: `${c}15`, borderColor: c },
+                ]}
                 onPress={() => setSelectedPhaseIdx(i)}
-                onLongPress={() => deletePhase(i)}
               >
-                <Pressable onPress={() => startRename(i)}>
-                  <Text style={[styles.phaseTabText, { color: colors.textSecondary }, i === selectedPhaseIdx && styles.phaseTabTextActive]}>
-                    {phase.name}
-                  </Text>
-                </Pressable>
-                <Text style={[styles.phaseTabWeeks, { color: colors.textSecondary }, i === selectedPhaseIdx && styles.phaseTabWeeksActive]}>
-                  {phase.duration_weeks}w
+                <Text style={[styles.phaseTabText, { color: colors.textSecondary }, active && { color: c }]}>
+                  {p.name}
+                </Text>
+                <Text style={[styles.phaseTabWeeks, { color: colors.textSecondary }, active && { color: c }]}>
+                  {p.duration_weeks}w
                 </Text>
               </Pressable>
-            ))}
-            <Pressable style={[styles.addPhaseButton, { backgroundColor: colors.surfaceAlt }]} onPress={addPhase}>
-              <Ionicons name="add" size={20} color={colors.primary} />
-            </Pressable>
-          </ScrollView>
-
-          {/* Duration stepper */}
-          <View style={[styles.durationRow, { borderTopColor: colors.border }]}>
-            <Text style={[styles.durationLabel, { color: colors.textPrimary }]}>Duration</Text>
-            <View style={styles.stepper}>
-              <Pressable
-                style={[styles.stepperButton, { backgroundColor: colors.surfaceAlt }]}
-                onPress={() =>
-                  updatePhase(selectedPhaseIdx, p => ({
-                    ...p,
-                    duration_weeks: Math.max(1, p.duration_weeks - 1),
-                  }))
-                }
-              >
-                <Ionicons name="remove" size={18} color={colors.textPrimary} />
-              </Pressable>
-              <Text style={[styles.stepperValue, { color: colors.textPrimary }]}>{selectedPhase.duration_weeks} weeks</Text>
-              <Pressable
-                style={[styles.stepperButton, { backgroundColor: colors.surfaceAlt }]}
-                onPress={() =>
-                  updatePhase(selectedPhaseIdx, p => ({
-                    ...p,
-                    duration_weeks: p.duration_weeks + 1,
-                  }))
-                }
-              >
-                <Ionicons name="add" size={18} color={colors.textPrimary} />
-              </Pressable>
-            </View>
-          </View>
+            );
+          })}
         </View>
 
-        {/* Weekly template grid */}
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Weekly Template</Text>
-        <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>This pattern repeats for {selectedPhase.duration_weeks} weeks</Text>
+        {selectedPhase && (
+          <Text style={[styles.phaseHint, { color: colors.textSecondary }]}>
+            <Ionicons name="repeat-outline" size={12} color={colors.textSecondary} /> Repeats for {selectedPhase.duration_weeks} weeks
+          </Text>
+        )}
 
+        {/* Day list */}
         {DAY_LABELS.map((dayLabel, i) => {
           const dayValue = WEEK_DAYS_MON_SUN[i];
           const dayActivities = getActivitiesForDay(dayValue);
+          const isRest = dayActivities.length === 0;
           return (
-            <View key={dayLabel} style={[styles.dayRow, { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }]}>
-              <View style={[styles.dayLabelContainer, { backgroundColor: colors.surfaceAlt }]}>
+            <View
+              key={dayLabel}
+              style={[
+                styles.dayRow,
+                { backgroundColor: colors.surface, borderColor: isRest ? colors.border : `${phaseColor}44` },
+              ]}
+            >
+              <View style={styles.dayHeader}>
                 <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>{dayLabel}</Text>
-              </View>
-              <View style={styles.dayContent}>
-                {dayActivities.map((act, actIdx) => {
-                  const globalIdx = selectedPhase.template_week.activities.indexOf(act);
-                  return (
-                    <Pressable
-                      key={actIdx}
-                      style={[styles.activityChip, { backgroundColor: colors.primaryLight }]}
-                      onPress={() => openEditActivity(globalIdx, act)}
-                    >
-                      <Text style={[styles.activityChipText, { color: colors.primary }]} numberOfLines={1}>
-                        {formatActivityType(act.activity_type)}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
-                    </Pressable>
-                  );
-                })}
-                <Pressable style={styles.addActivityButton} onPress={() => openNewActivity(dayValue)}>
-                  <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-                  <Text style={[styles.addActivityText, { color: colors.primary }]}>Add</Text>
+                {isRest ? (
+                  <>
+                    <View style={[styles.restIcon, { backgroundColor: colors.surfaceAlt }]}>
+                      <Ionicons name="moon-outline" size={13} color={colors.textSecondary} />
+                    </View>
+                    <Text style={[styles.restText, { color: colors.textSecondary }]}>Rest day</Text>
+                  </>
+                ) : (
+                  <Text style={[styles.dayCount, { color: phaseColor }]}>
+                    {dayActivities.length} {dayActivities.length === 1 ? 'workout' : 'workouts'}
+                  </Text>
+                )}
+                <Pressable onPress={() => openNewActivity(dayValue)} hitSlop={8}>
+                  <Ionicons name="add-circle-outline" size={20} color={colors.primary} />
                 </Pressable>
               </View>
+              {!isRest && (
+                <View style={styles.dayActivities}>
+                  {dayActivities.map((act, actIdx) => {
+                    const globalIdx = selectedPhase!.template_week.activities.indexOf(act);
+                    const detail = [act.prescription?.distance, act.prescription?.duration, act.prescription?.intensity]
+                      .filter(Boolean)
+                      .join(' · ');
+                    return (
+                      <Pressable
+                        key={actIdx}
+                        style={[styles.activityPill, { backgroundColor: `${phaseColor}0D`, borderColor: `${phaseColor}33` }]}
+                        onPress={() => openEditActivity(globalIdx, act)}
+                      >
+                        <View style={styles.activityPillBody}>
+                          <Text style={[styles.activityPillTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                            {formatActivityType(act.activity_type)}
+                          </Text>
+                          {detail ? (
+                            <Text style={[styles.activityPillDetail, { color: colors.textSecondary }]} numberOfLines={1}>
+                              {detail}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           );
         })}
+
+        {/* Stats footer */}
+        <View style={styles.statsRow}>
+          {[
+            { icon: 'flame-outline' as const, color: colors.tertiary, val: String(sessionCount), label: 'Sessions' },
+            { icon: 'time-outline' as const, color: colors.secondary, val: `~${estTotalMin}m`, label: 'Est. Time' },
+            { icon: 'moon-outline' as const, color: colors.primary, val: `${restDays}d`, label: 'Rest Days' },
+          ].map((s, idx) => (
+            <View
+              key={idx}
+              style={[styles.statTile, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <Ionicons name={s.icon} size={16} color={s.color} />
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{s.val}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
       </ScrollView>
 
       {/* Footer */}
@@ -344,101 +297,83 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
           onPress={handleReview}
           disabled={!hasActivities}
         >
-          <Text style={styles.reviewButtonText}>Review</Text>
+          <Text style={styles.reviewButtonText}>Review &amp; Launch</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFF" />
         </Pressable>
       </View>
 
-      {/* Rename phase modal */}
-      <Modal visible={renamingPhase !== null} transparent animationType="fade">
-        <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={confirmRename}>
-          <View style={[styles.renameModal, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.renameTitle, { color: colors.textPrimary }]}>Rename Phase</Text>
-            <TextInput
-              style={[styles.renameInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-              value={renameText}
-              onChangeText={setRenameText}
-              autoFocus
-              onSubmitEditing={confirmRename}
-              selectTextOnFocus
-            />
-            <Pressable style={[styles.renameButton, { backgroundColor: colors.primary }]} onPress={confirmRename}>
-              <Text style={styles.renameButtonText}>Done</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
-
       {/* Activity editor bottom sheet */}
       <Modal visible={editing !== null} transparent animationType="slide">
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <Pressable style={[styles.modalOverlay, { backgroundColor: colors.overlay }]} onPress={() => setEditing(null)}>
-            <Pressable style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 20 }]} onPress={e => e.stopPropagation()}>
+            <Pressable
+              style={[styles.bottomSheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 20 }]}
+              onPress={e => e.stopPropagation()}
+            >
               <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
-                {editing?.activityIndex !== null ? 'Edit Activity' : 'Add Activity'}
-              </Text>
-              <Text style={[styles.sheetDay, { color: colors.textSecondary }]}>
-                {editing ? DAY_LABELS[WEEK_DAYS_MON_SUN.indexOf(editing.dayOfWeek)] : ''}
-              </Text>
+                <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
+                  {editing?.activityIndex !== null ? 'Edit Activity' : 'Add Activity'}
+                </Text>
+                <Text style={[styles.sheetDay, { color: colors.textSecondary }]}>
+                  {editing ? DAY_LABELS[WEEK_DAYS_MON_SUN.indexOf(editing.dayOfWeek)] : ''}
+                </Text>
 
-              <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Activity Type</Text>
-              <View style={styles.typeChipsWrap}>
-                {ACTIVITY_TYPES.map(item => (
+                <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Activity Type</Text>
+                <View style={styles.typeChipsWrap}>
+                  {ACTIVITY_TYPES.map(item => (
+                    <Pressable
+                      key={item}
+                      style={[styles.typeChip, { backgroundColor: colors.surfaceAlt }, editing?.activity_type === item && { backgroundColor: phaseColor }]}
+                      onPress={() => setEditing(prev => (prev ? { ...prev, activity_type: item } : null))}
+                    >
+                      <Text style={[styles.typeChipText, { color: colors.textSecondary }, editing?.activity_type === item && styles.typeChipTextActive]}>
+                        {formatActivityType(item)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {editing?.activity_type ? (
+                  <>
+                    <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Prescription</Text>
+                    <PrescriptionEditor
+                      activityType={editing.activity_type}
+                      prescription={editing.prescription}
+                      onChange={p => setEditing(prev => (prev ? { ...prev, prescription: p } : null))}
+                    />
+
+                    <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Notes (optional)</Text>
+                    <TextInput
+                      style={[styles.notesInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
+                      placeholder="Any additional notes..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={editing.notes}
+                      onChangeText={t => setEditing(prev => (prev ? { ...prev, notes: t } : null))}
+                      multiline
+                    />
+                  </>
+                ) : null}
+
+                <View style={styles.sheetActions}>
+                  {editing?.activityIndex !== null && (
+                    <Pressable style={[styles.deleteButton, { borderColor: phaseColor }]} onPress={deleteActivity}>
+                      <Ionicons name="trash-outline" size={18} color={phaseColor} />
+                      <Text style={[styles.deleteButtonText, { color: phaseColor }]}>Delete</Text>
+                    </Pressable>
+                  )}
                   <Pressable
-                    key={item}
-                    style={[styles.typeChip, { backgroundColor: colors.surfaceAlt }, editing?.activity_type === item && { backgroundColor: colors.primary }]}
-                    onPress={() => setEditing(prev => prev ? { ...prev, activity_type: item } : null)}
+                    style={[
+                      styles.saveButton,
+                      { backgroundColor: phaseColor },
+                      !editing?.activity_type && styles.saveButtonDisabled,
+                    ]}
+                    onPress={saveActivity}
+                    disabled={!editing?.activity_type}
                   >
-                    <Text style={[styles.typeChipText, { color: colors.textSecondary }, editing?.activity_type === item && styles.typeChipTextActive]}>
-                      {item}
-                    </Text>
+                    <Text style={styles.saveButtonText}>{editing?.activityIndex !== null ? 'Update' : 'Add'}</Text>
                   </Pressable>
-                ))}
-              </View>
-
-              {editing?.activity_type ? (
-                <>
-                  <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Prescription</Text>
-                  <PrescriptionEditor
-                    activityType={editing.activity_type}
-                    prescription={editing.prescription}
-                    onChange={p => setEditing(prev => prev ? { ...prev, prescription: p } : null)}
-                  />
-
-                  <Text style={[styles.sheetLabel, { color: colors.textSecondary }]}>Notes (optional)</Text>
-                  <TextInput
-                    style={[styles.notesInput, { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.border }]}
-                    placeholder="Any additional notes..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={editing.notes}
-                    onChangeText={t => setEditing(prev => prev ? { ...prev, notes: t } : null)}
-                    multiline
-                  />
-                </>
-              ) : null}
-
-              <View style={styles.sheetActions}>
-                {editing?.activityIndex !== null && (
-                  <Pressable style={[styles.deleteButton, { borderColor: colors.primary }]} onPress={deleteActivity}>
-                    <Ionicons name="trash-outline" size={18} color={colors.primary} />
-                    <Text style={[styles.deleteButtonText, { color: colors.primary }]}>Delete</Text>
-                  </Pressable>
-                )}
-                <Pressable
-                  style={[styles.saveButton, { backgroundColor: colors.primary }, !editing?.activity_type && styles.saveButtonDisabled]}
-                  onPress={saveActivity}
-                  disabled={!editing?.activity_type}
-                >
-                  <Text style={styles.saveButtonText}>
-                    {editing?.activityIndex !== null ? 'Update' : 'Add'}
-                  </Text>
-                </Pressable>
-              </View>
+                </View>
               </ScrollView>
             </Pressable>
           </Pressable>
@@ -454,158 +389,124 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingBottom: 100 },
   header: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
 
-  sectionLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.bodySemiBold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.1,
-    marginBottom: 8,
-  },
-  sectionHint: {
-    fontSize: 13,
-    fontFamily: Fonts.body,
-    marginBottom: 12,
-    marginTop: -4,
-  },
-
-  // Phase section
-  phaseSection: {
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 20,
-  },
-  phaseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  presetButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-  },
-  presetButtonText: {
-    fontSize: 12,
-    fontFamily: Fonts.bodySemiBold,
-  },
   phaseTabs: {
     flexDirection: 'row',
-    gap: 8,
-    paddingBottom: 4,
+    gap: 6,
+    marginTop: 16,
   },
   phaseTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 16,
-    flexDirection: 'row',
+    flex: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+    borderWidth: 1.5,
     alignItems: 'center',
-    gap: 6,
   },
   phaseTabText: {
-    fontSize: 14,
-    fontFamily: Fonts.headingMedium,
-  },
-  phaseTabTextActive: {
-    color: '#FFF',
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
   },
   phaseTabWeeks: {
+    fontSize: 10,
+    fontFamily: Fonts.body,
+    marginTop: 2,
+    opacity: 0.85,
+  },
+  phaseHint: {
     fontSize: 12,
-    opacity: 0.7,
-  },
-  phaseTabWeeksActive: {
-    color: '#FFF',
-    opacity: 0.8,
-  },
-  addPhaseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontFamily: Fonts.body,
+    marginTop: 8,
+    marginBottom: 12,
   },
 
-  durationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-  },
-  durationLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  stepperButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperValue: {
-    fontSize: 15,
-    fontFamily: Fonts.headingMedium,
-    minWidth: 70,
-    textAlign: 'center',
-  },
-
-  // Day rows
   dayRow: {
-    flexDirection: 'row',
-    borderRadius: 18,
-    marginBottom: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
     overflow: 'hidden',
   },
-  dayLabelContainer: {
-    width: 50,
-    paddingVertical: 14,
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 11,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  dayLabel: {
+    width: 28,
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  restIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.bodySemiBold,
-  },
-  dayContent: {
+  restText: {
     flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 8,
+    fontSize: 13,
+    fontFamily: Fonts.body,
+  },
+  dayCount: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  dayActivities: {
+    paddingHorizontal: 14,
+    paddingBottom: 10,
     gap: 6,
-    alignItems: 'center',
   },
-  activityChip: {
+  activityPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 4,
+    borderWidth: 1,
   },
-  activityChipText: {
+  activityPillBody: {
+    flex: 1,
+  },
+  activityPillTitle: {
     fontSize: 13,
     fontFamily: Fonts.bodySemiBold,
   },
-  addActivityButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  addActivityText: {
-    fontSize: 13,
-    fontFamily: Fonts.bodySemiBold,
+  activityPillDetail: {
+    fontSize: 11,
+    fontFamily: Fonts.body,
+    marginTop: 1,
   },
 
-  // Footer
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  statTile: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statValue: {
+    fontSize: 16,
+    fontFamily: Fonts.heading,
+  },
+  statLabel: {
+    fontSize: 10,
+    fontFamily: Fonts.bodyMedium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -635,10 +536,8 @@ const styles = StyleSheet.create({
     color: '#FFF',
   },
 
-  // Modal / bottom sheet
   modalOverlay: {
     flex: 1,
-    // backgroundColor applied inline via theme overlay
     justifyContent: 'flex-end',
   },
   bottomSheet: {
@@ -735,44 +634,6 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   saveButtonText: {
-    fontSize: 16,
-    fontFamily: Fonts.headingMedium,
-    color: '#FFF',
-  },
-
-  // Rename modal
-  renameModal: {
-    borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 40,
-    marginBottom: 'auto',
-    marginTop: 'auto',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  renameTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.headingMedium,
-    marginBottom: 16,
-  },
-  renameInput: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    fontFamily: Fonts.body,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  renameButton: {
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  renameButtonText: {
     fontSize: 16,
     fontFamily: Fonts.headingMedium,
     color: '#FFF',

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -10,9 +10,14 @@ import type { ProgramProposalData } from './ProgramProposalCard';
 interface ProposalReviewViewProps {
   data: ProgramProposalData;
   onAccept: () => void;
-  onDeny: () => void;
+  onDeny?: () => void;
   onBack: () => void;
   disabled?: boolean;
+  // Optional overrides — defaults match the Grit-proposal usage.
+  byline?: string | null; // null hides the badge entirely; undefined uses "BY GRIT"
+  headerTitle?: string;
+  acceptLabel?: string;
+  denyLabel?: string;
 }
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -24,10 +29,25 @@ function getPrescriptionDuration(prescription: any): string | null {
   return null;
 }
 
-export function ProposalReviewView({ data, onAccept, onDeny, onBack, disabled }: ProposalReviewViewProps) {
+export function ProposalReviewView({
+  data,
+  onAccept,
+  onDeny,
+  onBack,
+  disabled,
+  byline,
+  headerTitle,
+  acceptLabel,
+  denyLabel,
+}: ProposalReviewViewProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [expandedPhase, setExpandedPhase] = useState(0);
+
+  const resolvedByline = byline === undefined ? 'BY GRIT' : byline;
+  const resolvedTitle = headerTitle ?? 'Review Proposal';
+  const resolvedAcceptLabel = acceptLabel ?? 'ACCEPT PROGRAM';
+  const resolvedDenyLabel = denyLabel ?? 'REQUEST CHANGES';
 
   const totalWeeks = data.phases.reduce((sum, p) => sum + p.duration_weeks, 0);
   const activitiesPerWeek = (data.phases[0]?.template_week?.activities || []).filter(
@@ -50,10 +70,12 @@ export function ProposalReviewView({ data, onAccept, onDeny, onBack, disabled }:
         <Pressable onPress={onBack} style={styles.backButton} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Review Proposal</Text>
-        <View style={[styles.gritBadge, { backgroundColor: colors.primaryLight }]}>
-          <Text style={[styles.gritBadgeText, { color: colors.primary }]}>BY GRIT</Text>
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{resolvedTitle}</Text>
+        {resolvedByline && (
+          <View style={[styles.gritBadge, { backgroundColor: colors.primaryLight }]}>
+            <Text style={[styles.gritBadgeText, { color: colors.primary }]}>{resolvedByline}</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -98,10 +120,9 @@ export function ProposalReviewView({ data, onAccept, onDeny, onBack, disabled }:
 
           return (
             <View key={idx} style={[styles.phaseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <TouchableOpacity
+              <Pressable
                 style={styles.phaseHeader}
                 onPress={() => setExpandedPhase(isExpanded ? -1 : idx)}
-                activeOpacity={0.7}
               >
                 <View style={styles.phaseHeaderLeft}>
                   <Text style={[styles.phaseLabel, { color: colors.textSecondary }]}>
@@ -119,60 +140,57 @@ export function ProposalReviewView({ data, onAccept, onDeny, onBack, disabled }:
                     color={colors.textSecondary}
                   />
                 </View>
-              </TouchableOpacity>
+              </Pressable>
 
               {isExpanded && phase.template_week && (
                 <View style={[styles.phaseContent, { borderTopColor: colors.border }]}>
                   {WEEK_DAYS_MON_SUN.map((dayIdx) => {
                     const dayActivities = phase.template_week.activities.filter((a) => a.day_of_week === dayIdx);
 
-                    if (dayActivities.length > 0) {
+                    if (dayActivities.length === 0) {
                       return (
-                        <View key={dayIdx} style={styles.dayGroup}>
-                          {dayActivities.map((act, actIdx) => {
-                            const icon = getActivityIcon(act.activity_type);
-                            const duration = getPrescriptionDuration(act.prescription);
-                            const isRest = act.activity_type.toLowerCase().includes('rest');
-
-                            return (
-                              <View key={actIdx} style={styles.activityRow}>
-                                <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>
-                                  {actIdx === 0 ? DAY_LABELS[dayIdx] : ''}
-                                </Text>
-                                <View style={[styles.activityIconWrap, { backgroundColor: isRest ? colors.surfaceAlt : colors.primaryLight }]}>
-                                  <Ionicons name={icon} size={16} color={isRest ? colors.textSecondary : colors.primary} />
-                                </View>
-                                <View style={styles.activityInfo}>
-                                  <Text style={[styles.activityName, { color: colors.textPrimary }]}>
-                                    {formatActivityType(act.activity_type)}
-                                  </Text>
-                                  {act.notes && (
-                                    <Text style={[styles.activityNotes, { color: colors.textSecondary }]} numberOfLines={1}>
-                                      {act.notes}
-                                    </Text>
-                                  )}
-                                  {duration && (
-                                    <Text style={[styles.activityDuration, { color: colors.textSecondary }]}>
-                                      {duration}
-                                    </Text>
-                                  )}
-                                </View>
-                              </View>
-                            );
-                          })}
+                        <View key={dayIdx} style={styles.activityRow}>
+                          <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>{DAY_LABELS[dayIdx]}</Text>
+                          <View style={[styles.activityIconWrap, { backgroundColor: colors.surfaceAlt }]}>
+                            <Ionicons name="bed-outline" size={16} color={colors.textSecondary} />
+                          </View>
+                          <Text style={[styles.restLabel, { color: colors.textSecondary }]}>Rest Day</Text>
                         </View>
                       );
                     }
 
                     return (
-                      <View key={dayIdx} style={styles.activityRow}>
-                        <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>
-                          {DAY_LABELS[dayIdx]}
-                        </Text>
-                        <View style={[styles.activityIconWrap, { backgroundColor: colors.surfaceAlt }]}>
-                          <Ionicons name="bed-outline" size={16} color={colors.textSecondary} />
-                        </View>
-                        <Text style={[styles.restLabel, { color: colors.textSecondary }]}>Rest Day</Text>
+                      <View key={dayIdx} style={styles.dayGroup}>
+                        {dayActivities.map((act, actIdx) => {
+                          const icon = getActivityIcon(act.activity_type);
+                          const duration = getPrescriptionDuration(act.prescription);
+                          const isRest = act.activity_type.toLowerCase().includes('rest');
+                          return (
+                            <View key={actIdx} style={styles.activityRow}>
+                              <Text style={[styles.dayLabel, { color: colors.textSecondary }]}>
+                                {actIdx === 0 ? DAY_LABELS[dayIdx] : ''}
+                              </Text>
+                              <View style={[styles.activityIconWrap, { backgroundColor: isRest ? colors.surfaceAlt : colors.primaryLight }]}>
+                                <Ionicons name={icon} size={16} color={isRest ? colors.textSecondary : colors.primary} />
+                              </View>
+                              <View style={styles.activityInfo}>
+                                <Text style={[styles.activityName, { color: colors.textPrimary }]}>
+                                  {formatActivityType(act.activity_type)}
+                                </Text>
+                                {act.notes && (
+                                  <Text style={[styles.activityNotes, { color: colors.textSecondary }]} numberOfLines={1}>
+                                    {act.notes}
+                                  </Text>
+                                )}
+                                {duration && (
+                                  <Text style={[styles.activityDuration, { color: colors.textSecondary }]}>
+                                    {duration}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          );
+                        })}
                       </View>
                     );
                   })}
@@ -187,24 +205,20 @@ export function ProposalReviewView({ data, onAccept, onDeny, onBack, disabled }:
       </ScrollView>
 
       {/* Sticky Bottom Bar */}
-      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-        <TouchableOpacity
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 8), backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <Pressable
           style={[styles.acceptButton, { backgroundColor: colors.secondary }]}
           onPress={onAccept}
           disabled={disabled}
-          activeOpacity={0.8}
         >
           <Ionicons name="checkmark-circle-outline" size={20} color={colors.background} />
-          <Text style={[styles.acceptButtonText, { color: colors.background }]}>ACCEPT PROGRAM</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.denyButton}
-          onPress={onDeny}
-          disabled={disabled}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.denyButtonText, { color: colors.textSecondary }]}>REQUEST CHANGES</Text>
-        </TouchableOpacity>
+          <Text style={[styles.acceptButtonText, { color: colors.background }]}>{resolvedAcceptLabel}</Text>
+        </Pressable>
+        {onDeny && (
+          <Pressable style={styles.denyButton} onPress={onDeny} disabled={disabled}>
+            <Text style={[styles.denyButtonText, { color: colors.textSecondary }]}>{resolvedDenyLabel}</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -384,9 +398,9 @@ const styles = StyleSheet.create({
   },
   bottomBar: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    gap: 8,
+    gap: 6,
   },
   acceptButton: {
     flexDirection: 'row',
