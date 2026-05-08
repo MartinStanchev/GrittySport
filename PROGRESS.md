@@ -84,6 +84,9 @@ Full details for each change are in the `progress/` folder.
 | [program-detail-week-month-redesign](progress/program-detail-week-month-redesign.md) | Program detail rework: Week/Month tabs, apex load chart, sport-color rows with notes/intensity inline, monthly heatmap calendar; backend exposes `linked_workout_id` on schedule |
 | [program-detail-followup-fixes](progress/program-detail-followup-fixes.md) | Calendar cell tap opens ActivityDetail for single-activity days; remove apex chart tap; remove misleading Low/High legend |
 | [manual-program-creation-v2](progress/manual-program-creation-v2.md) | 4-step manual program flow: Basics (goal-mode, event chips, race countdown) → Phases (presets, arc bar) → Week template (color-coded, stats footer) → Review (reuses ProposalReviewView); keeps PrescriptionEditor + free-text goal + detailed start date |
+| [marketing-website](progress/marketing-website.md) | Marketing single-page site in `web/` (Next.js 16 + Tailwind v4): hero, problem, how-it-works, features, premium (outcome-grouped), FAQ, CTA + Impressum/Datenschutz/AGB skeletons in German |
+| [marketing-hero-scrollytelling](progress/marketing-hero-scrollytelling.md) | Hero rebuilt as 3-panel scrollytelling: sticky stage cross-fades home → Grit chat with edit proposal → workout summary; download badges stay pinned; mobile falls back to stacked panels |
+| [legal-links-in-settings](progress/legal-links-in-settings.md) | German legal compliance: Impressum/Datenschutzerklärung/AGB links at the bottom of Settings, opening the marketing site via `Linking.openURL`; domain configurable via `EXPO_PUBLIC_WEB_URL` |
 
 ## Instructions for Agents
 

@@ -50,10 +50,10 @@ export default function DatePickerSheet({
   if (Platform.OS !== 'ios') return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.overlay} onPress={onCancel}>
         <Pressable
-          style={[styles.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={() => {}}
         >
           <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
@@ -68,11 +68,13 @@ export default function DatePickerSheet({
           <DateTimePicker
             value={draft}
             mode="date"
-            display="spinner"
+            display="inline"
             minimumDate={minimumDate}
             maximumDate={maximumDate}
             themeVariant={isDark ? 'dark' : 'light'}
+            accentColor={colors.primary}
             onChange={(_, date) => date && setDraft(date)}
+            style={styles.picker}
           />
         </Pressable>
       </Pressable>
@@ -83,14 +85,17 @@ export default function DatePickerSheet({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingBottom: 24,
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   headerRow: {
     flexDirection: 'row',
@@ -107,5 +112,10 @@ const styles = StyleSheet.create({
   headerAction: {
     fontSize: 15,
     fontFamily: Fonts.bodySemiBold,
+  },
+  picker: {
+    width: 340,
+    height: 360,
+    alignSelf: 'center',
   },
 });

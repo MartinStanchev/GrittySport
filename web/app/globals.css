@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@source "../app";
+@source "../components";
+
+@theme {
+  --color-brand: #7C5CFC;
+  --color-brand-dark: #5B3FE4;
+  --color-brand-soft: #EDE9FF;
+  --color-teal: #0EA5B0;
+  --color-orange: #E68A2E;
+  --color-ink: #1A1A2E;
+  --color-ink-soft: #6B6B7B;
+  --color-paper: #F5F3FF;
+  --color-cream: #FAF8FF;
+
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+.bg-hero-gradient {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124, 92, 252, 0.18), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 90% 30%, rgba(14, 165, 176, 0.12), transparent 60%),
+    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(230, 138, 46, 0.10), transparent 60%),
+    linear-gradient(180deg, #0E0E1A 0%, #161528 100%);
+}
+
+.bg-mesh-soft {
+  background:
+    radial-gradient(ellipse 60% 40% at 80% 0%, rgba(124, 92, 252, 0.08), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(14, 165, 176, 0.06), transparent 70%),
+    #ffffff;
+}
+
+.prose-legal h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.prose-legal h3 {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-legal p,
+.prose-legal li {
+  color: var(--color-ink-soft);
+  line-height: 1.7;
+}
+
+.prose-legal p {
+  margin-bottom: 1rem;
+}
+
+.prose-legal ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.prose-legal a {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose-legal strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.prose-legal .placeholder {
+  display: inline-block;
+  background: #FFF6E0;
+  color: #8A5A00;
+  padding: 0 0.4rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+}

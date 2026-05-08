@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -27,6 +28,21 @@ import { deleteChatHistory, deleteGritMemory, getNotificationTypes, updateNotifi
 import type { NotificationType } from '../services/api';
 import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
+import { LEGAL_URLS } from '../constants/legalUrls';
+
+const LEGAL_LINKS: { url: string; label: string; hint: string }[] = [
+  { url: LEGAL_URLS.impressum, label: 'Impressum', hint: 'Anbieterinformation gemäß §5 DDG' },
+  { url: LEGAL_URLS.datenschutz, label: 'Datenschutzerklärung', hint: 'Wie wir deine Daten verarbeiten' },
+  { url: LEGAL_URLS.agb, label: 'AGB', hint: 'Allgemeine Geschäftsbedingungen' },
+];
+
+async function openLegalUrl(url: string) {
+  try {
+    await Linking.openURL(url);
+  } catch {
+    Alert.alert('Error', 'Could not open the page. Please try again later.');
+  }
+}
 
 function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
   if (status === 'not_supported') return 'Not available on this device';
@@ -483,6 +499,24 @@ export default function SettingsScreen() {
             </View>
             {clearingMemory && <ActivityIndicator size="small" color={colors.textSecondary} />}
             </TouchableOpacity>
+        </KineticPanel>
+
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Legal</Text>
+        <KineticPanel style={styles.section}>
+          {LEGAL_LINKS.map((link, index) => (
+            <TouchableOpacity
+              key={link.url}
+              style={[styles.navRow, { borderColor: colors.border }, index > 0 && { marginTop: 8 }]}
+              onPress={() => openLegalUrl(link.url)}
+            >
+              <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+              <View style={styles.navRowInfo}>
+                <Text style={[styles.navRowLabel, { color: colors.textPrimary }]}>{link.label}</Text>
+                <Text style={[styles.navRowHint, { color: colors.textSecondary }]}>{link.hint}</Text>
+              </View>
+              <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+            </TouchableOpacity>
+          ))}
         </KineticPanel>
 
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
