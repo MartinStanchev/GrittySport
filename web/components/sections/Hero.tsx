@@ -71,7 +71,7 @@ function PhoneGlowWrapper({ children }: { children: ReactNode }) {
 function DownloadBlock() {
   return (
     <div id="download">
-      <StoreBadges variant="dark" />
+      <StoreBadges />
       <p className="mt-4 text-sm text-white/55">
         Free to get started · Premium unlocks deeper insights
       </p>

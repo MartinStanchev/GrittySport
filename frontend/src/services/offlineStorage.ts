@@ -12,3 +12,4 @@ export async function clearSynced(): Promise<void> {}
 export async function setCached<T>(_key: CacheKey, _value: T): Promise<void> {}
 export async function getCached<T>(_key: CacheKey): Promise<T | null> { return null; }
 export async function clearCached(_key: CacheKey): Promise<void> {}
+export async function clearAllLocalData(): Promise<void> {}

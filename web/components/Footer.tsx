@@ -49,18 +49,18 @@ export function Footer() {
           </h4>
           <ul className="space-y-2 text-sm text-ink-soft">
             <li>
+              <Link href="/terms" className="hover:text-ink">
+                Terms of Service
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="hover:text-ink">
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
               <Link href="/impressum" className="hover:text-ink">
                 Impressum
-              </Link>
-            </li>
-            <li>
-              <Link href="/datenschutz" className="hover:text-ink">
-                Datenschutz
-              </Link>
-            </li>
-            <li>
-              <Link href="/agb" className="hover:text-ink">
-                AGB
               </Link>
             </li>
             <li>

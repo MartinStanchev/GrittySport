@@ -1,6 +1,6 @@
 # Gritty Fitness — Marketing Site
 
-Single-page marketing site for Gritty Fitness, plus the German legal pages (Impressum, Datenschutz, AGB). Built with Next.js 16 (App Router) + Tailwind v4.
+Single-page marketing site for Gritty Fitness, plus legal pages (Terms of Service, Privacy Policy, Impressum). Built with Next.js 16 (App Router) + Tailwind v4.
 
 ## Local development
 
@@ -14,7 +14,7 @@ Open <http://localhost:3000>.
 ## Build & lint
 
 ```bash
-npm run build   # static prerender of /, /impressum, /datenschutz, /agb
+npm run build   # static prerender of /, /terms, /privacy, /impressum
 npx eslint .    # `npm run lint` is broken in Next 16 — run eslint directly
 ```
 
@@ -23,9 +23,9 @@ npx eslint .    # `npm run lint` is broken in Next 16 — run eslint directly
 ```
 app/
   page.tsx              # landing (Hero → Problem → How → Features → Premium → FAQ → CTA)
-  impressum/page.tsx    # § 5 TMG
-  datenschutz/page.tsx  # DSGVO
-  agb/page.tsx          # T&Cs
+  terms/page.tsx        # Terms of Service (English)
+  privacy/page.tsx      # Privacy Policy (GDPR, English)
+  impressum/page.tsx    # § 5 TMG (German — required for German jurisdiction)
   layout.tsx            # shared Header + Footer, fonts, metadata
   globals.css           # Tailwind + brand tokens (--color-brand etc.)
 components/
@@ -36,9 +36,9 @@ components/
 ## Before going live — checklist
 
 - [ ] Replace every `<span class="placeholder">[...]</span>` in
-      `app/impressum/page.tsx`, `app/datenschutz/page.tsx`, and
-      `app/agb/page.tsx` with real legal info.
-- [ ] Have the AGB and Datenschutz reviewed by a German lawyer
+      `app/impressum/page.tsx`, `app/privacy/page.tsx`, and
+      `app/terms/page.tsx` with real legal info.
+- [ ] Have the Terms and Privacy Policy reviewed by a lawyer
       (especially before enabling Stripe checkout).
 - [ ] Replace the placeholder store URLs in `components/StoreBadges.tsx`
       with real Apple App Store / Google Play links.

@@ -109,6 +109,9 @@ func main() {
 	usageService := usage.NewService(pool)
 	userHandler := handlers.NewUserHandler(userService, usageService)
 
+	consentService := services.NewConsentService(pool)
+	consentHandler := handlers.NewConsentHandler(consentService)
+
 	chatService := services.NewChatService(pool)
 	memoryService := memory.NewService(pool, geminiClient)
 
@@ -161,7 +164,9 @@ func main() {
 		r.Use(appmw.JWTAuth(authService))
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
+		r.Delete("/users/me", userHandler.DeleteMe)
 		r.Get("/users/me/usage", userHandler.GetUsage)
+		r.Post("/consents", consentHandler.Record)
 		r.Get("/chat/history", chatHandler.History)
 		r.Delete("/chat/history", chatHandler.DeleteChat)
 		r.Delete("/chat/memory", chatHandler.DeleteMemory)

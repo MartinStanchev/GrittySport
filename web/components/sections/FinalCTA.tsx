@@ -12,7 +12,7 @@ export function FinalCTA() {
           you&apos;re ready for more.
         </p>
         <div className="mt-10 flex justify-center">
-          <StoreBadges variant="dark" />
+          <StoreBadges />
         </div>
         <p className="mt-8 text-white/50 text-sm">
           Questions?{" "}

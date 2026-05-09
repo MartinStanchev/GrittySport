@@ -87,6 +87,9 @@ Full details for each change are in the `progress/` folder.
 | [marketing-website](progress/marketing-website.md) | Marketing single-page site in `web/` (Next.js 16 + Tailwind v4): hero, problem, how-it-works, features, premium (outcome-grouped), FAQ, CTA + Impressum/Datenschutz/AGB skeletons in German |
 | [marketing-hero-scrollytelling](progress/marketing-hero-scrollytelling.md) | Hero rebuilt as 3-panel scrollytelling: sticky stage cross-fades home → Grit chat with edit proposal → workout summary; download badges stay pinned; mobile falls back to stacked panels |
 | [legal-links-in-settings](progress/legal-links-in-settings.md) | German legal compliance: Impressum/Datenschutzerklärung/AGB links at the bottom of Settings, opening the marketing site via `Linking.openURL`; domain configurable via `EXPO_PUBLIC_WEB_URL` |
+| [signup-consent-flow](progress/signup-consent-flow.md) | GDPR signup consent screen: AGB+Datenschutz, health-data (Art. 9), age 16+, optional marketing; `user_consents` audit table with version/IP/UA, denormalized `users.consents_completed_at` gate; `is_new_user` flag from /otp/verify |
+| [account-deletion](progress/account-deletion.md) | GDPR Art. 17 self-service delete: typed-confirmation modal in Settings, `DELETE /users/me`, FK cascades purge user data, `user_consents` anonymized via `ON DELETE SET NULL` + IP/UA wipe (Art. 7(1) proof retained) |
+| [consent-and-legal-localization](progress/consent-and-legal-localization.md) | Translate consent screen + marketing legal pages to English (universal-GDPR posture, all consents kept for everyone); `agb` → `/terms`, `datenschutz` → `/privacy`; Impressum stays German |
 
 ## Instructions for Agents
 

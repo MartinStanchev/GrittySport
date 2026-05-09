@@ -21,6 +21,7 @@ import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
 import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
+import DeleteAccountModal from '../components/DeleteAccountModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
@@ -31,9 +32,9 @@ import { KineticHeader, KineticPanel } from '../components/Kinetic';
 import { LEGAL_URLS } from '../constants/legalUrls';
 
 const LEGAL_LINKS: { url: string; label: string; hint: string }[] = [
-  { url: LEGAL_URLS.impressum, label: 'Impressum', hint: 'Anbieterinformation gemäß §5 DDG' },
-  { url: LEGAL_URLS.datenschutz, label: 'Datenschutzerklärung', hint: 'Wie wir deine Daten verarbeiten' },
-  { url: LEGAL_URLS.agb, label: 'AGB', hint: 'Allgemeine Geschäftsbedingungen' },
+  { url: LEGAL_URLS.terms, label: 'Terms of Service', hint: 'The agreement between you and us' },
+  { url: LEGAL_URLS.privacy, label: 'Privacy Policy', hint: 'How we handle your data' },
+  { url: LEGAL_URLS.impressum, label: 'Impressum', hint: 'Provider information per §5 DDG (Germany)' },
 ];
 
 async function openLegalUrl(url: string) {
@@ -54,7 +55,7 @@ function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): stri
 const DEFAULT_EFFORT_GOAL = 300;
 
 export default function SettingsScreen() {
-  const { user, signOut, updateUser } = useAuth();
+  const { user, signOut, deleteAccount, updateUser } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
@@ -77,6 +78,7 @@ export default function SettingsScreen() {
   const [clearingMemory, setClearingMemory] = useState(false);
   const [notifTypes, setNotifTypes] = useState<NotificationType[]>([]);
   const [notifLoading, setNotifLoading] = useState<string | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
 
   function confirmClearData(
     title: string,
@@ -522,12 +524,25 @@ export default function SettingsScreen() {
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
           <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.deleteAccountButton, { borderColor: colors.error }]}
+          onPress={() => setDeleteModalVisible(true)}
+        >
+          <Text style={[styles.deleteAccountText, { color: colors.error }]}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <HRSensorModal
         visible={hrModalVisible}
         onClose={() => setHRModalVisible(false)}
         onConnected={setConnectedDevice}
+      />
+
+      <DeleteAccountModal
+        visible={deleteModalVisible}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={deleteAccount}
       />
     </KeyboardAvoidingView>
   );
@@ -620,6 +635,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   logoutText: {
+    fontSize: 16,
+    fontFamily: Fonts.headingMedium,
+  },
+  deleteAccountButton: {
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+  },
+  deleteAccountText: {
     fontSize: 16,
     fontFamily: Fonts.headingMedium,
   },

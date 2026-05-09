@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grittyfitness/api/internal/models"
@@ -20,18 +22,43 @@ func (s *UserService) GetByID(ctx context.Context, userID string) (*models.UserR
 	var user models.UserResponse
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		        birth_year, height_cm, weight_kg, profile_completed,
+		        birth_year, height_cm, weight_kg, profile_completed, consents_completed_at,
 		        subscription_tier, subscription_expires_at
 		 FROM users WHERE id = $1`,
 		userID,
 	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted, &user.ConsentsCompletedAt,
 		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
 		return nil, err
 	}
 	user.ApplyEffectiveTier()
 	return &user, nil
+}
+
+func (s *UserService) Delete(ctx context.Context, userID string) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE user_consents SET ip_address = NULL, user_agent = NULL WHERE user_id = $1`,
+		userID,
+	); err != nil {
+		return fmt.Errorf("anonymize consents: %w", err)
+	}
+
+	result, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return tx.Commit(ctx)
 }
 
 type UpdateUserInput struct {
@@ -62,12 +89,12 @@ func (s *UserService) Update(ctx context.Context, userID string, input UpdateUse
 			updated_at = NOW()
 		 WHERE id = $1
 		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		           birth_year, height_cm, weight_kg, profile_completed,
+		           birth_year, height_cm, weight_kg, profile_completed, consents_completed_at,
 		           subscription_tier, subscription_expires_at`,
 		userID, input.Name, input.Timezone, input.UnitsPreference, input.MaxHeartRate, input.WeeklyEffortGoal,
 		input.BirthYear, input.HeightCm, input.WeightKg, input.ProfileCompleted,
 	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted, &user.ConsentsCompletedAt,
 		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
 		return nil, err

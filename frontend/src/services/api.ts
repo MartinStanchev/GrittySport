@@ -228,6 +228,7 @@ export interface UserResponse {
   height_cm?: number;
   weight_kg?: number;
   profile_completed: boolean;
+  consents_completed_at?: string;
   subscription_tier: string;
   subscription_expires_at?: string;
 }
@@ -236,6 +237,19 @@ interface AuthResponse {
   user: UserResponse;
   access_token: string;
   refresh_token: string;
+  is_new_user: boolean;
+}
+
+export interface ConsentInput {
+  type: 'terms' | 'privacy' | 'health_data' | 'age_16_plus' | 'marketing';
+  version: string;
+}
+
+export async function recordConsents(consents: ConsentInput[]): Promise<void> {
+  await apiFetch<void>('/api/v1/consents', {
+    method: 'POST',
+    body: JSON.stringify({ consents }),
+  });
 }
 
 export async function requestOtp(email: string): Promise<void> {
@@ -278,6 +292,10 @@ export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {
     method: 'PUT',
     body: JSON.stringify(input),
   });
+}
+
+export async function deleteMe(): Promise<void> {
+  await apiFetch<void>('/api/v1/users/me', { method: 'DELETE' });
 }
 
 export interface ChatMessageResponse {

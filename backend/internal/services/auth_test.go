@@ -161,6 +161,12 @@ func TestVerifyOTP_NewUser_CreatesUserAndIdentity(t *testing.T) {
 	if resp.User.ProfileCompleted {
 		t.Error("expected new user profile_completed=false")
 	}
+	if !resp.IsNewUser {
+		t.Error("expected IsNewUser=true on first verify")
+	}
+	if resp.User.ConsentsCompletedAt != nil {
+		t.Error("expected new user consents_completed_at=nil")
+	}
 	if resp.User.Name == "" {
 		t.Error("expected derived name (email local-part) on new user")
 	}
@@ -202,6 +208,12 @@ func TestVerifyOTP_ExistingIdentity_ReusesUser(t *testing.T) {
 
 	if firstResp.User.ID != secondResp.User.ID {
 		t.Errorf("expected same user ID across logins; got %s and %s", firstResp.User.ID, secondResp.User.ID)
+	}
+	if !firstResp.IsNewUser {
+		t.Error("expected IsNewUser=true on initial signup")
+	}
+	if secondResp.IsNewUser {
+		t.Error("expected IsNewUser=false on second login")
 	}
 }
 

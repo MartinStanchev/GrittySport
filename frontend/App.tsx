@@ -12,6 +12,7 @@ import { WorkoutProvider } from './src/contexts/WorkoutContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
+import ConsentScreen from './src/screens/auth/ConsentScreen';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { OfflineBanner } from './src/components/OfflineBanner';
@@ -32,6 +33,8 @@ function RootNavigator() {
   }
 
   if (!isAuthenticated) return <AuthScreen />;
+
+  if (!user?.consents_completed_at) return <ConsentScreen />;
 
   if (!user?.profile_completed) return <ProfileSetupScreen />;
 

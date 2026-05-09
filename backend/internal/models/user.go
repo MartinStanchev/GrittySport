@@ -14,6 +14,7 @@ type User struct {
 	HeightCm              *float64   `json:"height_cm,omitempty"`
 	WeightKg              *float64   `json:"weight_kg,omitempty"`
 	ProfileCompleted      bool       `json:"profile_completed"`
+	ConsentsCompletedAt   *time.Time `json:"consents_completed_at,omitempty"`
 	SubscriptionTier      string     `json:"subscription_tier"`
 	SubscriptionStartedAt *time.Time `json:"subscription_started_at,omitempty"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
@@ -34,6 +35,7 @@ func (u *User) ToResponse() UserResponse {
 		HeightCm:              u.HeightCm,
 		WeightKg:              u.WeightKg,
 		ProfileCompleted:      u.ProfileCompleted,
+		ConsentsCompletedAt:   u.ConsentsCompletedAt,
 		SubscriptionTier:      u.SubscriptionTier,
 		SubscriptionExpiresAt: u.SubscriptionExpiresAt,
 	}
@@ -53,6 +55,7 @@ type UserResponse struct {
 	HeightCm              *float64   `json:"height_cm,omitempty"`
 	WeightKg              *float64   `json:"weight_kg,omitempty"`
 	ProfileCompleted      bool       `json:"profile_completed"`
+	ConsentsCompletedAt   *time.Time `json:"consents_completed_at,omitempty"`
 	SubscriptionTier      string     `json:"subscription_tier"`
 	SubscriptionExpiresAt *time.Time `json:"subscription_expires_at,omitempty"`
 }

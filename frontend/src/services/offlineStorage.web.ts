@@ -36,3 +36,16 @@ export async function clearCached(key: CacheKey): Promise<void> {
     // Cache delete is best-effort.
   }
 }
+
+export async function clearAllLocalData(): Promise<void> {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_PREFIX)) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Cache clear is best-effort.
+  }
+}

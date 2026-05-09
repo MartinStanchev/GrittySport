@@ -151,7 +151,7 @@ func (s *AuthService) VerifyOTP(ctx context.Context, rawEmail, code string) (*mo
 		return nil, err
 	}
 
-	user, err := s.findOrCreateUserByEmail(ctx, tx, addr)
+	user, isNew, err := s.findOrCreateUserByEmail(ctx, tx, addr)
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +169,7 @@ func (s *AuthService) VerifyOTP(ctx context.Context, rawEmail, code string) (*mo
 		User:         user,
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
+		IsNewUser:    isNew,
 	}, nil
 }
 
@@ -183,14 +184,14 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 	var expiresAt time.Time
 	err = tx.QueryRow(ctx,
 		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, u.max_heart_rate, u.weekly_effort_goal,
-		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed,
+		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed, u.consents_completed_at,
 		        u.subscription_tier, u.subscription_expires_at, rt.expires_at
 		 FROM refresh_tokens rt
 		 JOIN users u ON rt.user_id = u.id
 		 WHERE rt.token = $1`,
 		token,
 	).Scan(&userResp.ID, &userResp.Email, &userResp.Name, &userResp.Timezone, &userResp.UnitsPreference, &userResp.MaxHeartRate, &userResp.WeeklyEffortGoal,
-		&userResp.BirthYear, &userResp.HeightCm, &userResp.WeightKg, &userResp.ProfileCompleted,
+		&userResp.BirthYear, &userResp.HeightCm, &userResp.WeightKg, &userResp.ProfileCompleted, &userResp.ConsentsCompletedAt,
 		&userResp.SubscriptionTier, &userResp.SubscriptionExpiresAt, &expiresAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -254,19 +255,20 @@ func (s *AuthService) ValidateAccessToken(tokenString string) (userID, email str
 // findOrCreateUserByEmail handles three cases: (a) email identity exists; (b) user
 // exists without an email identity — silently link it (SSO user adding OTP); (c) no
 // user yet — create one with profile_completed=false so the frontend shows ProfileSetupScreen.
-func (s *AuthService) findOrCreateUserByEmail(ctx context.Context, tx pgx.Tx, addr string) (models.UserResponse, error) {
+// Returns isNew=true only in case (c).
+func (s *AuthService) findOrCreateUserByEmail(ctx context.Context, tx pgx.Tx, addr string) (models.UserResponse, bool, error) {
 	var user models.UserResponse
 
 	err := tx.QueryRow(ctx,
 		`SELECT u.id, u.email, u.name, u.timezone, u.units_preference, u.max_heart_rate, u.weekly_effort_goal,
-		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed,
+		        u.birth_year, u.height_cm, u.weight_kg, u.profile_completed, u.consents_completed_at,
 		        u.subscription_tier, u.subscription_expires_at
 		 FROM auth_identities ai
 		 JOIN users u ON ai.user_id = u.id
 		 WHERE ai.provider = $1 AND ai.provider_user_id = $2`,
 		models.AuthProviderEmail, addr,
 	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted, &user.ConsentsCompletedAt,
 		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err == nil {
 		_, _ = tx.Exec(ctx,
@@ -274,53 +276,53 @@ func (s *AuthService) findOrCreateUserByEmail(ctx context.Context, tx pgx.Tx, ad
 			 WHERE provider = $1 AND provider_user_id = $2`,
 			models.AuthProviderEmail, addr)
 		user.ApplyEffectiveTier()
-		return user, nil
+		return user, false, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return user, err
+		return user, false, err
 	}
 
 	err = tx.QueryRow(ctx,
 		`SELECT id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		        birth_year, height_cm, weight_kg, profile_completed,
+		        birth_year, height_cm, weight_kg, profile_completed, consents_completed_at,
 		        subscription_tier, subscription_expires_at
 		 FROM users WHERE email = $1`,
 		addr,
 	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted, &user.ConsentsCompletedAt,
 		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err == nil {
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO auth_identities (user_id, provider, provider_user_id) VALUES ($1, $2, $3)`,
 			user.ID, models.AuthProviderEmail, addr); err != nil {
-			return user, err
+			return user, false, err
 		}
 		user.ApplyEffectiveTier()
-		return user, nil
+		return user, false, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return user, err
+		return user, false, err
 	}
 
 	err = tx.QueryRow(ctx,
 		`INSERT INTO users (email, name, profile_completed) VALUES ($1, $2, false)
 		 RETURNING id, email, name, timezone, units_preference, max_heart_rate, weekly_effort_goal,
-		           birth_year, height_cm, weight_kg, profile_completed,
+		           birth_year, height_cm, weight_kg, profile_completed, consents_completed_at,
 		           subscription_tier, subscription_expires_at`,
 		addr, emailLocalPart(addr),
 	).Scan(&user.ID, &user.Email, &user.Name, &user.Timezone, &user.UnitsPreference, &user.MaxHeartRate, &user.WeeklyEffortGoal,
-		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted,
+		&user.BirthYear, &user.HeightCm, &user.WeightKg, &user.ProfileCompleted, &user.ConsentsCompletedAt,
 		&user.SubscriptionTier, &user.SubscriptionExpiresAt)
 	if err != nil {
-		return user, err
+		return user, false, err
 	}
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO auth_identities (user_id, provider, provider_user_id) VALUES ($1, $2, $3)`,
 		user.ID, models.AuthProviderEmail, addr); err != nil {
-		return user, err
+		return user, false, err
 	}
 	user.ApplyEffectiveTier()
-	return user, nil
+	return user, true, nil
 }
 
 func (s *AuthService) issueTokens(ctx context.Context, tx pgx.Tx, user models.UserResponse) (string, string, error) {

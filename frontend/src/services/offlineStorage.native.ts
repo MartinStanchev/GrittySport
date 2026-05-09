@@ -110,3 +110,12 @@ export async function clearCached(key: CacheKey): Promise<void> {
     // Cache delete is best-effort.
   }
 }
+
+export async function clearAllLocalData(): Promise<void> {
+  try {
+    const database = await getDB();
+    await database.execAsync('DELETE FROM cache_kv; DELETE FROM pending_workouts;');
+  } catch {
+    // Cache clear is best-effort.
+  }
+}

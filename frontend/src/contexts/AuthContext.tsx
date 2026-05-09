@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as api from '../services/api';
 import type { UserResponse } from '../services/api';
-import { CacheKeys, clearCached, getCached, setCached } from '../services/offlineStorage';
+import { CacheKeys, clearAllLocalData, clearCached, getCached, setCached } from '../services/offlineStorage';
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -10,7 +10,9 @@ interface AuthContextType {
   requestOtp: (email: string) => Promise<void>;
   verifyOtp: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   updateUser: (input: api.UpdateUserInput) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -92,6 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }
 
+  async function deleteAccount() {
+    await api.deleteMe();
+    await api.clearTokens();
+    await clearAllLocalData();
+    setUser(null);
+  }
+
   async function updateUser(input: api.UpdateUserInput) {
     const updated = await api.updateMe(input);
     setUser(updated);
@@ -107,7 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         requestOtp,
         verifyOtp,
         signOut,
+        deleteAccount,
         updateUser,
+        refreshUser: fetchAndSetUser,
       }}
     >
       {children}
