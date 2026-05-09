@@ -74,6 +74,10 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	workout, err := h.workoutService.Create(r.Context(), userID, input)
 	if err != nil {
+		if errors.Is(err, services.ErrScheduledActivityDenied) {
+			writeError(w, http.StatusForbidden, "scheduled activity not found or access denied")
+			return
+		}
 		log.Error().Err(err).Str("user_id", userID).Str("source", input.Source).Msg("failed to save workout")
 		writeError(w, http.StatusInternalServerError, "failed to save workout")
 		return
@@ -156,6 +160,10 @@ func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "workout not found")
 			return
 		}
+		if errors.Is(err, services.ErrScheduledActivityDenied) {
+			writeError(w, http.StatusForbidden, "scheduled activity not found or access denied")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to link workout")
 		return
 	}
@@ -223,7 +231,9 @@ func (h *WorkoutHandler) GetReview(w http.ResponseWriter, r *http.Request) {
 }
 
 // TriggerReview starts an async post-workout review for a given workout.
-// Called by the frontend after the user decides whether to link the workout to a program activity.
+// Called by the frontend after the user decides whether to link the workout
+// to a program activity. Ownership is verified synchronously so a caller can
+// never burn the post_workout_review quota on a workout they don't own.
 func (h *WorkoutHandler) TriggerReview(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	workoutID := chi.URLParam(r, "workoutId")
@@ -233,14 +243,29 @@ func (h *WorkoutHandler) TriggerReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := h.workoutService.GetByID(r.Context(), workoutID, userID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "workout not found")
+			return
+		}
+		log.Error().Err(err).Str("workout_id", workoutID).Msg("Failed to verify workout ownership")
+		writeError(w, http.StatusInternalServerError, "failed to trigger review")
+		return
+	}
+
+	allowed, _, quotaErr := h.usageService.CheckAndIncrement(r.Context(), userID, "post_workout_review")
+	if quotaErr != nil {
+		writeError(w, http.StatusInternalServerError, "failed to trigger review")
+		return
+	}
+	if !allowed {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "limit_reached"})
+		return
+	}
+
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		allowed, _, _ := h.usageService.CheckAndIncrement(ctx, userID, "post_workout_review")
-		if !allowed {
-			log.Debug().Str("user_id", userID).Msg("Post-workout review skipped: free tier limit reached")
-			return
-		}
 		if err := h.reviewService.TriggerReview(ctx, userID, workoutID); err != nil {
 			log.Error().Err(err).Str("workout_id", workoutID).Msg("Post-workout review failed")
 		}

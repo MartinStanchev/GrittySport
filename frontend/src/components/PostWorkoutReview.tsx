@@ -184,6 +184,9 @@ export function PostWorkoutReview({
           <Text style={[styles.avatarText, { color: colors.primary }]}>G</Text>
         </View>
         <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Grit's Review</Text>
+        <View style={[styles.aiBadge, { borderColor: colors.primary }]}>
+          <Text style={[styles.aiBadgeText, { color: colors.primary }]}>AI</Text>
+        </View>
       </View>
 
       {/* Linking phase — show compatible activities */}
@@ -305,6 +308,17 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: Fonts.heading,
     fontSize: 20,
+  },
+  aiBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  aiBadgeText: {
+    fontSize: 9,
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 0.5,
   },
   panel: {
     borderRadius: 20,

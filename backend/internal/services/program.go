@@ -238,13 +238,21 @@ func (s *ProgramService) SaveProgramWithCriteria(ctx context.Context, userID str
 	}
 
 	if draftID != "" {
+		// Verify ownership before any write so an LLM-supplied victim ID can't
+		// trigger the unscoped DELETEs below.
+		if err := s.verifyProgramOwnershipTx(ctx, tx, draftID, userID); err != nil {
+			return nil, err
+		}
 		// Update existing draft and promote to active
-		_, err = tx.Exec(ctx,
+		tag, err := tx.Exec(ctx,
 			`UPDATE programs SET name = $3, sport = $4, goal_description = $5, start_date = $6, end_date = $7, status = 'active', updated_at = NOW()
 			 WHERE id = $1 AND user_id = $2`,
 			draftID, userID, programInput.Name, nilIfEmpty(programInput.Sport), nilIfEmpty(programInput.GoalDescription), startDate, endDate)
 		if err != nil {
 			return nil, fmt.Errorf("update draft program: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return nil, fmt.Errorf("draft program not found or access denied")
 		}
 		programID = draftID
 
@@ -802,6 +810,23 @@ func (s *ProgramService) VerifyProgramOwnership(ctx context.Context, programID, 
 	return nil
 }
 
+// verifyProgramOwnershipTx is the transactional variant used inside a write
+// path that must atomically check ownership before mutating related rows.
+func (s *ProgramService) verifyProgramOwnershipTx(ctx context.Context, tx pgx.Tx, programID, userID string) error {
+	var ownerID string
+	err := tx.QueryRow(ctx, `SELECT user_id FROM programs WHERE id = $1`, programID).Scan(&ownerID)
+	if err == pgx.ErrNoRows {
+		return fmt.Errorf("program not found")
+	}
+	if err != nil {
+		return fmt.Errorf("verify program ownership: %w", err)
+	}
+	if ownerID != userID {
+		return fmt.Errorf("access denied")
+	}
+	return nil
+}
+
 func (s *ProgramService) GetUpcomingActivities(ctx context.Context, userID string, limit int) ([]models.UpcomingActivityResponse, error) {
 	if limit <= 0 {
 		limit = 6
@@ -1006,7 +1031,10 @@ func (s *ProgramService) GetDraftProgram(ctx context.Context, userID string) (*m
 	return s.GetByID(ctx, programID, userID)
 }
 
-func (s *ProgramService) GetActivityDetail(ctx context.Context, activityID string) (*models.ActivityDetailResponse, error) {
+// GetActivityDetail returns the activity only if it belongs to the given user.
+// Ownership is enforced at the SQL layer (p.user_id = $2) so no caller can
+// accidentally expose another user's activity by omitting an in-memory check.
+func (s *ProgramService) GetActivityDetail(ctx context.Context, activityID, userID string) (*models.ActivityDetailResponse, error) {
 	var a models.ActivityDetailResponse
 	var weekStartDate *time.Time
 	var programStartDate time.Time
@@ -1020,8 +1048,8 @@ func (s *ProgramService) GetActivityDetail(ctx context.Context, activityID strin
 		 JOIN phases ph ON ph.id = w.phase_id
 		 JOIN programs p ON p.id = ph.program_id
 		 LEFT JOIN workouts wo ON wo.scheduled_activity_id = sa.id AND wo.user_id = p.user_id
-		 WHERE sa.id = $1
-		 LIMIT 1`, activityID,
+		 WHERE sa.id = $1 AND p.user_id = $2
+		 LIMIT 1`, activityID, userID,
 	).Scan(&a.ID, &a.ActivityType, &a.DayOfWeek, &a.Prescription, &a.Notes, &a.OrderIndex,
 		&weekNumber, &a.PhaseName, &a.ProgramID, &a.ProgramName, &a.UserID, &weekStartDate, &programStartDate,
 		&a.LinkedWorkoutID, &a.LinkedWorkoutRecordedAt, &a.LinkedWorkoutSource, &a.LinkedGPSRoute)
@@ -1076,7 +1104,7 @@ func (s *ProgramService) CreateActivity(ctx context.Context, programID, weekID, 
 		return nil, fmt.Errorf("create activity: %w", err)
 	}
 
-	return s.GetActivityDetail(ctx, activityID)
+	return s.GetActivityDetail(ctx, activityID, userID)
 }
 
 func (s *ProgramService) UpdateActivity(ctx context.Context, programID, activityID, userID string, input models.UpdateActivityInput) (*models.ActivityDetailResponse, error) {
@@ -1112,7 +1140,7 @@ func (s *ProgramService) UpdateActivity(ctx context.Context, programID, activity
 		return nil, fmt.Errorf("update activity: %w", err)
 	}
 
-	return s.GetActivityDetail(ctx, activityID)
+	return s.GetActivityDetail(ctx, activityID, userID)
 }
 
 func (s *ProgramService) DeleteProgram(ctx context.Context, programID, userID string) error {

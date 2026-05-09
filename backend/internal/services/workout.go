@@ -13,7 +13,10 @@ import (
 	"github.com/grittyfitness/api/internal/models"
 )
 
-var ErrWorkoutNotFound = errors.New("workout not found")
+var (
+	ErrWorkoutNotFound          = errors.New("workout not found")
+	ErrScheduledActivityDenied  = errors.New("scheduled activity not found or access denied")
+)
 
 type WorkoutService struct {
 	pool *pgxpool.Pool
@@ -70,6 +73,12 @@ func (s *WorkoutService) Create(ctx context.Context, userID string, input models
 	heartRateData := input.HeartRateData
 	if len(heartRateData) == 0 {
 		heartRateData = nil
+	}
+
+	if input.ScheduledActivityID != nil && *input.ScheduledActivityID != "" {
+		if err := s.verifyScheduledActivityOwnership(ctx, *input.ScheduledActivityID, userID); err != nil {
+			return nil, err
+		}
 	}
 
 	row := s.pool.QueryRow(ctx,
@@ -283,6 +292,9 @@ func (s *WorkoutService) Delete(ctx context.Context, workoutID, userID string) e
 }
 
 func (s *WorkoutService) LinkToActivity(ctx context.Context, workoutID, scheduledActivityID, userID string) error {
+	if err := s.verifyScheduledActivityOwnership(ctx, scheduledActivityID, userID); err != nil {
+		return err
+	}
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE workouts SET scheduled_activity_id = $1 WHERE id = $2 AND user_id = $3`,
 		scheduledActivityID, workoutID, userID,
@@ -292,6 +304,27 @@ func (s *WorkoutService) LinkToActivity(ctx context.Context, workoutID, schedule
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrWorkoutNotFound
+	}
+	return nil
+}
+
+// verifyScheduledActivityOwnership confirms the activity exists and is owned by
+// the given user. Returns ErrScheduledActivityDenied for both not-found and
+// not-owned to avoid leaking existence.
+func (s *WorkoutService) verifyScheduledActivityOwnership(ctx context.Context, activityID, userID string) error {
+	var ownerID string
+	err := s.pool.QueryRow(ctx,
+		`SELECT p.user_id FROM scheduled_activities sa
+		 JOIN weeks w ON w.id = sa.week_id
+		 JOIN phases ph ON ph.id = w.phase_id
+		 JOIN programs p ON p.id = ph.program_id
+		 WHERE sa.id = $1`, activityID,
+	).Scan(&ownerID)
+	if err != nil {
+		return ErrScheduledActivityDenied
+	}
+	if ownerID != userID {
+		return ErrScheduledActivityDenied
 	}
 	return nil
 }

@@ -105,15 +105,17 @@ func (s *Service) GetPreferences(ctx context.Context, userID string) (map[string
 	return prefs, nil
 }
 
-// SetPreference updates a single notification preference for a user.
+// SetPreference updates a single notification preference for a user. updated_at
+// captures when each toggle happened — this is the consent audit trail for the
+// notification channel.
 func (s *Service) SetPreference(ctx context.Context, userID, notifType string, enabled bool) error {
 	if _, ok := registryMap[notifType]; !ok {
 		return fmt.Errorf("unknown notification type: %s", notifType)
 	}
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO notification_preferences (user_id, notif_type, enabled)
-		 VALUES ($1, $2, $3)
-		 ON CONFLICT (user_id, notif_type) DO UPDATE SET enabled = EXCLUDED.enabled`,
+		`INSERT INTO notification_preferences (user_id, notif_type, enabled, updated_at)
+		 VALUES ($1, $2, $3, now())
+		 ON CONFLICT (user_id, notif_type) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now()`,
 		userID, notifType, enabled,
 	)
 	return err

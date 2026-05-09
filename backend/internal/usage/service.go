@@ -49,12 +49,14 @@ func (s *Service) GetTier(ctx context.Context, userID string) (string, error) {
 }
 
 // CheckAndIncrement checks the usage limit for a resource and increments if allowed.
-// Returns (allowed, remaining, error). Fails open on DB errors.
+// Returns (allowed, remaining, error). Fails closed: any DB error returns
+// (false, 0, err) so the caller denies the paid resource rather than handing
+// the user unlimited LLM calls during a database hiccup.
 func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string) (bool, int, error) {
 	tier, err := s.GetTier(ctx, userID)
 	if err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("Failed to get tier, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Str("user_id", userID).Msg("usage: tier lookup failed, denying")
+		return false, 0, err
 	}
 
 	if tier == TierPremium {
@@ -90,8 +92,8 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to begin usage tx, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Msg("usage: begin tx failed, denying")
+		return false, 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -103,8 +105,8 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		userID, periodType, periodStart,
 	)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to upsert usage row, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Msg("usage: upsert row failed, denying")
+		return false, 0, err
 	}
 
 	var current int
@@ -115,8 +117,8 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		userID, periodType, periodStart,
 	).Scan(&current)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to read usage count, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Msg("usage: read count failed, denying")
+		return false, 0, err
 	}
 
 	if current >= limit {
@@ -130,13 +132,13 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		userID, periodType, periodStart,
 	)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to increment usage, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Msg("usage: increment failed, denying")
+		return false, 0, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		log.Error().Err(err).Msg("Failed to commit usage tx, failing open")
-		return true, -1, nil
+		log.Error().Err(err).Msg("usage: commit failed, denying")
+		return false, 0, err
 	}
 
 	return true, limit - current - 1, nil
@@ -264,13 +266,14 @@ func (s *Service) countProgramsByStatus(ctx context.Context, userID, op, status 
 }
 
 // CanCreateProgram checks if the user is allowed to have another active program.
-// Free users are limited to FreeProgramsTotal active programs. Fails open on errors.
+// Free users are limited to FreeProgramsTotal active programs. Fails closed on
+// DB errors so callers don't accidentally grant unlimited paid resources.
 func (s *Service) CanCreateProgram(ctx context.Context, userID string) (bool, error) {
 	return s.canCreate(ctx, userID, s.CountUserPrograms, FreeProgramsTotal)
 }
 
 // CanCreateDraft checks if the user is allowed to create another draft program.
-// Free users are limited to FreeDraftsTotal drafts. Fails open on errors.
+// Free users are limited to FreeDraftsTotal drafts. Fails closed on DB errors.
 func (s *Service) CanCreateDraft(ctx context.Context, userID string) (bool, error) {
 	return s.canCreate(ctx, userID, s.CountUserDrafts, FreeDraftsTotal)
 }
@@ -278,14 +281,14 @@ func (s *Service) CanCreateDraft(ctx context.Context, userID string) (bool, erro
 func (s *Service) canCreate(ctx context.Context, userID string, count func(context.Context, string) (int, error), limit int) (bool, error) {
 	tier, err := s.GetTier(ctx, userID)
 	if err != nil {
-		return true, nil
+		return false, err
 	}
 	if tier == TierPremium {
 		return true, nil
 	}
 	n, err := count(ctx, userID)
 	if err != nil {
-		return true, nil
+		return false, err
 	}
 	return n < limit, nil
 }

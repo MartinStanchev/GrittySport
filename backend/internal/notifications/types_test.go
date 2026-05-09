@@ -60,6 +60,14 @@ func TestWorkoutReminderIsFree(t *testing.T) {
 	}
 }
 
+func TestRegistryDefaultsOff(t *testing.T) {
+	for _, nt := range Registry {
+		if nt.DefaultEnabled {
+			t.Errorf("%s has DefaultEnabled=true; push notifications must default off for GDPR opt-in", nt.Key)
+		}
+	}
+}
+
 func TestPremiumTypes(t *testing.T) {
 	premiumTypes := []string{"post_workout_review", "missed_workout", "pre_workout_checkin"}
 	for _, key := range premiumTypes {

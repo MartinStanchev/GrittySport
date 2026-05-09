@@ -125,8 +125,14 @@ func (c *MissedWorkoutChecker) checkUser(ctx context.Context, userID string, loc
 			continue
 		}
 
-		// Check usage — free users get 3 missed workout reviews per month
-		allowed, _, _ := c.usageSvc.CheckAndIncrement(ctx, userID, "missed_workout_review")
+		// Check usage — free users get 3 missed workout reviews per month.
+		// Fail-closed: a DB error skips this user entirely; the scheduler
+		// will retry on the next tick.
+		allowed, _, quotaErr := c.usageSvc.CheckAndIncrement(ctx, userID, "missed_workout_review")
+		if quotaErr != nil {
+			log.Error().Err(quotaErr).Str("user_id", userID).Msg("Missed workout review skipped: usage check failed")
+			return
+		}
 		if !allowed {
 			log.Debug().Str("user_id", userID).Msg("Missed workout review skipped: free tier limit reached")
 			return // stop processing further activities for this user

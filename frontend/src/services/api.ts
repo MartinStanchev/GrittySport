@@ -245,10 +245,13 @@ export interface ConsentInput {
   version: string;
 }
 
-export async function recordConsents(consents: ConsentInput[]): Promise<void> {
+export async function recordConsents(
+  consents: ConsentInput[],
+  birthYear: number,
+): Promise<void> {
   await apiFetch<void>('/api/v1/consents', {
     method: 'POST',
-    body: JSON.stringify({ consents }),
+    body: JSON.stringify({ consents, birth_year: birthYear }),
   });
 }
 
@@ -296,6 +299,17 @@ export async function updateMe(input: UpdateUserInput): Promise<UserResponse> {
 
 export async function deleteMe(): Promise<void> {
   await apiFetch<void>('/api/v1/users/me', { method: 'DELETE' });
+}
+
+export async function revokeAllSessions(): Promise<void> {
+  await apiFetch<void>('/api/v1/auth/revoke-all', { method: 'POST' });
+}
+
+// exportMyData fetches the GDPR Art. 15/20 archive as a JSON object. The
+// server returns a Content-Disposition attachment but RN's fetch reads it as
+// JSON; the caller decides how to surface it (Share, save, etc.).
+export async function exportMyData(): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>('/api/v1/users/me/export');
 }
 
 export interface ChatMessageResponse {

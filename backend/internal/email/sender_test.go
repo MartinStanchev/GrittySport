@@ -97,14 +97,28 @@ func TestResendSender_SendOTP_TransportError(t *testing.T) {
 }
 
 func TestNew_DefaultsToMockWhenNoAPIKey(t *testing.T) {
-	s := New(Config{ResendAPIKey: ""})
+	t.Setenv("APP_ENV", "development")
+	s, err := New(Config{ResendAPIKey: ""})
+	if err != nil {
+		t.Fatalf("expected no error in dev, got %v", err)
+	}
 	if _, ok := s.(*MockSender); !ok {
 		t.Errorf("expected MockSender when API key empty, got %T", s)
 	}
 }
 
+func TestNew_FailsFastInProdWithoutAPIKey(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	if _, err := New(Config{ResendAPIKey: ""}); !errors.Is(err, ErrMissingAPIKey) {
+		t.Errorf("expected ErrMissingAPIKey in prod, got %v", err)
+	}
+}
+
 func TestNew_UsesResendWhenAPIKeyPresent(t *testing.T) {
-	s := New(Config{ResendAPIKey: "k", From: "f"})
+	s, err := New(Config{ResendAPIKey: "k", From: "f"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if _, ok := s.(*ResendSender); !ok {
 		t.Errorf("expected ResendSender when API key present, got %T", s)
 	}

@@ -2,6 +2,8 @@ package services_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"os"
 	"testing"
@@ -13,6 +15,11 @@ import (
 	"github.com/grittyfitness/api/internal/email"
 	"github.com/grittyfitness/api/internal/services"
 )
+
+func sha256Hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
 
 var testPool *pgxpool.Pool
 
@@ -411,9 +418,10 @@ func TestRefreshToken_Expired(t *testing.T) {
 	code := requestAndExtractCode(t, svc, mock, "stale@example.com")
 	verifyResp, _ := svc.VerifyOTP(ctx, "stale@example.com", code)
 
+	tokenHash := sha256Hex(verifyResp.RefreshToken)
 	if _, err := testPool.Exec(ctx,
-		`UPDATE refresh_tokens SET expires_at = $1 WHERE token = $2`,
-		time.Now().Add(-1*time.Hour), verifyResp.RefreshToken); err != nil {
+		`UPDATE refresh_tokens SET expires_at = $1 WHERE token_hash = $2`,
+		time.Now().Add(-1*time.Hour), tokenHash); err != nil {
 		t.Fatalf("expire: %v", err)
 	}
 
@@ -432,7 +440,7 @@ func TestValidateAccessToken_Valid(t *testing.T) {
 	code := requestAndExtractCode(t, svc, mock, "v@example.com")
 	verifyResp, _ := svc.VerifyOTP(ctx, "v@example.com", code)
 
-	userID, em, err := svc.ValidateAccessToken(verifyResp.AccessToken)
+	userID, em, err := svc.ValidateAccessToken(ctx, verifyResp.AccessToken)
 	if err != nil {
 		t.Fatalf("validate failed: %v", err)
 	}

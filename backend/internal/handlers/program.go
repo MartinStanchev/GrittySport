@@ -18,6 +18,7 @@ import (
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/usage"
+	"github.com/grittyfitness/api/internal/validate"
 )
 
 type ProgramHandler struct {
@@ -48,17 +49,37 @@ func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if input.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+	if err := validate.String("name", input.Name, validate.MaxNameLen); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if input.StartDate == "" {
 		writeError(w, http.StatusBadRequest, "start_date is required")
 		return
 	}
+	if err := validate.OptionalString("goal_description", input.GoalDescription, validate.MaxNotesLen); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if len(input.Phases) == 0 {
 		writeError(w, http.StatusBadRequest, "at least one phase is required")
 		return
+	}
+	if len(input.Phases) > 12 {
+		writeError(w, http.StatusBadRequest, "at most 12 phases are allowed")
+		return
+	}
+	for i, phase := range input.Phases {
+		if err := validate.OptionalString(fmt.Sprintf("phases[%d].name", i), phase.Name, validate.MaxNameLen); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		for j, act := range phase.TemplateWeek.Activities {
+			if err := validate.OptionalString(fmt.Sprintf("phases[%d].activities[%d].notes", i, j), act.Notes, validate.MaxNotesLen); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+		}
 	}
 
 	programInput := models.ExpandTemplatesToSaveInput(input)
@@ -108,9 +129,16 @@ func (h *ProgramHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if input.Name != nil {
+		if err := validate.String("name", *input.Name, validate.MaxNameLen); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	if input.Status != nil {
-		valid := map[string]bool{"active": true, "archived": true, "draft": true}
-		if !valid[*input.Status] {
+		switch *input.Status {
+		case "active", "archived", "draft":
+		default:
 			writeError(w, http.StatusBadRequest, "invalid status")
 			return
 		}
@@ -156,6 +184,25 @@ func (h *ProgramHandler) UpdateCriteria(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
+	}
+
+	if len(input) > 50 {
+		writeError(w, http.StatusBadRequest, "at most 50 criteria are allowed")
+		return
+	}
+	for i, c := range input {
+		if err := validate.String(fmt.Sprintf("criteria[%d].key", i), c.Key, 100); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := validate.OptionalString(fmt.Sprintf("criteria[%d].label", i), c.Label, validate.MaxCriterionLabelLen); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err := validate.OptionalString(fmt.Sprintf("criteria[%d].value", i), c.Value, validate.MaxCriterionValueLen); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	criteria, err := h.programService.UpsertCriteria(r.Context(), programID, userID, input)
@@ -257,17 +304,13 @@ func (h *ProgramHandler) GetActivity(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 	activityID := chi.URLParam(r, "activityId")
 
-	activity, err := h.programService.GetActivityDetail(r.Context(), activityID)
+	activity, err := h.programService.GetActivityDetail(r.Context(), activityID, userID)
 	if err == pgx.ErrNoRows {
 		writeError(w, http.StatusNotFound, "activity not found")
 		return
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to get activity")
-		return
-	}
-	if activity.UserID != userID {
-		writeError(w, http.StatusNotFound, "activity not found")
 		return
 	}
 	writeJSON(w, http.StatusOK, activity)
@@ -305,8 +348,9 @@ func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) 
 	programID := chi.URLParam(r, "id")
 	activityID := chi.URLParam(r, "activityId")
 
-	// Fetch old state for diff
-	oldActivity, err := h.programService.GetActivityDetail(r.Context(), activityID)
+	// Fetch old state for diff. SQL is scoped by userID; the programID check
+	// guards the URL contract (activity must belong to the program in the path).
+	oldActivity, err := h.programService.GetActivityDetail(r.Context(), activityID, userID)
 	if err == pgx.ErrNoRows {
 		writeError(w, http.StatusNotFound, "activity not found")
 		return
@@ -315,7 +359,7 @@ func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to get activity")
 		return
 	}
-	if oldActivity.UserID != userID || oldActivity.ProgramID != programID {
+	if oldActivity.ProgramID != programID {
 		writeError(w, http.StatusNotFound, "activity not found")
 		return
 	}

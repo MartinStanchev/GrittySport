@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,25 +22,100 @@ import (
 	"github.com/grittyfitness/api/internal/memory"
 	appmw "github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/notifications"
+	"github.com/grittyfitness/api/internal/retention"
 	"github.com/grittyfitness/api/internal/review"
 	"github.com/grittyfitness/api/internal/services"
 	"github.com/grittyfitness/api/internal/usage"
 )
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+// defaultCORSDevOrigins covers Expo web (8081/19006), Next dev (3000), and the
+// API itself (8080) so local development works without setting env vars. These
+// origins are unreachable from external attackers regardless of deployment.
+var defaultCORSDevOrigins = []string{
+	"http://localhost:8081",
+	"http://localhost:19006",
+	"http://localhost:19000",
+	"http://localhost:3000",
+	"http://localhost:8080",
+	"http://127.0.0.1:8081",
+	"http://127.0.0.1:19006",
+	"http://127.0.0.1:3000",
 }
+
+// corsMiddleware echoes back only origins on the allowlist. Wildcard `*` is
+// safe today (we use Bearer tokens, no cookies) but would become catastrophic
+// if cookie auth were ever added — so we close that door now.
+func corsMiddleware(allowed map[string]struct{}) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				if _, ok := allowed[origin]; ok {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+					w.Header().Set("Vary", "Origin")
+					w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+					w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+				}
+			}
+
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func parseCORSOrigins(raw string) map[string]struct{} {
+	allowed := make(map[string]struct{})
+	if raw == "" {
+		for _, o := range defaultCORSDevOrigins {
+			allowed[o] = struct{}{}
+		}
+		return allowed
+	}
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			allowed[o] = struct{}{}
+		}
+	}
+	return allowed
+}
+
+// weakJWTSecrets are placeholders shipped in .env.example or commonly copy-pasted
+// from tutorials. Refusing them at startup prevents an operator from accidentally
+// running production with a publicly-known signing key.
+var weakJWTSecrets = map[string]struct{}{
+	"your-secret-key-here":                          {},
+	"changeme":                                      {},
+	"change-me":                                     {},
+	"secret":                                        {},
+	"jwt-secret":                                    {},
+	"please-change-in-prod":                         {},
+	"replace-me-with-openssl-rand-hex-32-output":    {},
+}
+
+func validateJWTSecret(secret string) error {
+	if secret == "" {
+		return errJWTSecretMissing
+	}
+	if _, bad := weakJWTSecrets[strings.ToLower(strings.TrimSpace(secret))]; bad {
+		return errJWTSecretWeak
+	}
+	if len(secret) < 32 {
+		return errJWTSecretTooShort
+	}
+	return nil
+}
+
+var (
+	errJWTSecretMissing  = errors.New("JWT_SECRET environment variable is required")
+	errJWTSecretTooShort = errors.New("JWT_SECRET must be at least 32 characters of high-entropy random data")
+	errJWTSecretWeak     = errors.New("JWT_SECRET matches a known placeholder value — generate a fresh secret (e.g. `openssl rand -hex 32`)")
+)
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
@@ -50,9 +127,11 @@ func main() {
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
-	if jwtSecret == "" {
-		log.Fatal().Msg("JWT_SECRET environment variable is required")
+	if err := validateJWTSecret(jwtSecret); err != nil {
+		log.Fatal().Err(err).Msg("invalid JWT_SECRET")
 	}
+
+	corsAllowed := parseCORSOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
 
 	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
 	if geminiAPIKey == "" {
@@ -96,18 +175,22 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load skills")
 	}
 
-	mailer := email.New(email.Config{
+	mailer, err := email.New(email.Config{
 		ResendAPIKey: os.Getenv("RESEND_API_KEY"),
 		From:         envOrDefault("EMAIL_FROM", "Gritty Fitness <noreply@grittyfitness.app>"),
 	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize email sender")
+	}
 	refreshTTL := time.Duration(envInt("REFRESH_TOKEN_TTL_DAYS", 180)) * 24 * time.Hour
 
 	authService := services.NewAuthService(pool, jwtSecret, mailer, refreshTTL)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)
+	exportService := services.NewExportService(pool)
 	usageService := usage.NewService(pool)
-	userHandler := handlers.NewUserHandler(userService, usageService)
+	userHandler := handlers.NewUserHandler(userService, usageService, exportService)
 
 	consentService := services.NewConsentService(pool)
 	consentHandler := handlers.NewConsentHandler(consentService)
@@ -137,14 +220,17 @@ func main() {
 	factDecay := memory.NewFactDecayScheduler(memoryService)
 	go factDecay.Run(ctx)
 
+	retentionScheduler := retention.NewScheduler(pool)
+	go retentionScheduler.Run(ctx)
+
 	workoutHandler := handlers.NewWorkoutHandler(workoutService, reviewService, usageService, pool)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
 	r.Use(chimw.RealIP)
-	r.Use(chimw.Logger)
+	r.Use(appmw.RequestLogger)
 	r.Use(chimw.Recoverer)
-	r.Use(corsMiddleware)
+	r.Use(corsMiddleware(corsAllowed))
 
 	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -166,6 +252,8 @@ func main() {
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Delete("/users/me", userHandler.DeleteMe)
 		r.Get("/users/me/usage", userHandler.GetUsage)
+		r.Get("/users/me/export", userHandler.ExportData)
+		r.Post("/auth/revoke-all", authHandler.RevokeAll)
 		r.Post("/consents", consentHandler.Record)
 		r.Get("/chat/history", chatHandler.History)
 		r.Delete("/chat/history", chatHandler.DeleteChat)

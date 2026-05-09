@@ -6,6 +6,7 @@ import {
   Linking,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -25,7 +26,7 @@ import DeleteAccountModal from '../components/DeleteAccountModal';
 import * as healthKit from '../services/healthKitService';
 import type { HealthKitStatus } from '../services/healthKitService';
 import { useUsage } from '../hooks/useUsage';
-import { deleteChatHistory, deleteGritMemory, getNotificationTypes, updateNotificationPreference } from '../services/api';
+import { deleteChatHistory, deleteGritMemory, exportMyData, getNotificationTypes, revokeAllSessions, updateNotificationPreference } from '../services/api';
 import type { NotificationType } from '../services/api';
 import type { SettingsStackParamList } from '../navigation/SettingsStackNavigator';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
@@ -79,6 +80,48 @@ export default function SettingsScreen() {
   const [notifTypes, setNotifTypes] = useState<NotificationType[]>([]);
   const [notifLoading, setNotifLoading] = useState<string | null>(null);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [revokingSessions, setRevokingSessions] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+
+  async function handleExportData() {
+    setExportingData(true);
+    try {
+      const data = await exportMyData();
+      await Share.share({
+        title: 'My Gritty Fitness Data',
+        message: JSON.stringify(data, null, 2),
+      });
+    } catch {
+      Alert.alert('Error', 'Could not export your data. Please try again.');
+    } finally {
+      setExportingData(false);
+    }
+  }
+
+  function handleSignOutAllDevices() {
+    Alert.alert(
+      'Sign out of all devices?',
+      "This will end every active session for your account, including this one. You'll need to sign in again afterwards.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out everywhere',
+          style: 'destructive',
+          onPress: async () => {
+            setRevokingSessions(true);
+            try {
+              await revokeAllSessions();
+              await signOut();
+            } catch {
+              Alert.alert('Error', 'Could not sign out of all devices. Please try again.');
+            } finally {
+              setRevokingSessions(false);
+            }
+          },
+        },
+      ],
+    );
+  }
 
   function confirmClearData(
     title: string,
@@ -521,8 +564,28 @@ export default function SettingsScreen() {
           ))}
         </KineticPanel>
 
+        <TouchableOpacity
+          style={[styles.logoutButton, { borderColor: colors.border }, exportingData && { opacity: 0.5 }]}
+          onPress={handleExportData}
+          disabled={exportingData}
+        >
+          <Text style={[styles.logoutText, { color: colors.primary }]}>
+            {exportingData ? 'Preparing...' : 'Download My Data'}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={[styles.logoutButton, { borderColor: colors.border }]} onPress={signOut}>
           <Text style={[styles.logoutText, { color: colors.primary }]}>Log Out</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.logoutButton, { borderColor: colors.border }, revokingSessions && { opacity: 0.5 }]}
+          onPress={handleSignOutAllDevices}
+          disabled={revokingSessions}
+        >
+          <Text style={[styles.logoutText, { color: colors.primary }]}>
+            {revokingSessions ? 'Signing out...' : 'Sign Out of All Devices'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity

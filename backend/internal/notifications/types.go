@@ -1,6 +1,10 @@
 package notifications
 
 // NotifType defines a notification type in the registry.
+// DefaultEnabled is intentionally false on every type — under GDPR Art. 6(1)(a)
+// each push channel is its own opt-in. The OS notification permission prompt
+// only allows the *delivery* channel; it isn't consent for any specific type.
+// Users flip each type on deliberately in Settings.
 type NotifType struct {
 	Key             string `json:"key"`
 	Label           string `json:"label"`
@@ -18,7 +22,7 @@ var Registry = []NotifType{
 		Label:           "Workout Reminders",
 		Description:     "Daily reminder when you have a scheduled activity",
 		RequiresPremium: false,
-		DefaultEnabled:  true,
+		DefaultEnabled:  false,
 		DefaultTitle:    "Workout Today",
 	},
 	{
@@ -26,7 +30,7 @@ var Registry = []NotifType{
 		Label:           "Post-Workout Reviews",
 		Description:     "Grit's analysis after you complete a workout",
 		RequiresPremium: true,
-		DefaultEnabled:  true,
+		DefaultEnabled:  false,
 		DefaultTitle:    "Grit",
 	},
 	{
@@ -34,7 +38,7 @@ var Registry = []NotifType{
 		Label:           "Missed Workout Check-Ins",
 		Description:     "Grit checks in when you miss a scheduled workout",
 		RequiresPremium: true,
-		DefaultEnabled:  true,
+		DefaultEnabled:  false,
 		DefaultTitle:    "Grit",
 	},
 	{
@@ -42,7 +46,7 @@ var Registry = []NotifType{
 		Label:           "Pre-Workout Check-Ins",
 		Description:     "Grit checks in before your workouts to ask about energy and sleep",
 		RequiresPremium: true,
-		DefaultEnabled:  true,
+		DefaultEnabled:  false,
 		DefaultTitle:    "Grit",
 	},
 }

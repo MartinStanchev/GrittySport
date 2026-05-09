@@ -39,6 +39,10 @@ export function GritChatBanner({ onOpenChat, unreadCount }: GritChatBannerProps)
           )}
         </View>
         <Text style={[styles.title, { color: colors.textPrimary }]}>Grit</Text>
+        <View style={[styles.aiBadge, { borderColor: colors.primary }]}>
+          <Text style={[styles.aiBadgeText, { color: colors.primary }]}>AI</Text>
+        </View>
+        <View style={styles.spacer} />
         <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
       </View>
       {lastMessage ? (
@@ -102,9 +106,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   title: {
-    flex: 1,
     fontSize: 16,
     fontWeight: '700',
+  },
+  aiBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  aiBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  spacer: {
+    flex: 1,
   },
   preview: {
     fontSize: 14,

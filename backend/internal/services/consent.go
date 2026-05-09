@@ -4,13 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/grittyfitness/api/internal/models"
 )
 
-var ErrMissingRequiredConsent = errors.New("missing required consent")
+var (
+	ErrMissingRequiredConsent = errors.New("missing required consent")
+	ErrInvalidBirthYear       = errors.New("birth year is missing or user is under 16")
+)
+
+// MinSignupAge is the minimum age for GDPR consent in Germany (Art. 8 GDPR + §13 BDSG).
+const MinSignupAge = 16
 
 type ConsentService struct {
 	pool *pgxpool.Pool
@@ -29,16 +36,20 @@ type ConsentInput struct {
 
 type RecordConsentsInput struct {
 	Consents  []ConsentInput
+	BirthYear *int
 	IPAddress string
 	UserAgent string
 }
 
 // RecordConsents inserts one row per accepted consent and, if all required types
-// are present, sets users.consents_completed_at. Idempotent in the sense that
-// re-submitting the same set of consents simply appends new rows — that's the
-// audit trail we want.
+// are present, sets users.consents_completed_at. The age_16_plus consent is
+// derived server-side from BirthYear rather than self-attested, so the consent
+// row constitutes verified proof rather than a checkbox claim.
 func (s *ConsentService) RecordConsents(ctx context.Context, userID string, input RecordConsentsInput) error {
 	if err := validateRequired(input.Consents); err != nil {
+		return err
+	}
+	if err := validateBirthYear(input.BirthYear); err != nil {
 		return err
 	}
 
@@ -67,13 +78,27 @@ func (s *ConsentService) RecordConsents(ctx context.Context, userID string, inpu
 	}
 
 	if _, err := tx.Exec(ctx,
-		`UPDATE users SET consents_completed_at = now(), updated_at = now() WHERE id = $1`,
-		userID,
+		`UPDATE users SET birth_year = $2, consents_completed_at = now(), updated_at = now() WHERE id = $1`,
+		userID, *input.BirthYear,
 	); err != nil {
 		return err
 	}
 
 	return tx.Commit(ctx)
+}
+
+func validateBirthYear(birthYear *int) error {
+	if birthYear == nil {
+		return ErrInvalidBirthYear
+	}
+	currentYear := time.Now().Year()
+	if *birthYear < 1900 || *birthYear > currentYear {
+		return ErrInvalidBirthYear
+	}
+	if currentYear-*birthYear < MinSignupAge {
+		return ErrInvalidBirthYear
+	}
+	return nil
 }
 
 func validateRequired(provided []ConsentInput) error {

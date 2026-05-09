@@ -31,7 +31,7 @@ func JWTAuth(authService *services.AuthService) func(http.Handler) http.Handler 
 				return
 			}
 
-			userID, email, err := authService.ValidateAccessToken(parts[1])
+			userID, email, err := authService.ValidateAccessToken(r.Context(), parts[1])
 			if err != nil {
 				writeUnauthorized(w)
 				return

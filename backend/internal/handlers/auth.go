@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/services"
 )
 
@@ -76,6 +77,17 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// RevokeAll signs the user out of every device by deleting all their refresh
+// tokens. Called from Settings → "Sign out of all devices."
+func (h *AuthHandler) RevokeAll(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if err := h.authService.RevokeAllRefreshTokens(r.Context(), userID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to revoke sessions")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {

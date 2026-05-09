@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,9 +20,12 @@ import { ConsentVersions } from '../../constants/consents';
 import { recordConsents } from '../../services/api';
 import type { ConsentInput } from '../../services/api';
 
-type ConsentKey = 'terms_privacy' | 'health_data' | 'age_16_plus' | 'marketing';
+type ConsentKey = 'terms_privacy' | 'health_data' | 'marketing';
 
-const REQUIRED_KEYS: ConsentKey[] = ['terms_privacy', 'health_data', 'age_16_plus'];
+const REQUIRED_KEYS: ConsentKey[] = ['terms_privacy', 'health_data'];
+
+const MIN_AGE = 16;
+const MIN_BIRTH_YEAR = 1900;
 
 export default function ConsentScreen() {
   const { colors } = useTheme();
@@ -31,9 +35,9 @@ export default function ConsentScreen() {
   const [checked, setChecked] = useState<Record<ConsentKey, boolean>>({
     terms_privacy: false,
     health_data: false,
-    age_16_plus: false,
     marketing: false,
   });
+  const [birthYearInput, setBirthYearInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   function toggle(key: ConsentKey) {
@@ -46,7 +50,22 @@ export default function ConsentScreen() {
     );
   }
 
-  const allRequiredAccepted = REQUIRED_KEYS.every((k) => checked[k]);
+  const parsedBirthYear = /^\d{4}$/.test(birthYearInput) ? parseInt(birthYearInput, 10) : NaN;
+  const currentYear = new Date().getFullYear();
+  const computedAge = Number.isFinite(parsedBirthYear) ? currentYear - parsedBirthYear : NaN;
+  const birthYearValid =
+    Number.isFinite(parsedBirthYear) &&
+    parsedBirthYear >= MIN_BIRTH_YEAR &&
+    parsedBirthYear <= currentYear &&
+    computedAge >= MIN_AGE;
+  const birthYearError =
+    birthYearInput.length === 4 && !birthYearValid
+      ? Number.isFinite(computedAge) && computedAge < MIN_AGE
+        ? `You must be at least ${MIN_AGE} to use Gritty Fitness.`
+        : 'Please enter a valid year.'
+      : null;
+
+  const allRequiredAccepted = REQUIRED_KEYS.every((k) => checked[k]) && birthYearValid;
 
   async function handleContinue() {
     if (!allRequiredAccepted) return;
@@ -63,7 +82,7 @@ export default function ConsentScreen() {
 
     setIsSaving(true);
     try {
-      await recordConsents(consents);
+      await recordConsents(consents, parsedBirthYear);
       await refreshUser();
     } catch {
       Alert.alert('Error', 'Could not save your choices. Please try again.');
@@ -112,13 +131,36 @@ export default function ConsentScreen() {
           colors={colors}
         />
 
-        <ConsentRow
-          label="I am at least 16 years old."
-          required
-          checked={checked.age_16_plus}
-          onToggle={() => toggle('age_16_plus')}
-          colors={colors}
-        />
+        <View style={[styles.row, { borderColor: colors.border }]}>
+          <View style={styles.rowBody}>
+            <Text style={[styles.rowLabel, { color: colors.textPrimary }]}>
+              Year of birth
+              <Text style={{ color: colors.primary }}> *</Text>
+            </Text>
+            <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+              You must be at least {MIN_AGE} years old to use Gritty Fitness.
+            </Text>
+            <TextInput
+              style={[
+                styles.yearInput,
+                {
+                  color: colors.textPrimary,
+                  backgroundColor: colors.inputBackground,
+                  borderColor: birthYearError ? '#d04444' : colors.border,
+                },
+              ]}
+              value={birthYearInput}
+              onChangeText={(v) => setBirthYearInput(v.replace(/[^0-9]/g, '').slice(0, 4))}
+              placeholder="e.g. 1995"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+            {birthYearError && (
+              <Text style={styles.errorText}>{birthYearError}</Text>
+            )}
+          </View>
+        </View>
 
         <ConsentRow
           label="I'd like to occasionally receive emails with tips, new features, and offers."
@@ -231,6 +273,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: Fonts.body,
     lineHeight: 20,
+  },
+  helperText: {
+    fontSize: 13,
+    fontFamily: Fonts.body,
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  yearInput: {
+    marginTop: 10,
+    fontSize: 16,
+    fontFamily: Fonts.body,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: Fonts.body,
+    color: '#d04444',
   },
   linkRow: {
     flexDirection: 'row',

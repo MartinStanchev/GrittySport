@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/grittyfitness/api/internal/chat"
+	appconfig "github.com/grittyfitness/api/internal/config"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/genai"
 )
@@ -627,12 +628,14 @@ func (g *GeminiClient) ChatWithTools(
 				hasProposal = true
 			}
 
-			argsJSON, _ := json.Marshal(fc.Args)
-			log.Debug().
+			argsEvt := log.Debug().
 				Str("tool", fc.Name).
-				Int("round", round).
-				RawJSON("args", argsJSON).
-				Msg("ChatWithTools: executing tool call")
+				Int("round", round)
+			if appconfig.IsDevelopment() {
+				argsJSON, _ := json.Marshal(fc.Args)
+				argsEvt = argsEvt.RawJSON("args", argsJSON)
+			}
+			argsEvt.Msg("ChatWithTools: executing tool call")
 
 			if notifyToolCall != nil {
 				notifyToolCall(fc.Name, "calling")
@@ -664,12 +667,14 @@ func (g *GeminiClient) ChatWithTools(
 				resultMap = map[string]any{"result": fmt.Sprintf("%v", result)}
 			}
 
-			resultJSON, _ := json.Marshal(resultMap)
-			log.Debug().
+			resEvt := log.Debug().
 				Str("tool", fc.Name).
-				Int("round", round).
-				RawJSON("result", resultJSON).
-				Msg("ChatWithTools: tool call completed")
+				Int("round", round)
+			if appconfig.IsDevelopment() {
+				resultJSON, _ := json.Marshal(resultMap)
+				resEvt = resEvt.RawJSON("result", resultJSON)
+			}
+			resEvt.Msg("ChatWithTools: tool call completed")
 
 			functionResponses = append(functionResponses, &genai.Part{
 				FunctionResponse: &genai.FunctionResponse{

@@ -19,7 +19,8 @@ func NewConsentHandler(consentService *services.ConsentService) *ConsentHandler 
 }
 
 type recordConsentsBody struct {
-	Consents []services.ConsentInput `json:"consents"`
+	Consents  []services.ConsentInput `json:"consents"`
+	BirthYear *int                    `json:"birth_year"`
 }
 
 func (h *ConsentHandler) Record(w http.ResponseWriter, r *http.Request) {
@@ -33,15 +34,18 @@ func (h *ConsentHandler) Record(w http.ResponseWriter, r *http.Request) {
 
 	err := h.consentService.RecordConsents(r.Context(), userID, services.RecordConsentsInput{
 		Consents:  body.Consents,
+		BirthYear: body.BirthYear,
 		IPAddress: clientIP(r),
 		UserAgent: r.UserAgent(),
 	})
 	if err != nil {
-		if errors.Is(err, services.ErrMissingRequiredConsent) {
+		switch {
+		case errors.Is(err, services.ErrMissingRequiredConsent),
+			errors.Is(err, services.ErrInvalidBirthYear):
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
-			return
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to record consents")
 		}
-		writeError(w, http.StatusInternalServerError, "failed to record consents")
 		return
 	}
 

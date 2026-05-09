@@ -9,6 +9,7 @@ import (
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/notifications"
 	"github.com/grittyfitness/api/internal/usage"
+	"github.com/grittyfitness/api/internal/validate"
 )
 
 // NotificationHandler handles push token registration and notification preferences.
@@ -35,8 +36,8 @@ func (h *NotificationHandler) RegisterToken(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if input.Token == "" {
-		writeError(w, http.StatusBadRequest, "token is required")
+	if err := validate.String("token", input.Token, validate.MaxPushTokenLen); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if input.Platform != "ios" && input.Platform != "android" {
@@ -63,8 +64,8 @@ func (h *NotificationHandler) DeleteToken(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if input.Token == "" {
-		writeError(w, http.StatusBadRequest, "token is required")
+	if err := validate.String("token", input.Token, validate.MaxPushTokenLen); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

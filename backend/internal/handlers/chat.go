@@ -109,7 +109,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, _, err := h.authService.ValidateAccessToken(token)
+	userID, _, err := h.authService.ValidateAccessToken(r.Context(), token)
 	if err != nil {
 		log.Debug().Err(err).Msg("WS connection rejected: invalid token")
 		http.Error(w, "invalid token", http.StatusUnauthorized)
@@ -175,6 +175,15 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Re-validate the JWT on every inbound message so that token expiry,
+		// logout, and account deletion close the WebSocket promptly instead of
+		// leaving it open for the remainder of the original token's TTL.
+		if _, _, err := h.authService.ValidateAccessToken(r.Context(), token); err != nil {
+			log.Debug().Str("user_id", userID).Msg("WS token no longer valid, closing")
+			_ = ws.writeJSON(wsOutgoing{Type: "error", Content: "session expired"})
+			return
+		}
+
 		var incoming wsIncoming
 		if err := json.Unmarshal(rawMsg, &incoming); err != nil {
 			log.Debug().Err(err).Str("user_id", userID).Msg("Failed to parse WS message")
@@ -191,8 +200,19 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Check chat rate limit before doing any work
-		allowed, remaining, _ := h.usageService.CheckAndIncrement(r.Context(), userID, "chat_message")
+		// Check chat rate limit before doing any work. CheckAndIncrement fails
+		// closed: a DB error leaves allowed=false and we surface it as a generic
+		// service error rather than silently granting unlimited messages.
+		allowed, remaining, quotaErr := h.usageService.CheckAndIncrement(r.Context(), userID, "chat_message")
+		if quotaErr != nil {
+			log.Error().Err(quotaErr).Str("user_id", userID).Msg("chat: usage check failed")
+			_ = ws.writeJSON(wsOutgoing{
+				Type:    "error",
+				Content: "Something went wrong. Please try again in a moment.",
+			})
+			_ = ws.writeJSON(wsOutgoing{Type: "grit_chunk", Done: true})
+			continue
+		}
 		if !allowed {
 			resetTime := usage.WeekResetTime().Format(time.RFC3339)
 			_ = ws.writeJSON(wsOutgoing{
@@ -212,7 +232,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 
 		log.Debug().
 			Str("user_id", userID).
-			Str("content", incoming.Content).
+			Int("content_len", len(incoming.Content)).
 			Msg("Received user message")
 
 		userMsg, err := h.chatService.SaveMessage(r.Context(), userID, "user", incoming.Content, nil, nil)

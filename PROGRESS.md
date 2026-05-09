@@ -90,6 +90,10 @@ Full details for each change are in the `progress/` folder.
 | [signup-consent-flow](progress/signup-consent-flow.md) | GDPR signup consent screen: AGB+Datenschutz, health-data (Art. 9), age 16+, optional marketing; `user_consents` audit table with version/IP/UA, denormalized `users.consents_completed_at` gate; `is_new_user` flag from /otp/verify |
 | [account-deletion](progress/account-deletion.md) | GDPR Art. 17 self-service delete: typed-confirmation modal in Settings, `DELETE /users/me`, FK cascades purge user data, `user_consents` anonymized via `ON DELETE SET NULL` + IP/UA wipe (Art. 7(1) proof retained) |
 | [consent-and-legal-localization](progress/consent-and-legal-localization.md) | Translate consent screen + marketing legal pages to English (universal-GDPR posture, all consents kept for everyone); `agb` → `/terms`, `datenschutz` → `/privacy`; Impressum stays German |
+| [security-audit-c1-c5](progress/security-audit-c1-c5.md) | Five critical fixes: workout IDOR, unscoped DELETE in `confirm_program_save`, WS JWT redaction, WS lifetime + deleted-user check, hashed refresh tokens with reuse detection |
+| [security-audit-medium-fixes](progress/security-audit-medium-fixes.md) | Backend security audit: PII out of debug logs, fail-fast email config, fail-closed usage quotas, ownership-before-quota in TriggerReview, OTP single-active-row, input range/length validation |
+| [eu-compliance-pass](progress/eu-compliance-pass.md) | Pre-launch EU/GDPR pass: verified DOB 16+ gate, sign-out-all-devices, push consent defaults OFF + audit log, AI transparency badges + first-open disclosure, daily retention cron, Art. 15/20 data export |
+| [security-audit-low-fixes](progress/security-audit-low-fixes.md) | Five low-sev defense-in-depth fixes: SQL-scope `GetActivityDetail`, pin JWT method to HS256, dummy bcrypt on OTP no-row, env-driven CORS allowlist, reject placeholder/short `JWT_SECRET` at startup |
 
 ## Instructions for Agents
 

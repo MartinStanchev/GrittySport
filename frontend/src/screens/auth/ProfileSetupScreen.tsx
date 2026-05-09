@@ -21,14 +21,14 @@ export default function ProfileSetupScreen() {
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState(user?.name ?? '');
-  const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [units, setUnits] = useState<'metric' | 'imperial'>('metric');
   const [isSaving, setIsSaving] = useState(false);
 
-  const parsedAge = parseInt(age, 10);
-  const estimatedMaxHR = !isNaN(parsedAge) ? ageBasedMaxHR(parsedAge) : null;
+  // Birth year is captured at the consent step; here we only use it to estimate max HR.
+  const ageFromBirthYear = user?.birth_year ? new Date().getFullYear() - user.birth_year : null;
+  const estimatedMaxHR = ageFromBirthYear !== null ? ageBasedMaxHR(ageFromBirthYear) : null;
 
   async function handleContinue() {
     const parsedHeight = parseFloat(height);
@@ -37,10 +37,6 @@ export default function ProfileSetupScreen() {
 
     if (!trimmedName) {
       Alert.alert('Name Required', 'Please tell Grit what to call you.');
-      return;
-    }
-    if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 120) {
-      Alert.alert('Invalid Age', 'Please enter an age between 10 and 120.');
       return;
     }
     if (isNaN(parsedHeight) || parsedHeight <= 0) {
@@ -54,13 +50,11 @@ export default function ProfileSetupScreen() {
 
     setIsSaving(true);
     try {
-      const birthYear = new Date().getFullYear() - parsedAge;
       const heightCm = units === 'imperial' ? inchesToCm(parsedHeight) : parsedHeight;
       const weightKg = units === 'imperial' ? lbsToKg(parsedWeight) : parsedWeight;
 
       await updateUser({
         name: trimmedName,
-        birth_year: birthYear,
         height_cm: heightCm,
         weight_kg: weightKg,
         max_heart_rate: estimatedMaxHR ?? 185,
@@ -127,17 +121,6 @@ export default function ProfileSetupScreen() {
           placeholderTextColor={colors.textSecondary}
           autoCapitalize="words"
           maxLength={60}
-        />
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>Age</Text>
-        <TextInput
-          style={[styles.input, { color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.border }]}
-          value={age}
-          onChangeText={setAge}
-          placeholder="e.g. 30"
-          placeholderTextColor={colors.textSecondary}
-          keyboardType="number-pad"
-          maxLength={3}
         />
 
         <Text style={[styles.label, { color: colors.textSecondary }]}>
