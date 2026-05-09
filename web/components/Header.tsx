@@ -6,7 +6,7 @@ export function Header() {
     <header className="sticky top-0 z-50 backdrop-blur-md bg-white/75 border-b border-black/5">
       <nav className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center" aria-label="Gritty Fitness">
-          <Logo height={60} />
+          <Logo height={70} />
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm text-ink-soft">
           <Link href="/#how" className="hover:text-ink transition">

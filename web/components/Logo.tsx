@@ -2,7 +2,7 @@ import Image from "next/image";
 
 const ASPECT = 1280 / 567;
 
-export function Logo({ height = 80 }: { height?: number }) {
+export function Logo({ height = 100 }: { height?: number }) {
   return (
     <Image
       src="/logo-mark.png"
