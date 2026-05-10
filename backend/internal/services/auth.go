@@ -151,6 +151,10 @@ func (s *AuthService) VerifyOTP(ctx context.Context, rawEmail, code string) (*mo
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// FOR UPDATE serializes concurrent guesses against the same OTP row. Without
+	// it, N parallel guesses would all read attempts<5, all run bcrypt, all
+	// increment — effectively giving the attacker ~N attempts instead of 5.
+	// The lock is released on tx.Commit / tx.Rollback below.
 	var otpID, codeHash string
 	var attempts int
 	var expiresAt time.Time
@@ -158,7 +162,8 @@ func (s *AuthService) VerifyOTP(ctx context.Context, rawEmail, code string) (*mo
 		`SELECT id, code_hash, attempts, expires_at
 		 FROM email_otps
 		 WHERE email = $1 AND purpose = 'login' AND consumed_at IS NULL
-		 ORDER BY created_at DESC LIMIT 1`,
+		 ORDER BY created_at DESC LIMIT 1
+		 FOR UPDATE`,
 		addr,
 	).Scan(&otpID, &codeHash, &attempts, &expiresAt)
 	if err != nil {
@@ -258,11 +263,19 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 		return nil, ErrInvalidToken
 	}
 
-	if _, err := tx.Exec(ctx,
-		`UPDATE refresh_tokens SET consumed_at = now() WHERE token_hash = $1`,
+	// Atomic consume: the WHERE consumed_at IS NULL guard means parallel
+	// refreshes of the same token can't both succeed and mint two children for
+	// the same family, which would later trip the reuse-detection branch above
+	// and falsely log the user out.
+	consumed, err := tx.Exec(ctx,
+		`UPDATE refresh_tokens SET consumed_at = now() WHERE token_hash = $1 AND consumed_at IS NULL`,
 		tokenHash,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, err
+	}
+	if consumed.RowsAffected() != 1 {
+		return nil, ErrInvalidToken
 	}
 
 	userResp.ApplyEffectiveTier()
@@ -282,18 +295,33 @@ func (s *AuthService) RefreshToken(ctx context.Context, token string) (*models.A
 	}, nil
 }
 
-// RevokeAllRefreshTokens deletes every refresh token for the given user. The
-// caller's access token (a stateless JWT) remains valid until it expires —
-// 15-minute TTL — but no further sessions can be issued from any device. Used
-// by the "sign out of all devices" Settings action.
+// RevokeAllRefreshTokens deletes every refresh token for the given user AND
+// bumps users.token_version so existing access JWTs (which carry the previous
+// version in their `tv` claim) are rejected by ValidateAccessToken on the
+// next request. Without the bump, access tokens would remain valid for the
+// remainder of their 15-min TTL — too long for "sign out everywhere" on a
+// stolen device. Used by the Settings action.
 func (s *AuthService) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID)
-	return err
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE users SET token_version = token_version + 1 WHERE id = $1`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // ValidateAccessToken parses and verifies a JWT and checks that the referenced
-// user still exists. The user-existence check ensures that deleted accounts
-// can't keep using API access for the remainder of the access-token TTL.
+// user still exists AND that the token's `tv` claim matches users.token_version.
+// The user-existence check ensures deleted accounts can't keep using API access;
+// the version check makes RevokeAllRefreshTokens immediately invalidate access
+// JWTs from other devices, not just refresh tokens.
 func (s *AuthService) ValidateAccessToken(ctx context.Context, tokenString string) (userID, email string, err error) {
 	// Pin to HS256 specifically — accepting any HMAC variant lets a forger
 	// downgrade to HS384/512 with a different key shape. We only ever sign HS256.
@@ -318,11 +346,16 @@ func (s *AuthService) ValidateAccessToken(ctx context.Context, tokenString strin
 		return "", "", ErrInvalidToken
 	}
 
-	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`, sub).Scan(&exists); err != nil {
+	// `tv` is missing on legacy tokens issued before this change rolled out;
+	// JSON numbers decode as float64. Treat missing as 0 so old tokens still
+	// validate until their natural 15-min expiry.
+	tokenTV, _ := claims["tv"].(float64)
+
+	var dbTV int
+	if err := s.pool.QueryRow(ctx, `SELECT token_version FROM users WHERE id = $1`, sub).Scan(&dbTV); err != nil {
 		return "", "", ErrInvalidToken
 	}
-	if !exists {
+	if int(tokenTV) != dbTV {
 		return "", "", ErrInvalidToken
 	}
 
@@ -413,7 +446,11 @@ func (s *AuthService) issueTokens(ctx context.Context, tx pgx.Tx, user models.Us
 // callers pass the previous token's family so the chain stays linked for
 // reuse-detection.
 func (s *AuthService) issueTokensInFamily(ctx context.Context, tx pgx.Tx, user models.UserResponse, familyID string) (string, string, error) {
-	accessToken, err := s.generateAccessToken(user)
+	var tv int
+	if err := tx.QueryRow(ctx, `SELECT token_version FROM users WHERE id = $1`, user.ID).Scan(&tv); err != nil {
+		return "", "", fmt.Errorf("read token_version: %w", err)
+	}
+	accessToken, err := s.generateAccessToken(user, tv)
 	if err != nil {
 		return "", "", err
 	}
@@ -458,11 +495,12 @@ func hashRefreshToken(token string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func (s *AuthService) generateAccessToken(user models.UserResponse) (string, error) {
+func (s *AuthService) generateAccessToken(user models.UserResponse, tokenVersion int) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":   user.ID,
 		"email": user.Email,
 		"name":  user.Name,
+		"tv":    tokenVersion,
 		"exp":   time.Now().Add(accessTokenTTL).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

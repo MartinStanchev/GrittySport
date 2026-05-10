@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
@@ -35,10 +36,6 @@ type sessionState struct {
 	escalated         bool      // true after a mode escalation retry within the current turn
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 type ChatHandler struct {
 	chatService    *services.ChatService
 	aiClient       *ai.GeminiClient
@@ -50,9 +47,10 @@ type ChatHandler struct {
 	proposalStore  *tools.ProposalStore
 	promptLoader   *ai.PromptLoader
 	memoryService  *memory.Service
+	upgrader       websocket.Upgrader
 }
 
-func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memorySvc *memory.Service, usageSvc *usage.Service) *ChatHandler {
+func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memorySvc *memory.Service, usageSvc *usage.Service, allowedOrigins map[string]struct{}) *ChatHandler {
 	proposalStore := tools.NewProposalStore()
 	toolRegistry := tools.NewRegistry()
 	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader, usageSvc, memorySvc)
@@ -68,6 +66,19 @@ func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient
 		proposalStore:  proposalStore,
 		promptLoader:   promptLoader,
 		memoryService:  memorySvc,
+		upgrader: websocket.Upgrader{
+			// Native mobile clients (Expo/React Native) omit Origin entirely; only
+			// browser-origin requests need to match the REST CORS allowlist. This
+			// closes the CSWSH door without breaking native clients.
+			CheckOrigin: func(r *http.Request) bool {
+				origin := r.Header.Get("Origin")
+				if origin == "" {
+					return true
+				}
+				_, ok := allowedOrigins[origin]
+				return ok
+			},
+		},
 	}
 }
 
@@ -116,7 +127,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Error().Err(err).Msg("WebSocket upgrade failed")
 		return
@@ -200,6 +211,17 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Reject over-cap input before burning a quota slot. Counted in runes
+		// to handle multibyte input correctly.
+		if utf8.RuneCountInString(incoming.Content) > sanitize.MaxChatMessageChars {
+			_ = ws.writeJSON(wsOutgoing{
+				Type:    "message_too_long",
+				Content: fmt.Sprintf("Your message is too long. Please keep it under %d characters.", sanitize.MaxChatMessageChars),
+			})
+			_ = ws.writeJSON(wsOutgoing{Type: "grit_chunk", Done: true})
+			continue
+		}
+
 		// Check chat rate limit before doing any work. CheckAndIncrement fails
 		// closed: a DB error leaves allowed=false and we surface it as a generic
 		// service error rather than silently granting unlimited messages.
@@ -214,10 +236,10 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if !allowed {
-			resetTime := usage.WeekResetTime().Format(time.RFC3339)
+			resetTime := usage.MonthResetTime().Format(time.RFC3339)
 			_ = ws.writeJSON(wsOutgoing{
 				Type:     "rate_limited",
-				Content:  "You've used your 50 free messages this week. Resets on Monday.",
+				Content:  fmt.Sprintf("You've used your %d free messages this month. Resets on the 1st.", usage.FreeChatMessagesPerMonth),
 				ResetsAt: resetTime,
 			})
 			_ = ws.writeJSON(wsOutgoing{Type: "grit_chunk", Done: true})
@@ -449,7 +471,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, use
 		QuickReplies: quickReplies,
 	}
 	if chatRemaining >= 0 {
-		limit := usage.FreeChatMessagesPerWeek
+		limit := usage.FreeChatMessagesPerMonth
 		doneFrame.UsageRemaining = &chatRemaining
 		doneFrame.UsageLimit = &limit
 	}

@@ -2,19 +2,19 @@ package usage
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-
-	"github.com/grittyfitness/api/internal/models"
 )
 
 const (
 	TierPremium = "premium"
 	TierFree    = "free"
 
-	FreeChatMessagesPerWeek            = 40
+	FreeChatMessagesPerMonth           = 60
 	FreeProgramCreationsPerMonth       = 2
 	FreePostWorkoutReviewsPerMonth     = 5
 	FreeMissedWorkoutReviewsPerMonth   = 5
@@ -69,8 +69,8 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 
 	switch resource {
 	case "chat_message":
-		periodType = "week"
-		limit = FreeChatMessagesPerWeek
+		periodType = "month"
+		limit = FreeChatMessagesPerMonth
 		column = "chat_messages_used"
 	case "program_creation":
 		periodType = "month"
@@ -88,60 +88,44 @@ func (s *Service) CheckAndIncrement(ctx context.Context, userID, resource string
 		return true, -1, nil
 	}
 
-	periodStart := computePeriodStart(periodType)
+	periodStart := computePeriodStart()
 
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		log.Error().Err(err).Msg("usage: begin tx failed, denying")
-		return false, 0, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// Upsert the row and lock it
-	_, err = tx.Exec(ctx,
+	// Ensure the row exists. The check-and-increment below relies on a row
+	// being present so the predicate WHERE count < limit can succeed.
+	if _, err := s.pool.Exec(ctx,
 		`INSERT INTO usage_tracking (user_id, period_type, period_start)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT (user_id, period_type, period_start) DO NOTHING`,
 		userID, periodType, periodStart,
-	)
-	if err != nil {
+	); err != nil {
 		log.Error().Err(err).Msg("usage: upsert row failed, denying")
 		return false, 0, err
 	}
 
-	var current int
-	err = tx.QueryRow(ctx,
-		`SELECT `+column+` FROM usage_tracking
-		 WHERE user_id = $1 AND period_type = $2 AND period_start = $3
-		 FOR UPDATE`,
-		userID, periodType, periodStart,
-	).Scan(&current)
+	// Atomic check-then-increment: the predicate is evaluated under the row
+	// lock acquired by UPDATE, so N parallel callers can't all read count<limit
+	// and all increment past it. RETURNING gives us the post-increment count
+	// to compute remaining without a second round-trip.
+	var newCount int
+	err = s.pool.QueryRow(ctx,
+		`UPDATE usage_tracking
+		 SET `+column+` = `+column+` + 1, updated_at = NOW()
+		 WHERE user_id = $1 AND period_type = $2 AND period_start = $3 AND `+column+` < $4
+		 RETURNING `+column,
+		userID, periodType, periodStart, limit,
+	).Scan(&newCount)
 	if err != nil {
-		log.Error().Err(err).Msg("usage: read count failed, denying")
-		return false, 0, err
-	}
-
-	if current >= limit {
-		_ = tx.Rollback(ctx)
-		return false, 0, nil
-	}
-
-	_, err = tx.Exec(ctx,
-		`UPDATE usage_tracking SET `+column+` = `+column+` + 1, updated_at = NOW()
-		 WHERE user_id = $1 AND period_type = $2 AND period_start = $3`,
-		userID, periodType, periodStart,
-	)
-	if err != nil {
+		// No rows updated — the cap was already reached. Distinguish from a
+		// real DB error so callers can show the rate-limit UI instead of a
+		// generic 500.
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, 0, nil
+		}
 		log.Error().Err(err).Msg("usage: increment failed, denying")
 		return false, 0, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		log.Error().Err(err).Msg("usage: commit failed, denying")
-		return false, 0, err
-	}
-
-	return true, limit - current - 1, nil
+	return true, limit - newCount, nil
 }
 
 // ResourceUsage represents usage stats for a single resource.
@@ -175,29 +159,21 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 		return nil, err
 	}
 
-	weekStart := computePeriodStart("week")
-	monthStart := computePeriodStart("month")
+	monthStart := computePeriodStart()
 
 	var chatUsed, programsCreated, reviewsUsed, missedReviewsUsed int
 
-	// Weekly usage
 	_ = s.pool.QueryRow(ctx,
-		`SELECT chat_messages_used FROM usage_tracking
-		 WHERE user_id = $1 AND period_type = 'week' AND period_start = $2`,
-		userID, weekStart,
-	).Scan(&chatUsed)
-
-	// Monthly usage
-	_ = s.pool.QueryRow(ctx,
-		`SELECT programs_created, post_workout_reviews_used, missed_workout_reviews_used FROM usage_tracking
+		`SELECT chat_messages_used, programs_created, post_workout_reviews_used, missed_workout_reviews_used
+		 FROM usage_tracking
 		 WHERE user_id = $1 AND period_type = 'month' AND period_start = $2`,
 		userID, monthStart,
-	).Scan(&programsCreated, &reviewsUsed, &missedReviewsUsed)
+	).Scan(&chatUsed, &programsCreated, &reviewsUsed, &missedReviewsUsed)
 
 	// Program count (active only, drafts don't count toward limit)
 	programCount, _ := s.CountUserPrograms(ctx, userID)
 
-	chatLimit := FreeChatMessagesPerWeek
+	chatLimit := FreeChatMessagesPerMonth
 	programCreationLimit := FreeProgramCreationsPerMonth
 	reviewLimit := FreePostWorkoutReviewsPerMonth
 	missedReviewLimit := FreeMissedWorkoutReviewsPerMonth
@@ -210,7 +186,6 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 		programTotalLimit = -1
 	}
 
-	nextWeek := weekStart.AddDate(0, 0, 7)
 	nextMonth := time.Date(monthStart.Year(), monthStart.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 
 	return &UsageSummary{
@@ -218,8 +193,8 @@ func (s *Service) GetUsage(ctx context.Context, userID string) (*UsageSummary, e
 		ChatMessages: ResourceUsage{
 			Used:     chatUsed,
 			Limit:    chatLimit,
-			Period:   "week",
-			ResetsAt: nextWeek.Format(time.RFC3339),
+			Period:   "month",
+			ResetsAt: nextMonth.Format(time.RFC3339),
 		},
 		ProgramCreations: ResourceUsage{
 			Used:     programsCreated,
@@ -293,22 +268,14 @@ func (s *Service) canCreate(ctx context.Context, userID string, count func(conte
 	return n < limit, nil
 }
 
-// computePeriodStart returns the start of the current period.
-// Weekly: Monday of the current week (reuses models.MondayOf). Monthly: 1st of the current month.
-func computePeriodStart(periodType string) time.Time {
+// computePeriodStart returns the 1st of the current month at midnight UTC.
+func computePeriodStart() time.Time {
 	now := time.Now().UTC()
-	switch periodType {
-	case "week":
-		monday := models.MondayOf(now)
-		return time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, time.UTC)
-	case "month":
-		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-	default:
-		return now
-	}
+	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 }
 
-// WeekResetTime returns the next Monday at midnight UTC.
-func WeekResetTime() time.Time {
-	return computePeriodStart("week").AddDate(0, 0, 7)
+// MonthResetTime returns the 1st of next month at midnight UTC.
+func MonthResetTime() time.Time {
+	now := time.Now().UTC()
+	return time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 }

@@ -148,8 +148,8 @@ func TestCheckAndIncrement_UnderLimit(t *testing.T) {
 	if !allowed {
 		t.Error("expected allowed")
 	}
-	if remaining != usage.FreeChatMessagesPerWeek-1 {
-		t.Errorf("expected %d remaining, got %d", usage.FreeChatMessagesPerWeek-1, remaining)
+	if remaining != usage.FreeChatMessagesPerMonth-1 {
+		t.Errorf("expected %d remaining, got %d", usage.FreeChatMessagesPerMonth-1, remaining)
 	}
 }
 
@@ -159,7 +159,7 @@ func TestCheckAndIncrement_AtLimit(t *testing.T) {
 	userID := createTestUser(t, "free")
 
 	// Send messages up to the limit
-	for i := 0; i < usage.FreeChatMessagesPerWeek; i++ {
+	for i := 0; i < usage.FreeChatMessagesPerMonth; i++ {
 		allowed, _, err := svc.CheckAndIncrement(context.Background(), userID, "chat_message")
 		if err != nil {
 			t.Fatal(err)
@@ -220,8 +220,8 @@ func TestGetUsage_FreeUser(t *testing.T) {
 	if summary.ChatMessages.Used != 5 {
 		t.Errorf("expected 5 chat messages used, got %d", summary.ChatMessages.Used)
 	}
-	if summary.ChatMessages.Limit != usage.FreeChatMessagesPerWeek {
-		t.Errorf("expected limit %d, got %d", usage.FreeChatMessagesPerWeek, summary.ChatMessages.Limit)
+	if summary.ChatMessages.Limit != usage.FreeChatMessagesPerMonth {
+		t.Errorf("expected limit %d, got %d", usage.FreeChatMessagesPerMonth, summary.ChatMessages.Limit)
 	}
 	if summary.Programs.Limit != usage.FreeProgramsTotal {
 		t.Errorf("expected program limit %d, got %d", usage.FreeProgramsTotal, summary.Programs.Limit)

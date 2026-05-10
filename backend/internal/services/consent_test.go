@@ -42,10 +42,10 @@ func TestRecordConsents_AllRequired_SetsCompletedFlag(t *testing.T) {
 	svc := newConsentService()
 	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
-			{Type: models.ConsentTypeHealthData, Version: "v1"},
-			{Type: models.ConsentTypeAge16Plus, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
 		},
 		BirthYear: validBirthYear(),
 		IPAddress: "127.0.0.1",
@@ -85,8 +85,8 @@ func TestRecordConsents_MissingRequired_RejectsAndDoesNotMark(t *testing.T) {
 	svc := newConsentService()
 	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
 			// health_data + age_16_plus omitted
 		},
 		BirthYear: validBirthYear(),
@@ -121,11 +121,11 @@ func TestRecordConsents_OptionalMarketing_StoresAlongsideRequired(t *testing.T) 
 	svc := newConsentService()
 	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
-			{Type: models.ConsentTypeHealthData, Version: "v1"},
-			{Type: models.ConsentTypeAge16Plus, Version: "v1"},
-			{Type: models.ConsentTypeMarketing, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
+			{Type: models.ConsentTypeMarketing, Version: models.MarketingVersion},
 		},
 		BirthYear: validBirthYear(),
 	})
@@ -167,10 +167,10 @@ func TestRecordConsents_BirthYearMissing_Rejects(t *testing.T) {
 	svc := newConsentService()
 	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
-			{Type: models.ConsentTypeHealthData, Version: "v1"},
-			{Type: models.ConsentTypeAge16Plus, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
 		},
 		BirthYear: nil,
 	})
@@ -187,10 +187,10 @@ func TestRecordConsents_BirthYearUnder16_Rejects(t *testing.T) {
 	svc := newConsentService()
 	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
-			{Type: models.ConsentTypeHealthData, Version: "v1"},
-			{Type: models.ConsentTypeAge16Plus, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
 		},
 		BirthYear: &tooYoung,
 	})
@@ -217,15 +217,76 @@ func TestRecordConsents_BirthYearOutOfRange_Rejects(t *testing.T) {
 		y := year
 		err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
 			Consents: []services.ConsentInput{
-				{Type: models.ConsentTypeTerms, Version: "v1"},
-				{Type: models.ConsentTypePrivacy, Version: "v1"},
-				{Type: models.ConsentTypeHealthData, Version: "v1"},
-				{Type: models.ConsentTypeAge16Plus, Version: "v1"},
+				{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+				{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+				{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+				{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
 			},
 			BirthYear: &y,
 		})
 		if !errors.Is(err, services.ErrInvalidBirthYear) {
 			t.Errorf("year=%d: expected ErrInvalidBirthYear, got %v", y, err)
 		}
+	}
+}
+
+func TestRecordConsents_StaleVersion_Rejects(t *testing.T) {
+	cleanTables(t)
+	userID := seedUser(t, "stale-version@example.com")
+
+	svc := newConsentService()
+	err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
+		Consents: []services.ConsentInput{
+			{Type: models.ConsentTypeTerms, Version: "1900-01-01"}, // outdated
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
+		},
+		BirthYear: validBirthYear(),
+	})
+	if !errors.Is(err, services.ErrConsentVersionMismatch) {
+		t.Fatalf("expected ErrConsentVersionMismatch, got %v", err)
+	}
+}
+
+func TestRecordConsents_BirthYearImmutableAfterFirstSet(t *testing.T) {
+	cleanTables(t)
+	userID := seedUser(t, "immutable-birthyear@example.com")
+	svc := newConsentService()
+
+	first := validBirthYear()
+	if err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
+		Consents: []services.ConsentInput{
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
+		},
+		BirthYear: first,
+	}); err != nil {
+		t.Fatalf("first RecordConsents failed: %v", err)
+	}
+
+	// Replay with a different (still valid) birth year — must NOT overwrite.
+	other := time.Now().Year() - 40
+	if err := svc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
+		Consents: []services.ConsentInput{
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
+		},
+		BirthYear: &other,
+	}); err != nil {
+		t.Fatalf("second RecordConsents failed: %v", err)
+	}
+
+	var got *int
+	if err := testPool.QueryRow(context.Background(),
+		`SELECT birth_year FROM users WHERE id = $1`, userID).Scan(&got); err != nil {
+		t.Fatalf("read birth_year: %v", err)
+	}
+	if got == nil || *got != *first {
+		t.Errorf("expected birth_year to remain %d after replay, got %v", *first, got)
 	}
 }

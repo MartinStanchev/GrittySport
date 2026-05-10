@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
-	"strings"
 
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/services"
@@ -32,16 +32,20 @@ func (h *ConsentHandler) Record(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// r.RemoteAddr is normalized by chimw.RealIP (registered in main.go before
+	// JWT auth). Re-reading X-Forwarded-For here would let an unauthenticated
+	// header poison the GDPR consent audit trail.
 	err := h.consentService.RecordConsents(r.Context(), userID, services.RecordConsentsInput{
 		Consents:  body.Consents,
 		BirthYear: body.BirthYear,
-		IPAddress: clientIP(r),
+		IPAddress: stripPort(r.RemoteAddr),
 		UserAgent: r.UserAgent(),
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrMissingRequiredConsent),
-			errors.Is(err, services.ErrInvalidBirthYear):
+			errors.Is(err, services.ErrInvalidBirthYear),
+			errors.Is(err, services.ErrConsentVersionMismatch):
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
 		default:
 			writeError(w, http.StatusInternalServerError, "failed to record consents")
@@ -52,12 +56,19 @@ func (h *ConsentHandler) Record(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func clientIP(r *http.Request) string {
-	if v := r.Header.Get("X-Forwarded-For"); v != "" {
-		if i := strings.IndexByte(v, ','); i > 0 {
-			return strings.TrimSpace(v[:i])
-		}
-		return strings.TrimSpace(v)
+// stripPort removes a trailing port from a "host:port" address. RealIP returns
+// just the IP, but if the request never passed through a trusted proxy
+// r.RemoteAddr is "1.2.3.4:5678" — INET column won't accept that. Returns empty
+// for unparseable input so the consent row stores NULL rather than garbage.
+func stripPort(addr string) string {
+	if addr == "" {
+		return ""
 	}
-	return r.RemoteAddr
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	if ip := net.ParseIP(addr); ip != nil {
+		return addr
+	}
+	return ""
 }

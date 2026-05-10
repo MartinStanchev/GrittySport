@@ -59,3 +59,34 @@ func writeUnauthorized(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 }
+
+// RequireConsents blocks requests from users who haven't completed the GDPR
+// consent flow. The frontend uses the `consents_required` error code to route
+// the user back to the consent screen. Mount under JWTAuth on every route
+// group that processes user data — explicitly NOT on consent-management
+// endpoints (POST /consents, GET/PUT/DELETE /users/me).
+func RequireConsents(svc consentChecker) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID := GetUserID(r.Context())
+			ok, err := svc.HasCompletedConsents(r.Context(), userID)
+			if err != nil || !ok {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				_ = json.NewEncoder(w).Encode(map[string]string{
+					"error": "consents required",
+					"code":  "consents_required",
+				})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// consentChecker is the slice of UserService that the middleware needs.
+// Defined here as an interface so the middleware doesn't have to import
+// services (which avoids package cycles in tests).
+type consentChecker interface {
+	HasCompletedConsents(ctx context.Context, userID string) (bool, error)
+}

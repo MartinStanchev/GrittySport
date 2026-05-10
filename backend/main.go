@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -200,7 +201,7 @@ func main() {
 
 	programService := services.NewProgramService(pool)
 	programHandler := handlers.NewProgramHandler(programService, chatService, memoryService, usageService)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService, corsAllowed)
 
 	workoutService := services.NewWorkoutService(pool)
 
@@ -237,7 +238,12 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
 
+	// Per-IP token bucket: 30-req burst, then 1 every 2s. Stops the OTP
+	// mail-bomb (per-email limiter is bypassed by cycling fresh emails) and
+	// brute-force against /verify and /refresh.
+	authLimiter := appmw.NewIPRateLimiter(0.5, 30)
 	r.Route("/api/auth", func(r chi.Router) {
+		r.Use(authLimiter.Middleware)
 		r.Post("/otp/request", authHandler.RequestOTP)
 		r.Post("/otp/verify", authHandler.VerifyOTP)
 		r.Post("/refresh", authHandler.Refresh)
@@ -248,44 +254,54 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(appmw.JWTAuth(authService))
+
+		// Consent-exempt endpoints: a freshly-verified user must be able to
+		// fetch their own profile, accept consents, or delete the account
+		// before any data-bearing routes unlock.
 		r.Get("/users/me", userHandler.GetMe)
 		r.Put("/users/me", userHandler.UpdateMe)
 		r.Delete("/users/me", userHandler.DeleteMe)
-		r.Get("/users/me/usage", userHandler.GetUsage)
-		r.Get("/users/me/export", userHandler.ExportData)
-		r.Post("/auth/revoke-all", authHandler.RevokeAll)
 		r.Post("/consents", consentHandler.Record)
-		r.Get("/chat/history", chatHandler.History)
-		r.Delete("/chat/history", chatHandler.DeleteChat)
-		r.Delete("/chat/memory", chatHandler.DeleteMemory)
 
-		r.Post("/programs", programHandler.Create)
-		r.Get("/programs", programHandler.List)
-		r.Get("/programs/{id}", programHandler.Get)
-		r.Put("/programs/{id}", programHandler.Update)
-		r.Delete("/programs/{id}", programHandler.Delete)
-		r.Get("/programs/{id}/criteria", programHandler.GetCriteria)
-		r.Put("/programs/{id}/criteria", programHandler.UpdateCriteria)
-		r.Get("/activities/upcoming", programHandler.GetUpcoming)
-		r.Get("/activities/linkable", programHandler.GetLinkable)
-		r.Get("/activities/{activityId}", programHandler.GetActivity)
-		r.Post("/programs/{id}/weeks/{weekId}/activities", programHandler.CreateActivity)
-		r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
+		// Everything else requires consents_completed_at IS NOT NULL.
+		r.Group(func(r chi.Router) {
+			r.Use(appmw.RequireConsents(userService))
 
-		r.Post("/devices/push-token", notifHandler.RegisterToken)
-		r.Delete("/devices/push-token", notifHandler.DeleteToken)
-		r.Get("/notifications/types", notifHandler.ListTypes)
-		r.Put("/notifications/preferences/{type}", notifHandler.UpdatePreference)
+			r.Get("/users/me/usage", userHandler.GetUsage)
+			r.Get("/users/me/export", userHandler.ExportData)
+			r.Post("/auth/revoke-all", authHandler.RevokeAll)
+			r.Get("/chat/history", chatHandler.History)
+			r.Delete("/chat/history", chatHandler.DeleteChat)
+			r.Delete("/chat/memory", chatHandler.DeleteMemory)
 
-		r.Post("/workouts", workoutHandler.Create)
-		r.Get("/workouts", workoutHandler.List)
-		r.Get("/workouts/weekly-effort", workoutHandler.WeeklyEffort)
-		r.Get("/workouts/{workoutId}", workoutHandler.Get)
-		r.Delete("/workouts/{workoutId}", workoutHandler.Delete)
-		r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
-		r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
-		r.Get("/workouts/{workoutId}/review", workoutHandler.GetReview)
-		r.Post("/workouts/{workoutId}/review/trigger", workoutHandler.TriggerReview)
+			r.Post("/programs", programHandler.Create)
+			r.Get("/programs", programHandler.List)
+			r.Get("/programs/{id}", programHandler.Get)
+			r.Put("/programs/{id}", programHandler.Update)
+			r.Delete("/programs/{id}", programHandler.Delete)
+			r.Get("/programs/{id}/criteria", programHandler.GetCriteria)
+			r.Put("/programs/{id}/criteria", programHandler.UpdateCriteria)
+			r.Get("/activities/upcoming", programHandler.GetUpcoming)
+			r.Get("/activities/linkable", programHandler.GetLinkable)
+			r.Get("/activities/{activityId}", programHandler.GetActivity)
+			r.Post("/programs/{id}/weeks/{weekId}/activities", programHandler.CreateActivity)
+			r.Put("/programs/{id}/activities/{activityId}", programHandler.UpdateActivity)
+
+			r.Post("/devices/push-token", notifHandler.RegisterToken)
+			r.Delete("/devices/push-token", notifHandler.DeleteToken)
+			r.Get("/notifications/types", notifHandler.ListTypes)
+			r.Put("/notifications/preferences/{type}", notifHandler.UpdatePreference)
+
+			r.Post("/workouts", workoutHandler.Create)
+			r.Get("/workouts", workoutHandler.List)
+			r.Get("/workouts/weekly-effort", workoutHandler.WeeklyEffort)
+			r.Get("/workouts/{workoutId}", workoutHandler.Get)
+			r.Delete("/workouts/{workoutId}", workoutHandler.Delete)
+			r.Put("/workouts/{workoutId}/link", workoutHandler.Link)
+			r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
+			r.Get("/workouts/{workoutId}/review", workoutHandler.GetReview)
+			r.Post("/workouts/{workoutId}/review/trigger", workoutHandler.TriggerReview)
+		})
 	})
 
 	log.Info().Str("port", port).Msg("Starting server")

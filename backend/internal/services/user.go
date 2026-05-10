@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +18,19 @@ type UserService struct {
 
 func NewUserService(pool *pgxpool.Pool) *UserService {
 	return &UserService{pool: pool}
+}
+
+// HasCompletedConsents reports whether the user has finished the GDPR consent
+// flow. Used by middleware to gate every authenticated route except consent
+// management itself, so a freshly-verified account can't issue any data-bearing
+// API calls before agreeing to terms/privacy/health-data/age-16.
+func (s *UserService) HasCompletedConsents(ctx context.Context, userID string) (bool, error) {
+	var completed *time.Time
+	err := s.pool.QueryRow(ctx, `SELECT consents_completed_at FROM users WHERE id = $1`, userID).Scan(&completed)
+	if err != nil {
+		return false, err
+	}
+	return completed != nil, nil
 }
 
 func (s *UserService) GetByID(ctx context.Context, userID string) (*models.UserResponse, error) {
@@ -43,11 +58,27 @@ func (s *UserService) Delete(ctx context.Context, userID string) error {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// email_otps is keyed by email (no FK to users) so the user's row deletion
+	// won't cascade to it. Without this, a still-valid OTP issued seconds before
+	// deletion can be redeemed by VerifyOTP, which then re-creates a fresh user
+	// row for the same email — defeating GDPR Art. 17 erasure.
+	var email string
+	if err := tx.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, userID).Scan(&email); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgx.ErrNoRows
+		}
+		return fmt.Errorf("lookup user email: %w", err)
+	}
+
 	if _, err := tx.Exec(ctx,
 		`UPDATE user_consents SET ip_address = NULL, user_agent = NULL WHERE user_id = $1`,
 		userID,
 	); err != nil {
 		return fmt.Errorf("anonymize consents: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM email_otps WHERE email = $1`, email); err != nil {
+		return fmt.Errorf("purge otps: %w", err)
 	}
 
 	result, err := tx.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)

@@ -14,7 +14,20 @@ import (
 var (
 	ErrMissingRequiredConsent = errors.New("missing required consent")
 	ErrInvalidBirthYear       = errors.New("birth year is missing or user is under 16")
+	ErrConsentVersionMismatch = errors.New("consent version is out of date — please update the app")
 )
+
+// canonicalConsentVersions is the server-authoritative version per consent
+// type. The client sends the version it displayed; if it's not the current one
+// the user gets re-prompted with fresh text rather than silently accepting
+// stale terms. Lookup misses (unknown type) fall through to validateRequired.
+var canonicalConsentVersions = map[string]string{
+	models.ConsentTypeTerms:      models.TermsVersion,
+	models.ConsentTypePrivacy:    models.PrivacyVersion,
+	models.ConsentTypeHealthData: models.HealthDataVersion,
+	models.ConsentTypeAge16Plus:  models.Age16PlusVersion,
+	models.ConsentTypeMarketing:  models.MarketingVersion,
+}
 
 // MinSignupAge is the minimum age for GDPR consent in Germany (Art. 8 GDPR + §13 BDSG).
 const MinSignupAge = 16
@@ -68,17 +81,27 @@ func (s *ConsentService) RecordConsents(ctx context.Context, userID string, inpu
 	}
 
 	for _, c := range input.Consents {
+		// Use the server-authoritative version for the actual insert, ignoring
+		// whatever the client supplied. The unique partial index
+		// ux_user_consents_active_version makes the insert idempotent — repeat
+		// POSTs of the same (user, type, version) are rejected by the DB
+		// instead of creating duplicate audit rows.
+		canonical := canonicalConsentVersions[c.Type]
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO user_consents (user_id, consent_type, version, ip_address, user_agent)
-			 VALUES ($1, $2, $3, $4, $5)`,
-			userID, c.Type, c.Version, ip, ua,
+			 VALUES ($1, $2, $3, $4, $5)
+			 ON CONFLICT (user_id, consent_type, version) WHERE withdrawn_at IS NULL DO NOTHING`,
+			userID, c.Type, canonical, ip, ua,
 		); err != nil {
 			return fmt.Errorf("insert consent %s: %w", c.Type, err)
 		}
 	}
 
+	// COALESCE keeps birth_year immutable after first set so a user can't
+	// re-attest a different age and bypass the 16+ gate by replaying this
+	// endpoint with a fresh year.
 	if _, err := tx.Exec(ctx,
-		`UPDATE users SET birth_year = $2, consents_completed_at = now(), updated_at = now() WHERE id = $1`,
+		`UPDATE users SET birth_year = COALESCE(birth_year, $2), consents_completed_at = COALESCE(consents_completed_at, now()), updated_at = now() WHERE id = $1`,
 		userID, *input.BirthYear,
 	); err != nil {
 		return err
@@ -109,6 +132,12 @@ func validateRequired(provided []ConsentInput) error {
 		}
 		if c.Version == "" {
 			return fmt.Errorf("consent %q missing version", c.Type)
+		}
+		// Reject stale or fabricated versions. A client running outdated terms
+		// must re-prompt the user with the new text rather than silently
+		// recording acceptance against the old version.
+		if c.Version != canonicalConsentVersions[c.Type] {
+			return fmt.Errorf("%w (%s)", ErrConsentVersionMismatch, c.Type)
 		}
 		got[c.Type] = true
 	}

@@ -133,16 +133,22 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
 
       const data: WsIncoming = JSON.parse(event.data);
 
-      if (data.type === 'rate_limited') {
-        setIsRateLimited(true);
+      if (data.type === 'rate_limited' || data.type === 'message_too_long') {
         setIsGritTyping(false);
-        if (data.resets_at) setRateLimitResetsAt(data.resets_at);
+        if (data.type === 'rate_limited') {
+          setIsRateLimited(true);
+          if (data.resets_at) setRateLimitResetsAt(data.resets_at);
+        }
+        const fallback =
+          data.type === 'rate_limited'
+            ? "You've used your free messages this month."
+            : 'Your message is too long. Please shorten it.';
         setMessages((prev) => [
           ...prev,
           {
-            id: `rate-limit-${Date.now()}`,
+            id: `system-${Date.now()}`,
             role: 'system',
-            content: data.content || "You've used your free messages this week.",
+            content: data.content || fallback,
             messageType: 'text',
           },
         ]);

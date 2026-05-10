@@ -29,7 +29,7 @@ func (s *ResendSender) SendOTP(ctx context.Context, toEmail, code string) error 
 	body := resendRequest{
 		From:    s.from,
 		To:      []string{toEmail},
-		Subject: "Your Gritty Fitness sign-in code",
+		Subject: fmt.Sprintf("%s is your Gritty Fitness sign-in code", code),
 		HTML:    otpHTML(code),
 		Text:    otpText(code),
 	}
@@ -68,8 +68,8 @@ func otpHTML(code string) string {
 	return fmt.Sprintf(`<!doctype html>
 <html><body style="font-family: -apple-system, system-ui, sans-serif; padding: 24px; color: #111;">
   <h2 style="margin: 0 0 16px;">Your sign-in code</h2>
-  <p style="font-size: 14px; color: #555;">Enter this code in the Gritty Fitness app to continue:</p>
+  <p style="font-size: 16px; color: #111;">Your Gritty Fitness verification code is <strong>%s</strong>.</p>
   <div style="font-size: 32px; font-weight: 600; letter-spacing: 6px; padding: 16px 24px; background: #f4f4f5; border-radius: 8px; display: inline-block; margin: 8px 0;">%s</div>
   <p style="font-size: 13px; color: #777;">This code expires in 10 minutes. If you didn't request it, you can safely ignore this email.</p>
-</body></html>`, code)
+</body></html>`, code, code)
 }

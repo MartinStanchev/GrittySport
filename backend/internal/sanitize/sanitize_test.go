@@ -86,10 +86,10 @@ func TestSanitizeWorkoutNotes(t *testing.T) {
 }
 
 func TestSanitizeChatMessage(t *testing.T) {
-	long := strings.Repeat("b", 2500)
+	long := strings.Repeat("b", MaxChatMessageChars+500)
 	result := SanitizeChatMessage(long)
-	if len([]rune(result)) != 2000 {
-		t.Errorf("expected 2000 runes, got %d", len([]rune(result)))
+	if len([]rune(result)) != MaxChatMessageChars {
+		t.Errorf("expected %d runes, got %d", MaxChatMessageChars, len([]rune(result)))
 	}
 }
 

@@ -755,7 +755,7 @@ export default function HomeScreen() {
           {!isRateLimited && usageRemaining != null && usageLimit != null && usageRemaining <= 15 && usageRemaining > 0 && (
             <View style={[styles.usageCounterContainer, { backgroundColor: colors.surface }]}>
               <Text style={[styles.usageCounterText, { color: colors.textSecondary }]}>
-                {usageRemaining} message{usageRemaining !== 1 ? 's' : ''} left this week
+                {usageRemaining} message{usageRemaining !== 1 ? 's' : ''} left this month
               </Text>
             </View>
           )}
@@ -765,7 +765,7 @@ export default function HomeScreen() {
             <View style={[styles.rateLimitBanner, { paddingBottom: inputBottomPadding, borderTopColor: colors.border, backgroundColor: colors.surface }]}>
               <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
               <Text style={[styles.rateLimitText, { color: colors.textSecondary }]}>
-                You&apos;ve used your free messages this week. Resets Monday.
+                You&apos;ve used your free messages this month. Resets on the 1st.
               </Text>
               <Pressable
                 style={[styles.upgradeButton, { backgroundColor: colors.primary }]}

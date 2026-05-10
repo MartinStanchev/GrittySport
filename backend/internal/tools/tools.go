@@ -427,7 +427,17 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("marshal criteria: %w", err)
 			}
 
+			// Validate draft_program_id ownership up-front so an LLM-supplied
+			// (or prompt-injected) ID belonging to another user is rejected
+			// here rather than surfacing as a confusing "not found" inside
+			// SaveProgramWithCriteria after the user has already accepted the
+			// proposal.
 			draftProgramID, _ := params["draft_program_id"].(string)
+			if draftProgramID != "" {
+				if err := programSvc.VerifyProgramOwnership(ctx, draftProgramID, userID); err != nil {
+					return nil, fmt.Errorf("invalid draft_program_id: %w", err)
+				}
+			}
 
 			proposals.Set(userID, &PendingProposal{
 				Type:           "program_creation",

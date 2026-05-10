@@ -64,22 +64,26 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			`SELECT consent_type, version, accepted_at, withdrawn_at, ip_address::text, user_agent
 			 FROM user_consents WHERE user_id = $1 ORDER BY accepted_at`},
 		{"programs", new([]map[string]any),
-			`SELECT id, title, sport, goal, status, start_date, created_at, updated_at
+			`SELECT id, name, sport, goal_description, status, start_date, end_date,
+			        created_by, created_at, updated_at
 			 FROM programs WHERE user_id = $1 ORDER BY created_at`},
 		{"phases", new([]map[string]any),
-			`SELECT ph.id, ph.program_id, ph.phase_number, ph.name, ph.duration_weeks, ph.focus, ph.created_at
+			`SELECT ph.id, ph.program_id, ph.order_index, ph.name, ph.start_date, ph.end_date, ph.created_at
 			 FROM phases ph JOIN programs p ON p.id = ph.program_id
-			 WHERE p.user_id = $1 ORDER BY ph.program_id, ph.phase_number`},
+			 WHERE p.user_id = $1 ORDER BY ph.program_id, ph.order_index`},
 		{"weeks", new([]map[string]any),
-			`SELECT w.id, w.program_id, w.phase_id, w.week_number, w.start_date, w.created_at
-			 FROM weeks w JOIN programs p ON p.id = w.program_id
-			 WHERE p.user_id = $1 ORDER BY w.program_id, w.week_number`},
+			`SELECT w.id, w.phase_id, w.week_number, w.start_date, w.created_at
+			 FROM weeks w
+			 JOIN phases ph ON ph.id = w.phase_id
+			 JOIN programs p ON p.id = ph.program_id
+			 WHERE p.user_id = $1 ORDER BY ph.program_id, w.week_number`},
 		{"scheduled_activities", new([]map[string]any),
 			`SELECT sa.id, sa.week_id, sa.day_of_week, sa.activity_type, sa.notes,
-			        sa.prescription, sa.created_at, sa.updated_at
+			        sa.prescription, sa.order_index, sa.created_at, sa.updated_at
 			 FROM scheduled_activities sa
 			 JOIN weeks w ON w.id = sa.week_id
-			 JOIN programs p ON p.id = w.program_id
+			 JOIN phases ph ON ph.id = w.phase_id
+			 JOIN programs p ON p.id = ph.program_id
 			 WHERE p.user_id = $1 ORDER BY sa.created_at`},
 		{"program_criteria", new([]map[string]any),
 			`SELECT pc.* FROM program_criteria pc
@@ -90,7 +94,7 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			        recorded_data, gps_route, heart_rate_data, notes, created_at, updated_at
 			 FROM workouts WHERE user_id = $1 ORDER BY started_at`},
 		{"chat_messages", new([]map[string]any),
-			`SELECT id, role, content, context, program_id, metadata, created_at
+			`SELECT id, role, content, program_id, metadata, created_at
 			 FROM chat_messages WHERE user_id = $1 ORDER BY created_at`},
 		{"chat_segments", new([]map[string]any),
 			`SELECT id, segment_type, status, summary, started_at, completed_at

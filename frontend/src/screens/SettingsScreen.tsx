@@ -476,7 +476,7 @@ export default function SettingsScreen() {
             <>
               <View style={[styles.usageRow, { borderTopColor: colors.border }]}>
                 <Text style={[styles.usageLabel, { color: colors.textPrimary }]}>Chat messages</Text>
-                <Text style={[styles.usageValue, { color: colors.textSecondary }]}>{usage.chat_messages.used} / {usage.chat_messages.limit} this week</Text>
+                <Text style={[styles.usageValue, { color: colors.textSecondary }]}>{usage.chat_messages.used} / {usage.chat_messages.limit} this month</Text>
               </View>
               <View style={[styles.usageRow, { borderTopColor: colors.border }]}>
                 <Text style={[styles.usageLabel, { color: colors.textPrimary }]}>Programs</Text>

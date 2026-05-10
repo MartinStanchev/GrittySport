@@ -64,7 +64,13 @@ func SanitizeWorkoutNotes(notes string) string {
 	return SanitizeForPrompt(notes, 500)
 }
 
-// SanitizeChatMessage sanitizes a chat message for prompt injection, 2000 char limit.
+// MaxChatMessageChars is the hard cap on user chat message length (in runes).
+// Messages over this limit are rejected at the handler layer, not silently truncated.
+const MaxChatMessageChars = 4000
+
+// SanitizeChatMessage sanitizes a chat message for prompt injection.
+// Length validation happens at the handler layer; the cap here is a defense-in-depth
+// fallback at MaxChatMessageChars.
 func SanitizeChatMessage(msg string) string {
-	return SanitizeForPrompt(msg, 2000)
+	return SanitizeForPrompt(msg, MaxChatMessageChars)
 }
