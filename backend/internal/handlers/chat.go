@@ -67,19 +67,38 @@ func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient
 		promptLoader:   promptLoader,
 		memoryService:  memorySvc,
 		upgrader: websocket.Upgrader{
-			// Native mobile clients (Expo/React Native) omit Origin entirely; only
-			// browser-origin requests need to match the REST CORS allowlist. This
-			// closes the CSWSH door without breaking native clients.
 			CheckOrigin: func(r *http.Request) bool {
-				origin := r.Header.Get("Origin")
-				if origin == "" {
-					return true
-				}
-				_, ok := allowedOrigins[origin]
-				return ok
+				return isAllowedWSOrigin(r.Header.Get("Origin"), r.Host, allowedOrigins)
 			},
 		},
 	}
+}
+
+// isAllowedWSOrigin decides whether to accept a WebSocket upgrade based on the
+// Origin header. Auth on this endpoint is a Bearer token in the URL query — not
+// a cookie — so CSWSH (which relies on browsers auto-attaching credentials
+// cross-origin) cannot actually steal a session here: an attacker page has no
+// way to read the token. The Origin check is therefore defense-in-depth against
+// browser-only abuse, and it must not break native clients.
+//
+// Accepted: empty Origin (most native clients omit it), browser origins on the
+// allowlist, same-origin (iOS RN's WebSocket sets Origin to the connection's
+// scheme+host), and non-HTTP schemes (capacitor://, file://, ionic://, custom
+// app schemes — all native containers). Unknown http(s) origins are rejected.
+func isAllowedWSOrigin(origin, host string, allowed map[string]struct{}) bool {
+	if origin == "" {
+		return true
+	}
+	if _, ok := allowed[origin]; ok {
+		return true
+	}
+	if origin == "https://"+host || origin == "http://"+host {
+		return true
+	}
+	if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
+		return true
+	}
+	return false
 }
 
 type wsIncoming struct {

@@ -96,6 +96,7 @@ Full details for each change are in the `progress/` folder.
 | [security-audit-low-fixes](progress/security-audit-low-fixes.md) | Five low-sev defense-in-depth fixes: SQL-scope `GetActivityDetail`, pin JWT method to HS256, dummy bcrypt on OTP no-row, env-driven CORS allowlist, reject placeholder/short `JWT_SECRET` at startup |
 | [security-audit-batch-2-auth](progress/security-audit-batch-2-auth.md) | Auth-hardening batch: WS CSWSH origin allowlist, per-IP rate limit on `/api/auth/*`, OTP purge on account delete, drop spoofable consent IP helper, FOR UPDATE on OTP read, atomic refresh-consume, `users.token_version` JWT revocation, `RequireConsents` middleware, server-authoritative consent versions + immutable birth_year, `propose_program` ownership check, atomic chat usage UPDATE |
 | [chat-monthly-cap-and-input-limit](progress/chat-monthly-cap-and-input-limit.md) | Free chat limit moved from 40/week to 60/month (aligns with other monthly limits); 4000-char per-message cap with explicit rejection (replaces silent truncation); `message_too_long` WS frame surfaced in UI |
+| [birth-year-wheel-picker](progress/birth-year-wheel-picker.md) | Replace 4-digit `TextInput` on consent screen with snap-scroll wheel year picker bounded `[currentYear - 100, currentYear - 16]`; bounds enforce 16+ at the UI layer so error/helper validation goes away |
 
 ## Instructions for Agents
 

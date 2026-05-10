@@ -6,7 +6,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -19,13 +18,14 @@ import { LEGAL_URLS } from '../../constants/legalUrls';
 import { ConsentVersions } from '../../constants/consents';
 import { recordConsents } from '../../services/api';
 import type { ConsentInput } from '../../services/api';
+import YearPickerSheet from '../../components/YearPickerSheet';
 
 type ConsentKey = 'terms_privacy' | 'health_data' | 'marketing';
 
 const REQUIRED_KEYS: ConsentKey[] = ['terms_privacy', 'health_data'];
 
 const MIN_AGE = 16;
-const MIN_BIRTH_YEAR = 1900;
+const MAX_AGE = 100;
 
 export default function ConsentScreen() {
   const { colors } = useTheme();
@@ -37,8 +37,13 @@ export default function ConsentScreen() {
     health_data: false,
     marketing: false,
   });
-  const [birthYearInput, setBirthYearInput] = useState('');
+  const [birthYear, setBirthYear] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const currentYear = new Date().getFullYear();
+  const minYear = currentYear - MAX_AGE;
+  const maxYear = currentYear - MIN_AGE;
 
   function toggle(key: ConsentKey) {
     setChecked((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -50,25 +55,11 @@ export default function ConsentScreen() {
     );
   }
 
-  const parsedBirthYear = /^\d{4}$/.test(birthYearInput) ? parseInt(birthYearInput, 10) : NaN;
-  const currentYear = new Date().getFullYear();
-  const computedAge = Number.isFinite(parsedBirthYear) ? currentYear - parsedBirthYear : NaN;
-  const birthYearValid =
-    Number.isFinite(parsedBirthYear) &&
-    parsedBirthYear >= MIN_BIRTH_YEAR &&
-    parsedBirthYear <= currentYear &&
-    computedAge >= MIN_AGE;
-  const birthYearError =
-    birthYearInput.length === 4 && !birthYearValid
-      ? Number.isFinite(computedAge) && computedAge < MIN_AGE
-        ? `You must be at least ${MIN_AGE} to use Gritty Fitness.`
-        : 'Please enter a valid year.'
-      : null;
-
+  const birthYearValid = birthYear != null;
   const allRequiredAccepted = REQUIRED_KEYS.every((k) => checked[k]) && birthYearValid;
 
   async function handleContinue() {
-    if (!allRequiredAccepted) return;
+    if (!allRequiredAccepted || birthYear == null) return;
 
     const consents: ConsentInput[] = [
       { type: 'terms', version: ConsentVersions.terms },
@@ -82,7 +73,7 @@ export default function ConsentScreen() {
 
     setIsSaving(true);
     try {
-      await recordConsents(consents, parsedBirthYear);
+      await recordConsents(consents, birthYear);
       await refreshUser();
     } catch {
       Alert.alert('Error', 'Could not save your choices. Please try again.');
@@ -98,7 +89,6 @@ export default function ConsentScreen() {
           styles.container,
           { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
         ]}
-        keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.title, { color: colors.textPrimary }]}>Welcome to Gritty Fitness</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -140,25 +130,27 @@ export default function ConsentScreen() {
             <Text style={[styles.helperText, { color: colors.textSecondary }]}>
               You must be at least {MIN_AGE} years old to use Gritty Fitness.
             </Text>
-            <TextInput
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setPickerOpen(true)}
               style={[
-                styles.yearInput,
+                styles.yearField,
                 {
-                  color: colors.textPrimary,
                   backgroundColor: colors.inputBackground,
-                  borderColor: birthYearError ? '#d04444' : colors.border,
+                  borderColor: colors.border,
                 },
               ]}
-              value={birthYearInput}
-              onChangeText={(v) => setBirthYearInput(v.replace(/[^0-9]/g, '').slice(0, 4))}
-              placeholder="e.g. 1995"
-              placeholderTextColor={colors.textSecondary}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
-            {birthYearError && (
-              <Text style={styles.errorText}>{birthYearError}</Text>
-            )}
+            >
+              <Text
+                style={[
+                  styles.yearFieldText,
+                  { color: birthYear != null ? colors.textPrimary : colors.textSecondary },
+                ]}
+              >
+                {birthYear != null ? `${birthYear}` : 'Select year'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -187,6 +179,18 @@ export default function ConsentScreen() {
           <Text style={[styles.signOutText, { color: colors.textSecondary }]}>Use a different account</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <YearPickerSheet
+        visible={pickerOpen}
+        value={birthYear}
+        minYear={minYear}
+        maxYear={maxYear}
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={(y) => {
+          setBirthYear(y);
+          setPickerOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -280,20 +284,19 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 18,
   },
-  yearInput: {
+  yearField: {
     marginTop: 10,
-    fontSize: 16,
-    fontFamily: Fonts.body,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderWidth: 1,
     borderRadius: 12,
   },
-  errorText: {
-    marginTop: 6,
-    fontSize: 12,
-    fontFamily: Fonts.body,
-    color: '#d04444',
+  yearFieldText: {
+    fontSize: 16,
+    fontFamily: Fonts.bodyMedium,
   },
   linkRow: {
     flexDirection: 'row',
