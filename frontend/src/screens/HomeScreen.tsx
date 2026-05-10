@@ -681,7 +681,7 @@ export default function HomeScreen() {
                 <View style={styles.titleRow}>
                   <Text style={[styles.chatHeaderTitle, { color: colors.textPrimary }]}>Grit</Text>
                   <View style={[styles.aiBadge, { borderColor: colors.primary }]}>
-                    <Text style={[styles.aiBadgeText, { color: colors.primary }]}>AI</Text>
+                    <Text style={[styles.aiBadgeText, { color: colors.primary }]}>{isConnected ? 'Connected' : 'Offline'}</Text>
                   </View>
                 </View>
                 <View style={styles.statusRow}>
@@ -694,7 +694,7 @@ export default function HomeScreen() {
                     ]}
                   />
                   <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-                    {isConnected ? 'AI Coach · Online' : 'AI Coach · Reconnecting...'}
+                    {isConnected ? 'Grit is an AI coach and can make mistakes' : 'Reconnecting...'}
                   </Text>
                 </View>
               </View>
