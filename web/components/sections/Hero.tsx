@@ -16,13 +16,13 @@ const PANELS: Panel[] = [
     eyebrow: "Now in early access",
     title: (
       <>
-        One coach.<br />
+        One app.<br />
         Every sport.<br />
         <span className={GRADIENT_TEXT}>Built around you.</span>
       </>
     ),
     subtitle:
-      "Meet Grit — your AI training partner. One holistic plan that blends running, cycling, swimming, strength, and recovery, then adapts after every workout you log.",
+      "Meet Grit — your AI training partner. One app wthat allows you to track every sport you're doing. Grit helps adapt your workouts your way. Get started for free. ",
   },
   {
     eyebrow: "Your AI training partner",
@@ -30,11 +30,11 @@ const PANELS: Panel[] = [
       <>
         Meet Grit.<br />
         Tracks every session.<br />
-        <span className={GRADIENT_TEXT}>Adjusts your plan.</span>
+        <span className={GRADIENT_TEXT}>Adjusts if needed.</span>
       </>
     ),
     subtitle:
-      "Tell Grit how today felt. It reads your pace, heart rate, and effort — then proposes the change you can accept in one tap.",
+      "Tell Grit how today felt. He reads your pace, heart rate, and effort — then proposes the change you can accept in one tap.",
   },
   {
     eyebrow: "Every metric, every insight",
@@ -46,7 +46,7 @@ const PANELS: Panel[] = [
       </>
     ),
     subtitle:
-      "Pace, HR zones, splits, effort score, PRs — everything you do is captured, charted, and turned into smarter sessions next week.",
+      "Everything you log is charted and turned into smarter sessions next week. Your effort is what counts. Your recovery and progress aren't static. Real progress is not done with static programs.",
   },
 ];
 
@@ -73,7 +73,7 @@ function DownloadBlock() {
     <div id="download">
       <StoreBadges />
       <p className="mt-4 text-sm text-white/55">
-        Free to get started · Premium unlocks deeper insights
+        Core features free with limits · Premium unlocks more
       </p>
     </div>
   );
@@ -83,7 +83,7 @@ const SEGMENT = 1 / (PANELS.length - 1);
 const SLIDE_PX = 36;
 // Width of the crossfade band, as a fraction of a segment. Smaller = sharper hand-off,
 // less time spent visibly in-between two panels.
-const FADE_BAND = 0.55;
+const FADE_BAND = 0.25;
 
 function smoothstep(t: number) {
   const c = Math.max(0, Math.min(1, t));

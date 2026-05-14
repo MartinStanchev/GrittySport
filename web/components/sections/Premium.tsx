@@ -1,34 +1,64 @@
 import { SectionHeader } from "@/components/SectionHeader";
 
-const tiers = [
+type Item = { text: string; contrast?: string };
+type Tier = { name: string; icon: string; items: Item[] };
+
+const tiers: Tier[] = [
   {
-    name: "Sharper insights",
+    name: "See what's working",
     icon: "📊",
     items: [
-      "Cardiac efficiency tracking",
-      "Sport-specific PRs (distance, swim, strength)",
-      "Structured weekly trends",
-      "Effort scoring across the week",
+      {
+        text: "Know if your easy runs are actually getting easier — same pace, lower heart rate over time",
+      },
+      {
+        text: "Track PRs across every distance, swim split, and lift — not just one number",
+      },
+      {
+        text: "Tell a real trend from a bad week with structured week-over-week comparisons",
+      },
+      {
+        text: "One weekly effort score that captures how hard you trained, not just hours logged",
+      },
     ],
   },
   {
-    name: "More coaching",
+    name: "Coach without limits",
     icon: "🧠",
     items: [
-      "Unlimited chat with Grit",
-      "Unlimited active programs",
-      "Deeper memory of your preferences",
-      "Save unlimited preferences and constraints",
+      {
+        text: "Talk to Grit whenever — no message cap mid-conversation",
+        contrast: "Free: 60 messages / month",
+      },
+      {
+        text: "AI review and adapt on every workout, not just the first few",
+        contrast: "Free: 5 reviews / month",
+      },
+      {
+        text: "Run multiple programs in parallel — marathon block + lifting, or in-season + off-season",
+        contrast: "Free: 1 active program",
+      },
+      {
+        text: "Build new programs whenever life or your goal changes",
+        contrast: "Free: 2 new programs / month",
+      },
     ],
   },
   {
-    name: "Total control",
+    name: "Make it yours",
     icon: "🎛️",
     items: [
-      "Configurable weekly effort goals",
-      "Advanced workout analytics",
-      "Priority for new features",
-      "Everything in the free tier",
+      {
+        text: "Save every preference and constraint that matters — bad knee, no Tuesdays, target race",
+        contrast: "Free: 5 saved preferences",
+      },
+      {
+        text: "Set your own weekly effort target — Grit plans around your real life, not a default",
+      },
+      {
+        text: "Keep unlimited program drafts so you can plan a block before committing",
+        contrast: "Free: 3 drafts",
+      },
     ],
   },
 ];
@@ -46,9 +76,9 @@ export function Premium() {
           centered
         >
           <p className="mt-5 text-ink-soft text-lg">
-            Gritty Fitness is fully usable for free. Premium adds the metrics
-            and customization athletes ask for once they&apos;re training
-            seriously.
+            Gritty Fitness is fully usable for free. Premium unlocks the
+            metrics, conversations, and customization you&apos;ll want once
+            you&apos;re training seriously.
           </p>
         </SectionHeader>
 
@@ -62,14 +92,21 @@ export function Premium() {
               <h3 className="font-display font-semibold text-xl text-ink mt-3">
                 {t.name}
               </h3>
-              <ul className="mt-5 space-y-3">
+              <ul className="mt-5 space-y-4">
                 {t.items.map((item) => (
                   <li
-                    key={item}
+                    key={item.text}
                     className="flex items-start gap-3 text-sm text-ink-soft"
                   >
-                    <span className="mt-0.5 text-brand">✓</span>
-                    <span>{item}</span>
+                    <span className="mt-0.5 text-brand shrink-0">✓</span>
+                    <div>
+                      <p>{item.text}</p>
+                      {item.contrast && (
+                        <p className="mt-1 text-xs text-ink-soft/60">
+                          {item.contrast}
+                        </p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -93,10 +130,10 @@ export function Premium() {
               href="#download"
               className="inline-block mt-6 px-6 py-3 rounded-full bg-white text-ink font-medium hover:bg-brand-soft transition"
             >
-              Start free, upgrade in-app
+              Premium coming soon
             </a>
             <p className="text-white/50 text-xs mt-4">
-              Cancel anytime · 7-day free trial · Web checkout coming soon
+              Cancel anytime · Web checkout coming soon
             </p>
           </div>
         </div>

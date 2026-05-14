@@ -3,11 +3,11 @@ import { Eyebrow } from "@/components/Eyebrow";
 const faqs = [
   {
     q: "What sports does Grit support?",
-    a: "Running, cycling, swimming, strength training, mobility, and general fitness — with sport-specific guidance for each. Triathlon and powerlifting are first-class too.",
+    a: "Running, cycling, swimming, strength training, mobility, and general fitness have direct support in the app, but any sport can be recorded. Grit can also recommend, guide or simply take into account any other sports that you do, like football, padel, hiking etc.",
   },
   {
     q: "Do I need a smartwatch?",
-    a: "No. You can record workouts directly in the app with phone GPS and any Bluetooth heart-rate strap, or import from Garmin / Apple Health if you do have a watch.",
+    a: "No. You can record workouts directly in the app with your phone's GPS and any Bluetooth heart-rate strap, or import from your watch or other devices. Apple and Google Health are supported as well.",
   },
   {
     q: "Does it work offline?",
@@ -19,11 +19,11 @@ const faqs = [
   },
   {
     q: "Can I cancel Premium?",
-    a: "Anytime, directly from your app store subscription settings. You keep Premium features until the end of the billing period.",
+    a: "Anytime, directly from your subscription settings. You keep Premium features until the end of the billing period.",
   },
   {
     q: "What happens when I delete my account?",
-    a: "All personal data, workouts, conversations, and program history are permanently deleted within 30 days. You can request an export beforehand.",
+    a: "All personal data, workouts, conversations, and program history are permanently deleted immediately. Be mindful when your delete your account, as there is no undo.",
   },
 ];
 

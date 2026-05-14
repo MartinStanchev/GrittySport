@@ -2,19 +2,24 @@ import { SectionHeader } from "@/components/SectionHeader";
 
 const points = [
   {
-    title: "Generic plans don't fit you",
+    title: "Static plans don't change with you",
     body:
-      "Pre-built training templates ignore your schedule, your recovery, and how today's session actually went.",
+      "Pre-built training templates ignore what happens in your life. A week off or a busy weekend means your targets for next week will be off. Progress too quickly? Static plans can't increase your effort for the next session",
   },
   {
     title: "Single-sport apps miss the bigger picture",
     body:
-      "Running apps don't know about your strength sessions. Lifting apps don't see your fatigue from yesterday's ride.",
+      "Running apps don't know about your strength sessions. Lifting apps don't see your fatigue from yesterday's ride. Planning around your what you actually do is the key.",
   },
   {
     title: "Spreadsheets and notes don't learn",
     body:
-      "Logging is only useful if something acts on the data. Most tools just display numbers and leave the thinking to you.",
+      "Logging is only useful if something acts on the data. Tired of moving data from notes to calculator or your favourite chatbot for advice? Most tools just display numbers and don't act on them.",
+  },
+  {
+    title: "AI advice is only as good as what you remember to type",
+    body:
+      "Chatbots can't see your last run, your heart rate trends over past months, or your previous lifts during similar sessions. You end up summarizing your own data instead of getting advice on it.",
   },
 ];
 
@@ -24,9 +29,9 @@ export function Problem() {
       <div className="max-w-6xl mx-auto px-6">
         <SectionHeader
           eyebrow="The problem"
-          heading="Training apps weren't built for the way you actually train."
+          heading="Training apps don't take into account your life."
         />
-        <div className="mt-14 grid md:grid-cols-3 gap-8">
+        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {points.map((p) => (
             <div key={p.title} className="border-l-2 border-brand/30 pl-5">
               <h3 className="font-display font-semibold text-lg text-ink">

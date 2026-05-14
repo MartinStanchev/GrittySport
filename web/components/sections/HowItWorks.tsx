@@ -17,13 +17,32 @@ const steps = [
     n: "03",
     title: "Train and log freely",
     body:
-      "Use built-in GPS and HR tracking, import from Garmin, Apple Health, or files (GPX, TCX, FIT, CSV).",
+      "Use built-in GPS and HR tracking, import from Apple Health, or files (GPX, TCX, FIT, CSV).",
   },
   {
     n: "04",
     title: "Grit reviews and adapts",
     body:
       "After every workout, Grit checks how it went, asks what you felt, and tunes the next sessions to match.",
+  },
+];
+
+const adaptations = [
+  {
+    title: "Missed a week?",
+    body: "Grit resets your targets to get you back on track.",
+  },
+  {
+    title: "Slept badly?",
+    body: "Grit dials today's session to how you actually feel.",
+  },
+  {
+    title: "Long Sunday hikes?",
+    body: "Tell Grit which activities count — he'll plan around them.",
+  },
+  {
+    title: "Feeling extra strong?",
+    body: "Push it. Grit banks the gain into next week's progression.",
   },
 ];
 
@@ -57,6 +76,27 @@ export function HowItWorks() {
               )}
             </div>
           ))}
+        </div>
+
+        <div className="mt-16">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/70 text-center">
+            And when life happens
+          </p>
+          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {adaptations.map((a) => (
+              <div
+                key={a.title}
+                className="rounded-2xl p-5 border border-brand/10 bg-white/40"
+              >
+                <h3 className="font-display font-semibold text-base text-ink">
+                  {a.title}
+                </h3>
+                <p className="mt-2 text-ink-soft leading-relaxed text-sm">
+                  {a.body}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

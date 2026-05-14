@@ -13,7 +13,7 @@ const features = [
   },
   {
     icon: "🔌",
-    title: "Garmin & Apple Health",
+    title: "Apple Health",
     body: "Pull in workouts you've already logged on your watch or in Health.",
   },
   {
