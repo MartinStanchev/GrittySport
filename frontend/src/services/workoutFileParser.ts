@@ -11,7 +11,7 @@ import { parseZIPFile } from './parsers/zipHandler';
 
 export type { ZipParseResult } from './parsers/zipHandler';
 
-export type SourceFormat = 'gpx' | 'tcx' | 'fit' | 'csv' | 'apple_health';
+export type SourceFormat = 'gpx' | 'tcx' | 'fit' | 'csv' | 'apple_health' | 'health_connect';
 
 export interface WorkoutFileParseResult {
   name: string;

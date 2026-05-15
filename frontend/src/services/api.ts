@@ -629,7 +629,7 @@ export interface SaveWorkoutInput {
   scheduled_activity_id?: string;
   activity_type: string;
   recorded_data: Record<string, any>;
-  source: 'manual' | 'gps' | 'garmin' | 'apple_health' | 'gpx' | 'tcx' | 'fit' | 'csv';
+  source: 'manual' | 'gps' | 'garmin' | 'apple_health' | 'health_connect' | 'gpx' | 'tcx' | 'fit' | 'csv';
   started_at: string;
   finished_at?: string;
   gps_route?: Record<string, any>;

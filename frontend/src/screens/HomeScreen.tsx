@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
-import { isGPSActivity, isManualActivity } from '../constants/activityIcons';
+import { isGPSActivity } from '../constants/activityIcons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';

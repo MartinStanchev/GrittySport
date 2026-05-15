@@ -167,7 +167,7 @@ export function getActivityColor(type: string): string {
   return '#7C5CFC';
 }
 
-const INTENSITY_KEYWORDS: Array<[string, number]> = [
+const INTENSITY_KEYWORDS: [string, number][] = [
   ['recovery', 1],
   ['easy', 2],
   ['moderate', 3],

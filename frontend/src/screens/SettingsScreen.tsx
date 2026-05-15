@@ -23,8 +23,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { bleService } from '../services/bleService';
 import HRSensorModal from '../components/HRSensorModal';
 import DeleteAccountModal from '../components/DeleteAccountModal';
-import * as healthKit from '../services/healthKitService';
-import type { HealthKitStatus } from '../services/healthKitService';
+import * as externalImport from '../services/externalImportService';
+import type { ExternalImportStatus } from '../services/externalImportService';
 import { useUsage } from '../hooks/useUsage';
 import { deleteChatHistory, deleteGritMemory, exportMyData, getNotificationTypes, revokeAllSessions, updateNotificationPreference } from '../services/api';
 import type { NotificationType } from '../services/api';
@@ -46,9 +46,11 @@ async function openLegalUrl(url: string) {
   }
 }
 
-function appleHealthStatusLabel(status: HealthKitStatus, enabled: boolean): string {
+function externalImportStatusLabel(status: ExternalImportStatus, enabled: boolean): string {
   if (status === 'not_supported') return 'Not available on this device';
   if (status === 'needs_dev_build') return 'Requires a development build';
+  if (status === 'needs_install') return 'Install Health Connect to enable';
+  if (status === 'needs_update') return 'Update Health Connect to continue';
   if (enabled) return 'Connected';
   return 'Not connected';
 }
@@ -72,9 +74,12 @@ export default function SettingsScreen() {
   const [connectedDevice, setConnectedDevice] = useState<string | null>(
     bleService.isConnected() ? (bleService.getDeviceName() ?? null) : null,
   );
-  const [appleHealthStatus, setAppleHealthStatus] = useState<HealthKitStatus>('not_supported');
-  const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
-  const [appleHealthLoading, setAppleHealthLoading] = useState(false);
+  const [externalStatus, setExternalStatus] = useState<ExternalImportStatus>('not_supported');
+  const [externalEnabled, setExternalEnabled] = useState(false);
+  const [externalLoading, setExternalLoading] = useState(false);
+  const externalSource = externalImport.getCurrentSource();
+  const externalLabel = externalImport.getSourceLabel(externalSource);
+  const externalKey = externalSource ? externalImport.ENABLED_FLAG_KEY[externalSource] : null;
   const [clearingChat, setClearingChat] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
   const [notifTypes, setNotifTypes] = useState<NotificationType[]>([]);
@@ -154,18 +159,18 @@ export default function SettingsScreen() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const status = await healthKit.checkAvailability();
+      const status = await externalImport.checkAvailability();
       if (!mounted) return;
-      setAppleHealthStatus(status);
-      if (status === 'available') {
+      setExternalStatus(status);
+      if (status === 'available' && externalKey) {
         const stored = await import('expo-secure-store').then((s) =>
-          s.getItemAsync('apple_health_enabled'),
+          s.getItemAsync(externalKey),
         );
-        if (mounted && stored === 'true') setAppleHealthEnabled(true);
+        if (mounted && stored === 'true') setExternalEnabled(true);
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [externalKey]);
 
   const { usage, refresh: refreshUsage } = useUsage();
 
@@ -331,50 +336,58 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </KineticPanel>
 
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Connected Devices</Text>
-        <KineticPanel style={styles.section}>
-          <View style={styles.deviceRow}>
-            <Ionicons name="heart" size={20} color="#FF2D55" />
-            <View style={styles.deviceInfo}>
-              <Text style={[styles.deviceName, { color: colors.textPrimary }]}>Apple Health</Text>
-              <Text style={[styles.deviceStatus, { color: colors.textSecondary }]}>
-                {appleHealthStatusLabel(appleHealthStatus, appleHealthEnabled)}
-              </Text>
-            </View>
-            {appleHealthStatus === 'available' && (
-              <TouchableOpacity
-                style={[styles.deviceActionButton, { borderColor: colors.primary }, appleHealthEnabled && { borderColor: colors.border }]}
-                disabled={appleHealthLoading}
-                onPress={async () => {
-                  setAppleHealthLoading(true);
-                  try {
-                    const SecureStore = await import('expo-secure-store');
-                    if (appleHealthEnabled) {
-                      await SecureStore.deleteItemAsync('apple_health_enabled');
-                      setAppleHealthEnabled(false);
-                    } else {
-                      await healthKit.requestPermissions();
-                      await SecureStore.setItemAsync('apple_health_enabled', 'true');
-                      setAppleHealthEnabled(true);
-                    }
-                  } catch {
-                    Alert.alert('Error', 'Could not update Apple Health connection.');
-                  } finally {
-                    setAppleHealthLoading(false);
-                  }
-                }}
-              >
-                {appleHealthLoading ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Text style={[styles.deviceActionText, { color: colors.primary }, appleHealthEnabled && { color: colors.textSecondary }]}>
-                    {appleHealthEnabled ? 'Disable' : 'Enable'}
+        {externalSource && (
+          <>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Connected Devices</Text>
+            <KineticPanel style={styles.section}>
+              <View style={styles.deviceRow}>
+                <Ionicons
+                  name={externalSource === 'apple_health' ? 'heart' : 'fitness'}
+                  size={20}
+                  color={externalSource === 'apple_health' ? '#FF2D55' : '#34A853'}
+                />
+                <View style={styles.deviceInfo}>
+                  <Text style={[styles.deviceName, { color: colors.textPrimary }]}>{externalLabel}</Text>
+                  <Text style={[styles.deviceStatus, { color: colors.textSecondary }]}>
+                    {externalImportStatusLabel(externalStatus, externalEnabled)}
                   </Text>
+                </View>
+                {externalStatus === 'available' && externalKey && (
+                  <TouchableOpacity
+                    style={[styles.deviceActionButton, { borderColor: colors.primary }, externalEnabled && { borderColor: colors.border }]}
+                    disabled={externalLoading}
+                    onPress={async () => {
+                      setExternalLoading(true);
+                      try {
+                        const SecureStore = await import('expo-secure-store');
+                        if (externalEnabled) {
+                          await SecureStore.deleteItemAsync(externalKey);
+                          setExternalEnabled(false);
+                        } else {
+                          await externalImport.requestPermissions();
+                          await SecureStore.setItemAsync(externalKey, 'true');
+                          setExternalEnabled(true);
+                        }
+                      } catch {
+                        Alert.alert('Error', `Could not update ${externalLabel} connection.`);
+                      } finally {
+                        setExternalLoading(false);
+                      }
+                    }}
+                  >
+                    {externalLoading ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Text style={[styles.deviceActionText, { color: colors.primary }, externalEnabled && { color: colors.textSecondary }]}>
+                        {externalEnabled ? 'Disable' : 'Enable'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-            )}
-          </View>
-        </KineticPanel>
+              </View>
+            </KineticPanel>
+          </>
+        )}
 
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: colors.primary }, (!hasChanges || isSaving) && styles.saveButtonDisabled]}

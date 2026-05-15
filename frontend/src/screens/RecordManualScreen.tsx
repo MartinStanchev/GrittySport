@@ -609,6 +609,7 @@ function RestTimerModal({ visible, seconds, onClose }: { visible: boolean; secon
       if (remaining === 0) onClose();
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onClose is intentionally excluded; it fires only when the countdown hits 0
   }, [active, remaining]);
 
   return (
@@ -815,6 +816,7 @@ export default function RecordManualScreen() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- individual activeWorkout fields are tracked
   }, [activeWorkout?.startedAt, activeWorkout?.phase, activeWorkout?.lastPauseStart, activeWorkout?.pausedDurationSec]);
 
   // Mobility countdown timers — frozen while the workout is paused
@@ -834,6 +836,7 @@ export default function RecordManualScreen() {
       });
     }, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mobilityExercises identity drives the timer; updateWorkout is stable
   }, [activeWorkout?.mobilityExercises]);
 
   // On mount: if no active workout, start one (from params or wait for type-select)
@@ -892,7 +895,8 @@ export default function RecordManualScreen() {
         drillNotes: '',
       });
     }
-  }, []); // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
 
   function buildPrescriptionState(type: WorkoutType, prescription: Record<string, any>): [ExerciseLog[], MobilityExerciseLog[], { name: string; description: string }] {
     const strength: ExerciseLog[] = type === 'strength' && (prescription.exercises ?? []).length > 0

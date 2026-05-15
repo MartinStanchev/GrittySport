@@ -115,7 +115,7 @@ export default function CreateProgramPhasesScreen({ navigation, route }: Props) 
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
-  const params = route.params || {};
+  const params = useMemo(() => route.params || {}, [route.params]);
   const { name, sport, goalMode, event, eventDate, durationWeeks, goal, startDate } = params;
 
   const targetWeeks = useMemo(() => computeTargetWeeks(params), [params]);

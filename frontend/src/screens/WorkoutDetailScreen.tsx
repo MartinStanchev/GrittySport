@@ -43,6 +43,7 @@ type LinkOption = { id: string; activityType: string; dateLabel: string };
 
 const SOURCE_BADGES: Record<string, { icon: string; color: string; label: string }> = {
   apple_health: { icon: 'heart', color: '#FF2D55', label: 'Apple Health' },
+  health_connect: { icon: 'fitness', color: '#34A853', label: 'Health Connect' },
   garmin: { icon: 'watch-outline', color: '#007DC3', label: 'Garmin' },
   gpx: { icon: 'map-outline', color: '#2196F3', label: 'GPX Import' },
 };

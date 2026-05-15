@@ -111,6 +111,7 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
         return `${x},${y}`;
       })
       .join(' ');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bpmToY closes over chartMin/chartRange which are tracked
   }, [downsampled, plotWidth, chartMin, chartRange]);
 
   if (downsampled.length < 2) return null;

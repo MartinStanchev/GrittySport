@@ -936,8 +936,8 @@ type MonthViewProps = {
 };
 
 function MonthView({ monthAnchor, setMonthAnchor, activitiesByDate, flatWeeks, today, onCellPress, colors }: MonthViewProps) {
-  const monthStart = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
-  const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+  const monthStart = useMemo(() => new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1), [monthAnchor]);
+  const monthEnd = useMemo(() => new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0), [monthAnchor]);
   const programStart = startOfDay(new Date(flatWeeks[0].weekMonday));
   const programEnd = addDays(startOfDay(new Date(flatWeeks[flatWeeks.length - 1].weekMonday)), 6);
 

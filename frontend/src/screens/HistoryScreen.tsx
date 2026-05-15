@@ -92,6 +92,7 @@ function keyStat(workout: WorkoutResponse): string {
 
 function sourceBadge(source: string): { icon: string; color: string } | null {
   if (source === 'apple_health') return { icon: 'heart', color: '#FF2D55' };
+  if (source === 'health_connect') return { icon: 'fitness', color: '#34A853' };
   if (source === 'garmin') return { icon: 'watch-outline', color: '#007DC3' };
   if (source === 'gpx') return { icon: 'map-outline', color: '#2196F3' };
   return null;

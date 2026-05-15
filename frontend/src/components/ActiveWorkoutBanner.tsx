@@ -8,13 +8,6 @@ import { useWorkout } from '../contexts/WorkoutContext';
 import { navigationRef } from '../navigation/navigationRef';
 import { formatDistanceKm } from '../services/gpsUtils';
 
-function getActiveRouteName(state: any): string | undefined {
-  if (!state) return undefined;
-  const route = state.routes[state.index];
-  if (route.state) return getActiveRouteName(route.state);
-  return route.name;
-}
-
 export function ActiveWorkoutBanner() {
   const { colors } = useTheme();
   const { activeWorkout, activeGPSWorkout, workoutMode } = useWorkout();
@@ -46,6 +39,7 @@ export function ActiveWorkoutBanner() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- individual fields are tracked
   }, [activeWorkout?.startedAt, activeWorkout?.phase, activeWorkout?.lastPauseStart, activeWorkout?.pausedDurationSec]);
 
   if (workoutMode === null) return null;

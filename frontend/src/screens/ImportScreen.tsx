@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -18,9 +17,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon } from '../constants/activityIcons';
-import * as healthKit from '../services/healthKitService';
-import type { HealthKitWorkoutSummary } from '../services/healthKitService';
-import { getImportedUUIDs } from '../services/importedWorkoutsStore';
+import {
+  ENABLED_FLAG_KEY,
+  getCurrentSource,
+  getRecentWorkouts,
+  getSourceLabel,
+  type ExternalWorkoutSummary,
+} from '../services/externalImportService';
+import { getImportedKeys } from '../services/importedWorkoutsStore';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 type Props = NativeStackScreenProps<any, 'Import'>;
@@ -52,7 +56,7 @@ function WorkoutRow({
   onPress,
   colors,
 }: {
-  workout: HealthKitWorkoutSummary;
+  workout: ExternalWorkoutSummary;
   imported: boolean;
   onPress: () => void;
   colors: ThemeColors;
@@ -112,43 +116,44 @@ function WorkoutRow({
 export default function ImportScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [workouts, setWorkouts] = useState<HealthKitWorkoutSummary[]>([]);
-  const [importedUUIDs, setImportedUUIDs] = useState<Set<string>>(new Set());
+  const [workouts, setWorkouts] = useState<ExternalWorkoutSummary[]>([]);
+  const [importedKeys, setImportedKeys] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [appleHealthEnabled, setAppleHealthEnabled] = useState(false);
+  const [providerEnabled, setProviderEnabled] = useState(false);
+
+  const source = getCurrentSource();
+  const sourceLabel = getSourceLabel(source);
 
   const loadData = useCallback(async () => {
     try {
-      if (Platform.OS !== 'ios') {
-        setAppleHealthEnabled(false);
+      if (!source) {
+        setProviderEnabled(false);
         return;
       }
       const SecureStore = await import('expo-secure-store');
-      const enabled = (await SecureStore.getItemAsync('apple_health_enabled')) === 'true';
-      setAppleHealthEnabled(enabled);
+      const enabled = (await SecureStore.getItemAsync(ENABLED_FLAG_KEY[source])) === 'true';
+      setProviderEnabled(enabled);
       if (!enabled) return;
 
       const since = new Date();
       since.setDate(since.getDate() - 14);
 
-      const [hkWorkouts, imported] = await Promise.all([
-        healthKit.getRecentWorkouts(since),
-        getImportedUUIDs(),
+      const [externalWorkouts, imported] = await Promise.all([
+        getRecentWorkouts(since),
+        getImportedKeys(source),
       ]);
-      setWorkouts(hkWorkouts);
-      setImportedUUIDs(imported);
+      setWorkouts(externalWorkouts);
+      setImportedKeys(imported);
     } catch (e) {
       console.warn('[Import] Failed to load:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [source]);
 
-  // Refresh on focus so newly-imported UUIDs grey out when returning from preview.
-  // Wrapper is needed because useFocusEffect expects a sync callback (void return),
-  // not the Promise returned by `loadData`.
+  // Refresh on focus so newly-imported keys grey out when returning from preview.
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -160,25 +165,30 @@ export default function ImportScreen({ navigation }: Props) {
     loadData();
   }, [loadData]);
 
-  if (Platform.OS !== 'ios') {
+  if (!source) {
     return (
       <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
         <Ionicons name="phone-portrait-outline" size={48} color={colors.textSecondary} />
         <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Not Available</Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Apple Health import is only available on iOS devices.
+          Workout import is only available on iOS and Android devices.
         </Text>
       </View>
     );
   }
 
-  if (!appleHealthEnabled && !loading) {
+  if (!providerEnabled && !loading) {
+    const accentColor = source === 'apple_health' ? '#FF2D55' : '#34A853';
     return (
       <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
-        <Ionicons name="heart-outline" size={48} color="#FF2D55" />
-        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>Apple Health Not Connected</Text>
+        <Ionicons
+          name={source === 'apple_health' ? 'heart-outline' : 'fitness-outline'}
+          size={48}
+          color={accentColor}
+        />
+        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{sourceLabel} Not Connected</Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Enable Apple Health in Settings to import your workouts.
+          Enable {sourceLabel} in Settings to import your workouts.
         </Text>
         <TouchableOpacity
           style={[styles.goToSettingsButton, { backgroundColor: colors.primary }]}
@@ -191,8 +201,8 @@ export default function ImportScreen({ navigation }: Props) {
   }
 
   const sortedWorkouts = [...workouts].sort((a, b) => {
-    const aImported = importedUUIDs.has(a.uuid);
-    const bImported = importedUUIDs.has(b.uuid);
+    const aImported = importedKeys.has(a.externalId);
+    const bImported = importedKeys.has(b.externalId);
     if (aImported !== bImported) return aImported ? 1 : -1;
     return b.startDate.getTime() - a.startDate.getTime();
   });
@@ -202,26 +212,26 @@ export default function ImportScreen({ navigation }: Props) {
       <KineticHeader
         eyebrow="Import"
         title="External workouts"
-        subtitle="Bring sessions in from Apple Health and link them back to your plan."
+        subtitle={`Bring sessions in from ${sourceLabel} and link them back to your plan.`}
       />
 
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingMainText, { color: colors.textSecondary }]}>Loading Apple Health workouts...</Text>
+          <Text style={[styles.loadingMainText, { color: colors.textSecondary }]}>Loading {sourceLabel} workouts...</Text>
         </View>
       ) : workouts.length === 0 ? (
         <View style={[styles.emptyContainer, { paddingBottom: insets.bottom, backgroundColor: colors.background }]}>
           <Ionicons name="fitness-outline" size={48} color={colors.textSecondary} />
           <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No Recent Workouts</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-            No workouts found in Apple Health from the last 14 days.
+            No workouts found in {sourceLabel} from the last 14 days.
           </Text>
         </View>
       ) : (
         <FlatList
           data={sortedWorkouts}
-          keyExtractor={(w) => w.uuid}
+          keyExtractor={(w) => w.externalId}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 16 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
@@ -229,9 +239,10 @@ export default function ImportScreen({ navigation }: Props) {
           renderItem={({ item }) => (
             <WorkoutRow
               workout={item}
-              imported={importedUUIDs.has(item.uuid)}
+              imported={importedKeys.has(item.externalId)}
               onPress={() => navigation.navigate('ImportPreview', {
-                healthKitUuid: item.uuid,
+                externalId: item.externalId,
+                externalSource: item.source,
                 preselectedType: item.mappedActivityType,
               })}
               colors={colors}

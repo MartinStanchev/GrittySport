@@ -98,6 +98,7 @@ function getHK(): HKModule {
     const orig = console.error;
     try {
       console.error = () => {};
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy load: module is native-only and crashes on Android/web/Expo Go at import time
       _hk = require('@kingstinct/react-native-healthkit') as HKModule;
     } catch {
       _hkUnavailable = true;

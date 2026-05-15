@@ -28,7 +28,8 @@ export function FABActionSheet({ visible, onClose, onStartWorkout, onLogActivity
         Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible]); // slideAnim and opacityAnim are stable Animated.Value refs
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- slideAnim/opacityAnim are stable Animated.Value refs
+  }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>

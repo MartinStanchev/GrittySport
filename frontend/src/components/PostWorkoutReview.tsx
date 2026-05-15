@@ -183,7 +183,7 @@ export function PostWorkoutReview({
         <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
           <Text style={[styles.avatarText, { color: colors.primary }]}>G</Text>
         </View>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Grit's Review</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Grit&apos;s Review</Text>
         <View style={[styles.aiBadge, { borderColor: colors.primary }]}>
           <Text style={[styles.aiBadgeText, { color: colors.primary }]}>AI</Text>
         </View>

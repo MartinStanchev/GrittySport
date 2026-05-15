@@ -40,22 +40,27 @@ import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { Fonts } from '../constants/fonts';
-import * as healthKit from '../services/healthKitService';
-import { markImported } from '../services/importedWorkoutsStore';
+import {
+  loadWorkoutParseResult,
+  markWorkoutImported,
+  getSourceLabel,
+  type ExternalSource,
+} from '../services/externalImportService';
 
 interface RouteParams {
   // File flow
   fileUri?: string;
   fileName?: string;
-  // Apple Health flow
-  healthKitUuid?: string;
+  // Apple Health / Health Connect flow
+  externalId?: string;
+  externalSource?: ExternalSource;
   // Common
   scheduledActivityId?: string;
   preselectedType?: string;
 }
 
 export default function ImportPreviewScreen({ route, navigation }: any) {
-  const { fileUri, fileName, healthKitUuid, scheduledActivityId, preselectedType } =
+  const { fileUri, fileName, externalId, externalSource, scheduledActivityId, preselectedType } =
     route.params as RouteParams;
   const insets = useSafeAreaInsets();
   const { notifyProgramDataChanged, requestOpenChat } = useProgram();
@@ -71,9 +76,9 @@ export default function ImportPreviewScreen({ route, navigation }: any) {
   useEffect(() => {
     (async () => {
       try {
-        if (healthKitUuid) {
-          const result = await loadHealthKitWorkout(healthKitUuid);
-          setParseResult(result);
+        if (externalId) {
+          const workout = await loadWorkoutParseResult(externalId);
+          setParseResult({ kind: 'single', workout });
         } else if (fileUri && fileName) {
           const result = await parseWorkoutFile(fileUri, fileName);
 
@@ -106,15 +111,16 @@ export default function ImportPreviewScreen({ route, navigation }: any) {
         setLoading(false);
       }
     })();
-  }, [fileUri, fileName, healthKitUuid]);
+  }, [fileUri, fileName, externalId]);
 
   if (loading) {
+    const loadingLabel = externalId
+      ? `Loading ${getSourceLabel(externalSource ?? null) || 'workout'}...`
+      : 'Parsing workout file...';
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          {healthKitUuid ? 'Loading Apple Health workout...' : 'Parsing workout file...'}
-        </Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{loadingLabel}</Text>
       </View>
     );
   }
@@ -150,7 +156,7 @@ export default function ImportPreviewScreen({ route, navigation }: any) {
       workout={workout}
       preselectedType={preselectedType}
       scheduledActivityId={scheduledActivityId}
-      healthKitUuid={healthKitUuid}
+      externalId={externalId}
       navigation={navigation}
       notifyProgramDataChanged={notifyProgramDataChanged}
       requestOpenChat={requestOpenChat}
@@ -158,21 +164,6 @@ export default function ImportPreviewScreen({ route, navigation }: any) {
       onBackToList={parseResult.kind === 'zip' ? () => setSelectedWorkout(null) : undefined}
     />
   );
-}
-
-// ── HealthKit loader ───────────────────────────────────────────────────
-
-async function loadHealthKitWorkout(uuid: string): Promise<ParseResult> {
-  const summary = await healthKit.getWorkoutByUUID(uuid);
-  if (!summary) throw new Error('Workout not found in Apple Health.');
-
-  const [hrReadings, gpsPoints] = await Promise.all([
-    healthKit.getWorkoutHeartRate(summary.startDate, summary.endDate),
-    summary.isIndoor ? Promise.resolve([]) : healthKit.getWorkoutRoute(summary.uuid),
-  ]);
-
-  const workout = healthKit.buildHealthKitParseResult(summary, hrReadings, gpsPoints);
-  return { kind: 'single', workout };
 }
 
 // ── ZIP file list ──────────────────────────────────────────────────────
@@ -238,7 +229,7 @@ function WorkoutPreview({
   workout,
   preselectedType,
   scheduledActivityId,
-  healthKitUuid,
+  externalId,
   navigation,
   notifyProgramDataChanged,
   requestOpenChat,
@@ -248,7 +239,7 @@ function WorkoutPreview({
   workout: WorkoutFileParseResult;
   preselectedType?: string;
   scheduledActivityId?: string;
-  healthKitUuid?: string;
+  externalId?: string;
   navigation: any;
   notifyProgramDataChanged: () => void;
   requestOpenChat: () => void;
@@ -322,8 +313,8 @@ function WorkoutPreview({
     try {
       const payload = buildFileSavePayload(workout, activityType, notes, scheduledActivityId);
       const saved = await saveWorkout(payload);
-      if (healthKitUuid) {
-        await markImported(healthKitUuid, saved.id);
+      if (externalId) {
+        await markWorkoutImported(externalId, saved.id);
       }
       notifyProgramDataChanged();
       setSavedWorkoutId(saved.id);
