@@ -231,6 +231,8 @@ func main() {
 	r.Use(chimw.RealIP)
 	r.Use(appmw.RequestLogger)
 	r.Use(chimw.Recoverer)
+	r.Use(appmw.SecurityHeaders)
+	r.Use(appmw.BodyLimit(8 << 20))
 	r.Use(corsMiddleware(corsAllowed))
 
 	r.Get("/api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -304,8 +306,21 @@ func main() {
 		})
 	})
 
+	// ReadHeaderTimeout defends against Slowloris (clients dribbling headers).
+	// ReadTimeout / WriteTimeout are bounded but generous enough for large
+	// workout uploads and GDPR export responses. IdleTimeout caps keep-alive
+	// sockets. Timeouts do not apply to a WebSocket connection after the
+	// hijack, so chat sessions are unaffected.
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		WriteTimeout:      120 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 	log.Info().Str("port", port).Msg("Starting server")
-	if err := http.ListenAndServe(":"+port, r); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal().Err(err).Msg("Server failed to start")
 	}
 }

@@ -128,8 +128,28 @@ type wsWriter struct {
 func (w *wsWriter) writeJSON(v any) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	_ = w.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
 	return w.conn.WriteJSON(v)
 }
+
+// writePing sends a websocket-level ping under the same mutex as writeJSON so
+// ping frames never interleave with concurrent JSON writes.
+func (w *wsWriter) writePing() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_ = w.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+	return w.conn.WriteMessage(websocket.PingMessage, nil)
+}
+
+// WebSocket lifecycle constants. The read limit is far above the chat message
+// cap (4000 runes ≈ 16 KB worst-case UTF-8) but small enough to stop frame-
+// flood DoS. Pong wait + ping period follow the gorilla/websocket pattern.
+const (
+	wsReadLimit  = 64 * 1024
+	wsPongWait   = 60 * time.Second
+	wsPingPeriod = (wsPongWait * 9) / 10
+	wsWriteWait  = 10 * time.Second
+)
 
 func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	token := r.URL.Query().Get("token")
@@ -153,7 +173,36 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Cap frame size, require a pong inside wsPongWait, and refresh the read
+	// deadline whenever a pong arrives — kills zombie sockets and oversized
+	// frame floods.
+	conn.SetReadLimit(wsReadLimit)
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+		return nil
+	})
+
 	ws := &wsWriter{conn: conn}
+
+	// Send ping frames at wsPingPeriod so the client (and any intermediary
+	// load balancer) keeps the connection alive and we detect dead peers.
+	pingDone := make(chan struct{})
+	defer close(pingDone)
+	go func() {
+		ticker := time.NewTicker(wsPingPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := ws.writePing(); err != nil {
+					return
+				}
+			case <-pingDone:
+				return
+			}
+		}
+	}()
 
 	log.Debug().Str("user_id", userID).Msg("WS connected")
 
