@@ -40,6 +40,11 @@ export function Footer() {
                 FAQ
               </Link>
             </li>
+            <li>
+              <Link href="/about" className="hover:text-ink">
+                About
+              </Link>
+            </li>
           </ul>
         </div>
 

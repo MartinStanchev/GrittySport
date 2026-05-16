@@ -1,10 +1,34 @@
 import type { Metadata } from "next";
 import { LegalLayout } from "@/components/LegalLayout";
+import { JsonLd } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Gritty Fitness",
   description:
-    "Information on the processing of personal data pursuant to Art. 13 GDPR.",
+    "How Gritty Fitness collects, stores, and protects your workout and health data. GDPR-compliant, EU-hosted.",
+  alternates: { canonical: "https://grittyfitness.app/privacy" },
+  openGraph: {
+    title: "Privacy Policy — Gritty Fitness",
+    description:
+      "How Gritty Fitness collects, stores, and protects your workout and health data.",
+    type: "website",
+    url: "https://grittyfitness.app/privacy",
+  },
+};
+
+const privacyPolicyJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "PrivacyPolicy",
+  name: "Gritty Fitness Privacy Policy",
+  url: "https://grittyfitness.app/privacy",
+  inLanguage: "en",
+  isPartOf: {
+    "@type": "WebSite",
+    name: "Gritty Fitness",
+    url: "https://grittyfitness.app",
+  },
+  description:
+    "How Gritty Fitness collects, stores, and protects your workout and health data, in compliance with GDPR.",
 };
 
 // IMPORTANT: This is a starter Privacy Policy. Have it reviewed by a lawyer
@@ -16,6 +40,7 @@ export default function PrivacyPage() {
       title="Privacy Policy"
       subtitle="Information pursuant to Art. 13 GDPR"
     >
+      <JsonLd data={privacyPolicyJsonLd} />
       <h2>1. Controller</h2>
       <p>
         The controller responsible for data processing on this website is:

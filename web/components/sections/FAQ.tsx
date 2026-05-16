@@ -1,31 +1,5 @@
 import { Eyebrow } from "@/components/Eyebrow";
-
-const faqs = [
-  {
-    q: "What sports does Grit support?",
-    a: "Running, cycling, swimming, strength training, mobility, and general fitness have direct support in the app, but any sport can be recorded. Grit can also recommend, guide or simply take into account any other sports that you do, like football, padel, hiking etc.",
-  },
-  {
-    q: "Do I need a smartwatch?",
-    a: "No. You can record workouts directly in the app with your phone's GPS and any Bluetooth heart-rate strap, or import from your watch or other devices. Apple and Google Health are supported as well.",
-  },
-  {
-    q: "Does it work offline?",
-    a: "Yes. The app caches your program and recent workouts so it stays usable without signal. Your data syncs automatically when you reconnect.",
-  },
-  {
-    q: "How is my data handled?",
-    a: "Your training data is yours. We store it securely on EU infrastructure, never sell it, and you can export or delete your account at any time. See the Privacy Policy for full details.",
-  },
-  {
-    q: "Can I cancel Premium?",
-    a: "Anytime, directly from your subscription settings. You keep Premium features until the end of the billing period.",
-  },
-  {
-    q: "What happens when I delete my account?",
-    a: "All personal data, workouts, conversations, and program history are permanently deleted immediately. Be mindful when your delete your account, as there is no undo.",
-  },
-];
+import { faqEntries } from "@/components/sections/faq-data";
 
 export function FAQ() {
   return (
@@ -38,20 +12,20 @@ export function FAQ() {
           </h2>
         </div>
         <div className="mt-12 space-y-3">
-          {faqs.map((f) => (
+          {faqEntries.map((f) => (
             <details
-              key={f.q}
+              key={f.question}
               className="group rounded-2xl bg-white border border-black/5 p-5 open:border-brand/20"
             >
               <summary className="flex items-center justify-between cursor-pointer list-none">
                 <span className="font-display font-semibold text-ink">
-                  {f.q}
+                  {f.question}
                 </span>
                 <span className="text-brand text-xl group-open:rotate-45 transition">
                   +
                 </span>
               </summary>
-              <p className="mt-3 text-ink-soft leading-relaxed">{f.a}</p>
+              <p className="mt-3 text-ink-soft leading-relaxed">{f.answer}</p>
             </details>
           ))}
         </div>

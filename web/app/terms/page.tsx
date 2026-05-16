@@ -1,10 +1,34 @@
 import type { Metadata } from "next";
 import { LegalLayout } from "@/components/LegalLayout";
+import { JsonLd } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
   title: "Terms of Service — Gritty Fitness",
   description:
-    "Terms of Service governing the use of the Gritty Fitness app and the Premium subscription.",
+    "Terms of Service governing use of the Gritty Fitness app, the AI coaching features, and the Premium subscription.",
+  alternates: { canonical: "https://grittyfitness.app/terms" },
+  openGraph: {
+    title: "Terms of Service — Gritty Fitness",
+    description:
+      "Terms governing use of the Gritty Fitness app and Premium subscription.",
+    type: "website",
+    url: "https://grittyfitness.app/terms",
+  },
+};
+
+const termsJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "TermsOfService",
+  name: "Gritty Fitness Terms of Service",
+  url: "https://grittyfitness.app/terms",
+  inLanguage: "en",
+  isPartOf: {
+    "@type": "WebSite",
+    name: "Gritty Fitness",
+    url: "https://grittyfitness.app",
+  },
+  description:
+    "Conditions governing the use of the Gritty Fitness app and Premium subscription.",
 };
 
 // IMPORTANT: This is a placeholder skeleton. Once you sell Premium via the web
@@ -16,6 +40,7 @@ export default function TermsPage() {
       title="Terms of Service"
       subtitle="Conditions for using Gritty Fitness"
     >
+      <JsonLd data={termsJsonLd} />
       <h2>1. Scope</h2>
       <p>
         These Terms of Service (&ldquo;Terms&rdquo;) apply to all contracts

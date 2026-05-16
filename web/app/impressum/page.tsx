@@ -1,10 +1,33 @@
 import type { Metadata } from "next";
 import { LegalLayout } from "@/components/LegalLayout";
+import { JsonLd } from "@/components/JsonLd";
 
 export const metadata: Metadata = {
   title: "Impressum — Gritty Fitness",
   description:
     "Anbieterkennzeichnung gemäß § 5 TMG für Gritty Fitness.",
+  alternates: { canonical: "https://grittyfitness.app/impressum" },
+  openGraph: {
+    title: "Impressum — Gritty Fitness",
+    description: "Anbieterkennzeichnung gemäß § 5 TMG für Gritty Fitness.",
+    type: "website",
+    locale: "de_DE",
+    url: "https://grittyfitness.app/impressum",
+  },
+};
+
+const impressumJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: "Impressum — Gritty Fitness",
+  url: "https://grittyfitness.app/impressum",
+  inLanguage: "de",
+  isPartOf: {
+    "@type": "WebSite",
+    name: "Gritty Fitness",
+    url: "https://grittyfitness.app",
+  },
+  description: "Anbieterkennzeichnung gemäß § 5 TMG.",
 };
 
 // IMPORTANT: Replace every <span class="placeholder">...</span> with your real
@@ -15,6 +38,7 @@ export default function ImpressumPage() {
       title="Impressum"
       subtitle="Angaben gemäß § 5 TMG"
     >
+      <JsonLd data={impressumJsonLd} />
       <h2>Anbieter</h2>
       <p>
         <strong><span className="placeholder">[Vollständiger Name / Firmenname]</span></strong>

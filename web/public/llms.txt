@@ -1,0 +1,16 @@
+# Gritty Fitness
+
+> Gritty is an AI-powered fitness coaching app that builds and adapts a holistic, multi-sport training plan around each user — running, cycling, swimming, strength, mobility, and recovery. Workouts are imported from Apple Health, Health Connect, and file formats (GPX, TCX, FIT, CSV) or recorded in-app via GPS. After every session the AI coach, "Grit", reviews performance and adjusts upcoming workouts.
+
+## Product
+- [Landing page](https://grittyfitness.app/): What Gritty does and how it works
+- [How it works](https://grittyfitness.app/#how): The four-step coaching loop — intake, plan, log, adapt
+- [Features](https://grittyfitness.app/#features): Multi-sport coverage, AI reviews, GPS recording, imports, offline mode
+- [Premium](https://grittyfitness.app/#premium): Free and Premium feature comparison (€7.99/month or €69/year)
+- [FAQ](https://grittyfitness.app/#faq): Common questions about supported sports, devices, data handling, cancellation
+- [About](https://grittyfitness.app/about): The team behind Gritty Fitness
+
+## Legal
+- [Privacy Policy](https://grittyfitness.app/privacy): GDPR-compliant data handling, EU hosting
+- [Terms of Service](https://grittyfitness.app/terms): Terms governing use of the app and Premium subscription
+- [Impressum (DE)](https://grittyfitness.app/impressum): Anbieterkennzeichnung gemäß § 5 TMG

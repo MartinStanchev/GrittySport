@@ -98,6 +98,7 @@ Full details for each change are in the `progress/` folder.
 | [chat-monthly-cap-and-input-limit](progress/chat-monthly-cap-and-input-limit.md) | Free chat limit moved from 40/week to 60/month (aligns with other monthly limits); 4000-char per-message cap with explicit rejection (replaces silent truncation); `message_too_long` WS frame surfaced in UI |
 | [birth-year-wheel-picker](progress/birth-year-wheel-picker.md) | Replace 4-digit `TextInput` on consent screen with snap-scroll wheel year picker bounded `[currentYear - 100, currentYear - 16]`; bounds enforce 16+ at the UI layer so error/helper validation goes away |
 | [health-connect-import](progress/health-connect-import.md) | Android Health Connect import: mirrors Apple Health flow via platform-aware façade; covers Fitbit/Garmin/Samsung/Strava/Whoop/Wear OS via on-device hub; source-agnostic dedupe store |
+| [task-28-seo-llm-discoverability](progress/task-28-seo-llm-discoverability.md) | Marketing-site SEO/LLM discoverability: `llms.txt`, `robots.ts` (allowlist incl. CCBot/GPTBot/ClaudeBot/PerplexityBot/Google-Extended), `sitemap.ts`, build-time OG image + favicon via `next/og`, JSON-LD (SoftwareApplication / Organization / FAQPage / PrivacyPolicy / TermsOfService / AboutPage + Person) and an About page |
 
 ## Instructions for Agents
 
