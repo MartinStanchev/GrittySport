@@ -559,6 +559,27 @@ export default function SettingsScreen() {
             </TouchableOpacity>
         </KineticPanel>
 
+        {__DEV__ && (
+          <>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Developer</Text>
+            <KineticPanel style={styles.section}>
+              <TouchableOpacity
+                style={[styles.navRow, { borderColor: colors.border }]}
+                onPress={() => navigation.navigate('MarketingPlayground')}
+              >
+                <Ionicons name="camera" size={20} color={colors.primary} />
+                <View style={styles.navRowInfo}>
+                  <Text style={[styles.navRowLabel, { color: colors.textPrimary }]}>Marketing Playground</Text>
+                  <Text style={[styles.navRowHint, { color: colors.textSecondary }]}>
+                    Render chat & lockscreen scenes for screenshots
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </KineticPanel>
+          </>
+        )}
+
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Legal</Text>
         <KineticPanel style={styles.section}>
           {LEGAL_LINKS.map((link, index) => (

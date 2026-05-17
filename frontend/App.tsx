@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import ConsentScreen from './src/screens/auth/ConsentScreen';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
+import MarketingPlaygroundScreen from './src/screens/MarketingPlaygroundScreen';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { OfflineBanner } from './src/components/OfflineBanner';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -23,6 +24,7 @@ import { useNotifications } from './src/hooks/useNotifications';
 function RootNavigator() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { colors } = useTheme();
+  const [playgroundOpen, setPlaygroundOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -32,7 +34,13 @@ function RootNavigator() {
     );
   }
 
-  if (!isAuthenticated) return <AuthScreen />;
+  if (playgroundOpen) {
+    return <MarketingPlaygroundScreen onClose={() => setPlaygroundOpen(false)} />;
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen onOpenPlayground={__DEV__ ? () => setPlaygroundOpen(true) : undefined} />;
+  }
 
   if (!user?.consents_completed_at) return <ConsentScreen />;
 

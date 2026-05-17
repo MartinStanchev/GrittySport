@@ -19,18 +19,17 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
 import { isGPSActivity } from '../constants/activityIcons';
-import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory, getWorkouts } from '../services/api';
 import type { ChatMessageResponse, ChatSegmentResponse } from '../services/api';
-import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
-import { ProgramEditCard } from '../components/ProgramEditCard';
 import type { ProgramEditData } from '../components/ProgramEditCard';
 import { ProposalReviewView } from '../components/ProposalReviewView';
 import { EditProposalReviewView } from '../components/EditProposalReviewView';
+import { ChatMessageItem } from '../components/ChatMessageItem';
+import { ChatHeader } from '../components/ChatHeader';
 import { TodayWorkoutCard } from '../components/TodayWorkoutCard';
 import { GritInsightCard } from '../components/GritInsightCard';
 import { QuickStatsRow } from '../components/QuickStatsRow';
@@ -434,84 +433,18 @@ export default function HomeScreen() {
   );
 
   const renderMessage = useCallback(
-    ({ item }: { item: ChatMessage }) => {
-      if (item.messageType === 'segment_header' && item.segmentHeader) {
-        return (
-          <View style={styles.segmentHeaderRow}>
-            <View style={[styles.segmentHeaderRule, { backgroundColor: colors.border }]} />
-            <View style={styles.segmentHeaderTextWrap}>
-              <Text style={[styles.segmentHeaderLabel, { color: colors.textSecondary }]}>
-                {item.segmentHeader.label}
-              </Text>
-              {item.segmentHeader.subtitle ? (
-                <Text style={[styles.segmentHeaderSubtitle, { color: colors.textSecondary }]}>
-                  {item.segmentHeader.subtitle}
-                </Text>
-              ) : null}
-            </View>
-            <View style={[styles.segmentHeaderRule, { backgroundColor: colors.border }]} />
-          </View>
-        );
-      }
-
-      if (item.messageType === 'tool_action') {
-        return (
-          <View style={styles.toolActionRow}>
-            {item.toolDone ? (
-              <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-            ) : (
-              <ActivityIndicator size={12} color={colors.textSecondary} />
-            )}
-            <Text style={[styles.toolActionLabel, { color: colors.textSecondary }]}>
-              {item.content}
-            </Text>
-          </View>
-        );
-      }
-
-      if (item.messageType === 'program_proposal') {
-        return (
-          <ProgramProposalCard
-            data={item.proposalData}
-            onReview={() => setReviewingProposal({ data: item.proposalData, messageId: item.id })}
-            disabled={respondedProposals.has(item.id)}
-          />
-        );
-      }
-
-      if (item.messageType === 'program_edit') {
-        return (
-          <ProgramEditCard
-            data={item.proposalData}
-            onAccept={() => handleProposalResponse('accept', item.id)}
-            onDeny={() => handleProposalResponse('deny', item.id)}
-            onReviewChanges={() => setReviewingEditProposal({ data: item.proposalData, messageId: item.id })}
-            disabled={respondedProposals.has(item.id)}
-          />
-        );
-      }
-
-      const isUser = item.role === 'user';
-      return (
-        <View
-          style={[
-            styles.messageBubble,
-            isUser
-              ? [styles.userBubble, { backgroundColor: colors.primary }]
-              : [styles.gritBubble, { backgroundColor: colors.messageBubble }],
-          ]}
-        >
-          {!isUser && <Text style={[styles.gritLabel, { color: colors.primary }]}>Grit</Text>}
-          {isUser ? (
-            <Text style={[styles.messageText, { color: colors.background }]}>
-              {item.content}
-            </Text>
-          ) : (
-            <Markdown style={markdownStyles}>{item.content}</Markdown>
-          )}
-        </View>
-      );
-    },
+    ({ item }: { item: ChatMessage }) => (
+      <ChatMessageItem
+        item={item}
+        colors={colors}
+        markdownStyles={markdownStyles}
+        respondedProposalIds={respondedProposals}
+        onReviewProposal={(data, messageId) => setReviewingProposal({ data, messageId })}
+        onAcceptEdit={(messageId) => handleProposalResponse('accept', messageId)}
+        onDenyEdit={(messageId) => handleProposalResponse('deny', messageId)}
+        onReviewEdit={(data, messageId) => setReviewingEditProposal({ data, messageId })}
+      />
+    ),
     [handleProposalResponse, respondedProposals, colors, markdownStyles],
   );
 
@@ -660,46 +593,7 @@ export default function HomeScreen() {
           style={[styles.chatScreen, { backgroundColor: colors.background }]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Chat Header */}
-          <View style={[styles.chatHeader, { paddingTop: insets.top + 8, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-            <Pressable
-              onPress={closeChat}
-              style={[styles.closeButton, { backgroundColor: colors.background }]}
-              hitSlop={12}
-            >
-              <Ionicons
-                name="chevron-down"
-                size={24}
-                color={colors.textPrimary}
-              />
-            </Pressable>
-            <View style={styles.chatHeaderCenter}>
-              <View style={[styles.headerAvatar, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.headerAvatarText, { color: colors.surface }]}>G</Text>
-              </View>
-              <View>
-                <View style={styles.titleRow}>
-                  <Text style={[styles.chatHeaderTitle, { color: colors.textPrimary }]}>Grit</Text>
-                  <View style={[styles.aiBadge, { borderColor: colors.primary }]}>
-                    <Text style={[styles.aiBadgeText, { color: colors.primary }]}>{isConnected ? 'Connected' : 'Offline'}</Text>
-                  </View>
-                </View>
-                <View style={styles.statusRow}>
-                  <View
-                    style={[
-                      styles.dot,
-                      {
-                        backgroundColor: isConnected ? colors.success : colors.error,
-                      },
-                    ]}
-                  />
-                  <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-                    {isConnected ? 'Grit is an AI coach and can make mistakes' : 'Reconnecting...'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
+          <ChatHeader onClose={closeChat} isConnected={isConnected} />
 
           {/* Messages */}
           <FlatList
@@ -866,104 +760,12 @@ const styles = StyleSheet.create({
   chatScreen: {
     flex: 1,
   },
-  chatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chatHeaderCenter: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 12,
-    gap: 10,
-  },
-  headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerAvatarText: {
-    fontFamily: Fonts.heading,
-    fontSize: 16,
-  },
-  chatHeaderTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.heading,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  aiBadge: {
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-  },
-  aiBadgeText: {
-    fontSize: 9,
-    fontFamily: Fonts.bodySemiBold,
-    letterSpacing: 0.5,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 1,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  statusText: {
-    fontSize: 11,
-    fontFamily: Fonts.body,
-  },
   messageList: {
     flex: 1,
   },
   messageListContent: {
     padding: 16,
     paddingBottom: 8,
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    borderRadius: 18,
-    padding: 12,
-    paddingHorizontal: 14,
-    marginBottom: 6,
-  },
-  userBubble: {
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
-  },
-  gritBubble: {
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
-  },
-  gritLabel: {
-    fontSize: 11,
-    fontFamily: Fonts.bodySemiBold,
-    marginBottom: 3,
-  },
-  messageText: {
-    fontSize: 15,
-    fontFamily: Fonts.body,
-    lineHeight: 21,
   },
   typingContainer: {
     paddingHorizontal: 16,
@@ -980,45 +782,6 @@ const styles = StyleSheet.create({
   typingLabel: {
     fontSize: 12,
     fontStyle: 'italic',
-  },
-  toolActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    gap: 6,
-    marginBottom: 2,
-  },
-  toolActionLabel: {
-    fontSize: 12,
-    fontFamily: Fonts.body,
-  },
-  segmentHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 10,
-  },
-  segmentHeaderRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  segmentHeaderTextWrap: {
-    alignItems: 'center',
-    maxWidth: '70%',
-  },
-  segmentHeaderLabel: {
-    fontSize: 12,
-    fontFamily: Fonts.heading,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  segmentHeaderSubtitle: {
-    fontSize: 11,
-    fontFamily: Fonts.body,
-    marginTop: 2,
-    textAlign: 'center',
   },
   loadMoreContainer: {
     alignItems: 'center',

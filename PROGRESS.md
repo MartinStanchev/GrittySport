@@ -108,6 +108,7 @@ Full details for each change are in the `progress/` folder.
 | [skip-grit-review-option](progress/skip-grit-review-option.md) | `PostWorkoutReview` now lets users skip Grit's review: explicit "Get review / Skip" prompt when no linkable activity (or already linked) and a third "Skip Grit's review" button alongside the link options |
 | [mobile-hero-scrollytelling](progress/mobile-hero-scrollytelling.md) | Mobile hero now runs the same scroll-driven 3-panel cross-fade as desktop: one shared `300vh` sticky stage, scaled-down phone (`MOBILE_SCALE`), `PanelText`/`StepDots`/`phoneScreens` dedup, `#download` anchor moved onto `<section>` |
 | [seo-content-expansion](progress/seo-content-expansion.md) | SEO/GEO content depth (follow-on to task-28): 3 intent-targeted landing pages (`/ai-running-coach`, `/ai-strength-coach`, `/ai-triathlon-coach`) via shared `UseCaseLanding` + `lib/seo` JSON-LD helper; 3 real `/learn` articles (seed `welcome.md` removed); `/examples` filled with real prose + screenshots; fact-rich `llms-full.txt` + enriched `llms.txt`; sitemap + Footer "Coaching" column |
+| [marketing-playground](progress/marketing-playground.md) | Dev-only `MarketingPlayground` screen + `LockScreenMockup` + shared `ChatMessageItem`/`ChatHeader` (extracted from HomeScreen) + `Scene` registry — pixel-accurate screenshots of chat & lockscreen scenes for social posts |
 
 ## Instructions for Agents
 

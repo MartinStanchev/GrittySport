@@ -18,7 +18,14 @@ const RESEND_COOLDOWN_SECONDS = 30;
 
 type Step = 'email' | 'code';
 
-export default function AuthScreen() {
+interface AuthScreenProps {
+  // Dev-only escape hatch. When provided, renders a small "Marketing
+  // Playground" link at the bottom so the playground is reachable without
+  // a working backend.
+  onOpenPlayground?: () => void;
+}
+
+export default function AuthScreen({ onOpenPlayground }: AuthScreenProps = {}) {
   const { colors } = useTheme();
   const { requestOtp, verifyOtp } = useAuth();
 
@@ -197,6 +204,17 @@ export default function AuthScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {onOpenPlayground ? (
+          <TouchableOpacity
+            style={{ alignItems: 'center', marginTop: 32, paddingVertical: 8 }}
+            onPress={onOpenPlayground}
+          >
+            <Text style={{ color: colors.textSecondary, fontSize: 12, opacity: 0.7 }}>
+              dev · open Marketing Playground
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
