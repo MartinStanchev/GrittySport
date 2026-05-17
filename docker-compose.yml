@@ -24,6 +24,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       MIGRATIONS_PATH: /app/migrations
       PORT: "8080"
+      APP_ENV: "dev"
     volumes:
       - ./db/migrations:/app/migrations
 
