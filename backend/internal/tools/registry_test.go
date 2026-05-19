@@ -37,6 +37,9 @@ func newTestRegistry() *Registry {
 		{"confirm_edit", []chat.Mode{chat.ModeProgramManagement}},
 		{"save_user_preference", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
 		{"forget_user_preference", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
+		{"set_reminder", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
+		{"list_reminders", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
+		{"cancel_reminder", []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview}},
 	}
 
 	for _, s := range stubs {
@@ -211,8 +214,8 @@ func TestProposalStoreGetPhases(t *testing.T) {
 func TestGeminiToolsReturnsAll(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiTools())
-	if len(names) != 21 {
-		t.Errorf("GeminiTools() returned %d tools, want 21", len(names))
+	if len(names) != 24 {
+		t.Errorf("GeminiTools() returned %d tools, want 24", len(names))
 	}
 }
 
@@ -226,23 +229,23 @@ func TestGeminiToolsForMode(t *testing.T) {
 	}{
 		{
 			mode:      chat.ModeGeneralCoaching,
-			wantCount: 8,
-			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference"},
+			wantCount: 11,
+			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference", "set_reminder", "list_reminders", "cancel_reminder"},
 		},
 		{
 			mode:      chat.ModeProgramCreation,
-			wantCount: 15,
-			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "get_draft_program", "create_draft_program", "save_draft_criterion", "save_draft_phase", "update_draft_phase", "delete_draft_phase", "propose_program", "start_program_today", "confirm_program_save", "save_user_preference", "forget_user_preference"},
+			wantCount: 18,
+			wantNames: []string{"read_skill", "get_user_profile", "get_active_program", "set_weekly_effort_goal", "get_draft_program", "create_draft_program", "save_draft_criterion", "save_draft_phase", "update_draft_phase", "delete_draft_phase", "propose_program", "start_program_today", "confirm_program_save", "save_user_preference", "forget_user_preference", "set_reminder", "list_reminders", "cancel_reminder"},
 		},
 		{
 			mode:      chat.ModeProgramManagement,
-			wantCount: 8,
-			wantNames: []string{"read_skill", "get_active_program", "get_program_criteria", "get_scheduled_activity", "edit_program", "confirm_edit", "save_user_preference", "forget_user_preference"},
+			wantCount: 11,
+			wantNames: []string{"read_skill", "get_active_program", "get_program_criteria", "get_scheduled_activity", "edit_program", "confirm_edit", "save_user_preference", "forget_user_preference", "set_reminder", "list_reminders", "cancel_reminder"},
 		},
 		{
 			mode:      chat.ModeWorkoutReview,
-			wantCount: 7,
-			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference"},
+			wantCount: 10,
+			wantNames: []string{"read_skill", "get_active_program", "get_scheduled_activity", "begin_program_creation", "begin_program_modification", "save_user_preference", "forget_user_preference", "set_reminder", "list_reminders", "cancel_reminder"},
 		},
 	}
 
@@ -268,7 +271,7 @@ func TestGeminiToolsForMode(t *testing.T) {
 func TestGeminiToolsForMode_UnknownFallsBack(t *testing.T) {
 	reg := newTestRegistry()
 	names := toolNames(reg.GeminiToolsForMode("unknown_mode"))
-	if len(names) != 21 {
+	if len(names) != 24 {
 		t.Errorf("unknown mode should fall back to all tools, got %d", len(names))
 	}
 }

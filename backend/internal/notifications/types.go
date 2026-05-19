@@ -49,6 +49,14 @@ var Registry = []NotifType{
 		DefaultEnabled:  false,
 		DefaultTitle:    "Grit",
 	},
+	{
+		Key:             "reminder",
+		Label:           "Reminders",
+		Description:     "Reminders you've asked Grit to schedule for a specific time",
+		RequiresPremium: false,
+		DefaultEnabled:  false,
+		DefaultTitle:    "Reminder from Grit",
+	},
 }
 
 // registryMap is a lookup index built from Registry.

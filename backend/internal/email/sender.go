@@ -14,6 +14,9 @@ import (
 // Sender delivers transactional email. Must be safe for concurrent use.
 type Sender interface {
 	SendOTP(ctx context.Context, toEmail, code string) error
+	// SendWishlistNotification notifies the operator (`toEmail`) that
+	// `signupEmail` just joined the pre-launch wishlist.
+	SendWishlistNotification(ctx context.Context, toEmail, signupEmail string) error
 }
 
 type Config struct {

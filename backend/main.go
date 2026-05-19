@@ -196,12 +196,16 @@ func main() {
 	consentService := services.NewConsentService(pool)
 	consentHandler := handlers.NewConsentHandler(consentService)
 
+	wishlistService := services.NewWishlistService(pool, mailer, os.Getenv("WISHLIST_NOTIFY_TO"))
+	wishlistHandler := handlers.NewWishlistHandler(wishlistService)
+
 	chatService := services.NewChatService(pool)
 	memoryService := memory.NewService(pool, geminiClient)
+	reminderService := services.NewReminderService(pool)
 
 	programService := services.NewProgramService(pool)
 	programHandler := handlers.NewProgramHandler(programService, chatService, memoryService, usageService)
-	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService, corsAllowed)
+	chatHandler := handlers.NewChatHandler(chatService, geminiClient, userService, authService, programService, promptLoader, skillLoader, memoryService, usageService, reminderService, corsAllowed)
 
 	workoutService := services.NewWorkoutService(pool)
 
@@ -217,6 +221,10 @@ func main() {
 	// Start workout reminder scheduler
 	reminderScheduler := review.NewReminderScheduler(pool, notifService)
 	go reminderScheduler.Run(ctx)
+
+	// Start user-scheduled reminder checker (set_reminder tool)
+	userReminderChecker := review.NewUserReminderChecker(chatService, reminderService, notifService, memoryService)
+	go userReminderChecker.Run(ctx)
 
 	factDecay := memory.NewFactDecayScheduler(memoryService)
 	go factDecay.Run(ctx)
@@ -250,6 +258,12 @@ func main() {
 		r.Post("/otp/verify", authHandler.VerifyOTP)
 		r.Post("/refresh", authHandler.Refresh)
 	})
+
+	// Public wishlist endpoint — heavily rate-limited since each call can
+	// trigger a Resend email to the operator. 5-req burst, then 1 every 30s
+	// is plenty for legitimate users (each one signs up at most once).
+	wishlistLimiter := appmw.NewIPRateLimiter(1.0/30.0, 5)
+	r.With(wishlistLimiter.Middleware).Post("/api/wishlist", wishlistHandler.Subscribe)
 
 	// WebSocket endpoint — auth via query param, outside JWT middleware
 	r.Get("/api/ws/chat", chatHandler.WebSocket)

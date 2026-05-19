@@ -1,4 +1,4 @@
-import { StoreBadges } from "@/components/StoreBadges";
+import { WishlistForm } from "@/components/WishlistForm";
 
 export function FinalCTA() {
   return (
@@ -8,11 +8,11 @@ export function FinalCTA() {
           Ready to train smarter?
         </h2>
         <p className="mt-5 text-white/70 text-lg max-w-xl mx-auto">
-          Download Gritty Fitness and meet Grit. Free to start, premium when
-          you&apos;re ready for more.
+          Gritty Fitness launches soon. Join the waitlist and we&apos;ll email
+          you the moment Grit goes live.
         </p>
         <div className="mt-10 flex justify-center">
-          <StoreBadges />
+          <WishlistForm />
         </div>
         <p className="mt-8 text-white/50 text-sm">
           Questions?{" "}

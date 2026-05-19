@@ -130,7 +130,7 @@ export function Premium() {
               href="#download"
               className="inline-block mt-6 px-6 py-3 rounded-full bg-white text-ink font-medium hover:bg-brand-soft transition"
             >
-              Premium coming soon
+              Join the waitlist
             </a>
             <p className="text-white/50 text-xs mt-4">
               Cancel anytime · Web checkout coming soon

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { StoreBadges } from "@/components/StoreBadges";
+import { WishlistForm } from "@/components/WishlistForm";
 
 type Panel = {
   eyebrow: string;
@@ -71,9 +71,9 @@ function PhoneGlowWrapper({ children }: { children: ReactNode }) {
 function DownloadBlock() {
   return (
     <div id="download">
-      <StoreBadges />
+      <WishlistForm />
       <p className="mt-4 text-sm text-white/55">
-        Core features free with limits · Premium unlocks more
+        Launching soon · Be the first to know
       </p>
     </div>
   );

@@ -739,6 +739,8 @@ func formatSegmentType(st string) string {
 		return "Program Modification"
 	case "general_coaching":
 		return "General Coaching"
+	case "reminder_delivery":
+		return "Reminder"
 	default:
 		return strings.ReplaceAll(st, "_", " ")
 	}

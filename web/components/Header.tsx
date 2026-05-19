@@ -26,7 +26,7 @@ export function Header() {
           href="/#download"
           className="text-sm font-medium px-4 py-2 rounded-full bg-ink text-white hover:bg-brand transition"
         >
-          Get the app
+          Join the waitlist
         </Link>
       </nav>
     </header>

@@ -26,13 +26,26 @@ type resendRequest struct {
 }
 
 func (s *ResendSender) SendOTP(ctx context.Context, toEmail, code string) error {
-	body := resendRequest{
+	return s.send(ctx, resendRequest{
 		From:    s.from,
 		To:      []string{toEmail},
 		Subject: fmt.Sprintf("%s is your Gritty Fitness sign-in code", code),
 		HTML:    otpHTML(code),
 		Text:    otpText(code),
-	}
+	})
+}
+
+func (s *ResendSender) SendWishlistNotification(ctx context.Context, toEmail, signupEmail string) error {
+	return s.send(ctx, resendRequest{
+		From:    s.from,
+		To:      []string{toEmail},
+		Subject: "New wishlist signup: " + signupEmail,
+		HTML:    wishlistHTML(signupEmail),
+		Text:    wishlistText(signupEmail),
+	})
+}
+
+func (s *ResendSender) send(ctx context.Context, body resendRequest) error {
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("marshal resend request: %w", err)
@@ -72,4 +85,16 @@ func otpHTML(code string) string {
   <div style="font-size: 32px; font-weight: 600; letter-spacing: 6px; padding: 16px 24px; background: #f4f4f5; border-radius: 8px; display: inline-block; margin: 8px 0;">%s</div>
   <p style="font-size: 13px; color: #777;">This code expires in 10 minutes. If you didn't request it, you can safely ignore this email.</p>
 </body></html>`, code, code)
+}
+
+func wishlistText(signupEmail string) string {
+	return fmt.Sprintf(`New Gritty Fitness wishlist signup: %s`, signupEmail)
+}
+
+func wishlistHTML(signupEmail string) string {
+	return fmt.Sprintf(`<!doctype html>
+<html><body style="font-family: -apple-system, system-ui, sans-serif; padding: 24px; color: #111;">
+  <h2 style="margin: 0 0 16px;">New wishlist signup</h2>
+  <p style="font-size: 16px;"><strong>%s</strong> just joined the Gritty Fitness wishlist.</p>
+</body></html>`, signupEmail)
 }

@@ -50,10 +50,10 @@ type ChatHandler struct {
 	upgrader       websocket.Upgrader
 }
 
-func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memorySvc *memory.Service, usageSvc *usage.Service, allowedOrigins map[string]struct{}) *ChatHandler {
+func NewChatHandler(chatService *services.ChatService, aiClient *ai.GeminiClient, userService *services.UserService, authService *services.AuthService, programService *services.ProgramService, promptLoader *ai.PromptLoader, skillLoader *ai.SkillLoader, memorySvc *memory.Service, usageSvc *usage.Service, reminderSvc *services.ReminderService, allowedOrigins map[string]struct{}) *ChatHandler {
 	proposalStore := tools.NewProposalStore()
 	toolRegistry := tools.NewRegistry()
-	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader, usageSvc, memorySvc)
+	tools.RegisterAllTools(toolRegistry, programService, userService, proposalStore, skillLoader, usageSvc, memorySvc, reminderSvc)
 
 	return &ChatHandler{
 		chatService:    chatService,

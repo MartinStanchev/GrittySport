@@ -102,7 +102,7 @@ func parsePhaseParams(params map[string]any) (models.TemplatePhaseInput, error) 
 	return phase, nil
 }
 
-func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader, usageSvc *usage.Service, memorySvc *memory.Service) {
+func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSvc *services.UserService, proposals *ProposalStore, skillLoader *ai.SkillLoader, usageSvc *usage.Service, memorySvc *memory.Service, reminderSvc *services.ReminderService) {
 	reg.Register(&Tool{
 		Name:        "read_skill",
 		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
@@ -518,14 +518,14 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 								Description: "Edit type",
 								Enum:        []string{"update_activity", "remove_activity", "add_activity", "swap_day", "update_criteria"},
 							},
-							"activity_id":         {Type: genai.TypeString, Description: "Target a specific activity by ID (update_activity, remove_activity)"},
-							"week_id":             {Type: genai.TypeString, Description: "Target a specific week (add_activity to one week only)"},
-							"day_of_week":         {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
-							"new_day":             {Type: genai.TypeInteger, Description: "For swap_day: the other day to swap with"},
-							"activity_type":       {Type: genai.TypeString, Description: "Activity type (add_activity, update_activity)", Enum: ActivityTypes},
-							"prescription":        {Type: genai.TypeObject, Description: "Prescription details"},
-							"notes":               {Type: genai.TypeString, Description: "Notes for the activity"},
-							"phase_index":         {Type: genai.TypeInteger, Description: "0-based phase index. Omit to apply to all phases."},
+							"activity_id":          {Type: genai.TypeString, Description: "Target a specific activity by ID (update_activity, remove_activity)"},
+							"week_id":              {Type: genai.TypeString, Description: "Target a specific week (add_activity to one week only)"},
+							"day_of_week":          {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
+							"new_day":              {Type: genai.TypeInteger, Description: "For swap_day: the other day to swap with"},
+							"activity_type":        {Type: genai.TypeString, Description: "Activity type (add_activity, update_activity)", Enum: ActivityTypes},
+							"prescription":         {Type: genai.TypeObject, Description: "Prescription details"},
+							"notes":                {Type: genai.TypeString, Description: "Notes for the activity"},
+							"phase_index":          {Type: genai.TypeInteger, Description: "0-based phase index. Omit to apply to all phases."},
 							"activity_type_filter": {Type: genai.TypeString, Description: "Filter by activity type when multiple exist on the same day", Enum: ActivityTypes},
 							"criteria": {
 								Type:        genai.TypeArray,
@@ -860,6 +860,121 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			return map[string]string{
 				"status":  "removed",
 				"message": "Preference removed.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "set_reminder",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
+		Description: "Schedule a time-bound reminder for the user. Use when the user asks to be reminded about something at a specific time (e.g. 'remind me tomorrow morning to wear my new shoes', 'remind me in 2 weeks about deload'). Resolve relative times using the current date and the user's timezone in the system prompt. The `content` string is delivered verbatim as both a push notification and a chat message — write it as a complete reminder you'd want the user to read on their lock screen, max ~140 characters.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"content", "remind_at"},
+			Properties: map[string]*genai.Schema{
+				"content":   {Type: genai.TypeString, Description: "The reminder message to deliver to the user, written in second person (e.g. 'Don't forget your new shoes for the run today!'). Used as both chat message and push body."},
+				"remind_at": {Type: genai.TypeString, Description: "Absolute datetime when the reminder fires, in RFC 3339 / ISO 8601 format with timezone offset (e.g. '2026-05-20T08:00:00+02:00'). Must be in the future."},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			content, _ := params["content"].(string)
+			if content == "" {
+				return nil, fmt.Errorf("content is required")
+			}
+			if len(content) > 500 {
+				content = content[:500]
+			}
+			remindAtStr, _ := params["remind_at"].(string)
+			if remindAtStr == "" {
+				return nil, fmt.Errorf("remind_at is required")
+			}
+			remindAt, err := time.Parse(time.RFC3339, remindAtStr)
+			if err != nil {
+				return map[string]any{
+					"status":  "error",
+					"message": "remind_at must be a valid RFC 3339 datetime with timezone (e.g. 2026-05-20T08:00:00+02:00).",
+				}, nil
+			}
+			if !remindAt.After(time.Now()) {
+				return map[string]any{
+					"status":  "error",
+					"message": "remind_at must be in the future.",
+				}, nil
+			}
+
+			r, err := reminderSvc.Create(ctx, userID, content, remindAt)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"status":      "scheduled",
+				"reminder_id": r.ID,
+				"remind_at":   r.RemindAt.Format(time.RFC3339),
+				"message":     "Reminder scheduled.",
+			}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "list_reminders",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
+		Description: "List the user's pending (undelivered) reminders. Use when the user asks 'what reminders do I have?' or wants to review what's scheduled.",
+		Parameters: &genai.Schema{
+			Type:       genai.TypeObject,
+			Properties: map[string]*genai.Schema{},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			reminders, err := reminderSvc.ListActive(ctx, userID)
+			if err != nil {
+				return nil, err
+			}
+			if len(reminders) == 0 {
+				return map[string]any{"status": "empty", "reminders": []any{}}, nil
+			}
+			out := make([]map[string]any, 0, len(reminders))
+			for _, r := range reminders {
+				out = append(out, map[string]any{
+					"id":        r.ID,
+					"content":   r.Content,
+					"remind_at": r.RemindAt.Format(time.RFC3339),
+				})
+			}
+			return map[string]any{"status": "ok", "reminders": out}, nil
+		},
+	})
+
+	reg.Register(&Tool{
+		Name:        "cancel_reminder",
+		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
+		Description: "Cancel a pending reminder by its id. Get the id from list_reminders. Use when the user says 'cancel the reminder about X' or 'forget that reminder'.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"reminder_id"},
+			Properties: map[string]*genai.Schema{
+				"reminder_id": {Type: genai.TypeString, Description: "The id of the reminder to cancel (from list_reminders)."},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			id, _ := params["reminder_id"].(string)
+			if id == "" || !isValidUUID(id) {
+				return map[string]any{
+					"status":  "not_found",
+					"message": "Invalid reminder_id. Call list_reminders to get current ids.",
+				}, nil
+			}
+			removed, err := reminderSvc.Cancel(ctx, userID, id)
+			if err != nil {
+				return nil, err
+			}
+			if !removed {
+				return map[string]any{
+					"status":  "not_found",
+					"message": "No matching pending reminder. It may have already fired or been cancelled.",
+				}, nil
+			}
+			return map[string]any{
+				"status":  "cancelled",
+				"message": "Reminder cancelled.",
 			}, nil
 		},
 	})

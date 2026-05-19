@@ -29,9 +29,26 @@ app/
   layout.tsx            # shared Header + Footer, fonts, metadata
   globals.css           # Tailwind + brand tokens (--color-brand etc.)
 components/
-  Header.tsx, Footer.tsx, StoreBadges.tsx, LegalLayout.tsx
+  Header.tsx, Footer.tsx, WishlistForm.tsx, LegalLayout.tsx
   sections/             # one file per landing-page section
 ```
+
+## Wishlist signup
+
+The Hero and Final CTA use `components/WishlistForm.tsx`, which POSTs to
+`${NEXT_PUBLIC_API_URL}/api/wishlist` on the Go backend. Each new signup is
+stored in the `wishlist_signups` table and triggers a Resend notification to
+`WISHLIST_NOTIFY_TO` (set on the backend).
+
+Required env at build time (baked into the static export):
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.grittyfitness.app   # backend base URL
+```
+
+When you switch from waitlist → live launch, swap `WishlistForm` back for
+real Apple / Google store badges in `Hero.tsx#DownloadBlock` and
+`FinalCTA.tsx`, and update `Header.tsx` CTA copy.
 
 ## Before going live — checklist
 
@@ -40,11 +57,14 @@ components/
       `app/terms/page.tsx` with real legal info.
 - [ ] Have the Terms and Privacy Policy reviewed by a lawyer
       (especially before enabling Stripe checkout).
-- [ ] Replace the placeholder store URLs in `components/StoreBadges.tsx`
-      with real Apple App Store / Google Play links.
-- [ ] Swap the brand-styled badges in `StoreBadges.tsx` for the official
-      Apple / Google badge artwork once the apps are listed (Apple and
-      Google's brand guidelines require their own assets).
+- [ ] Update `app/privacy/page.tsx` to mention wishlist email collection
+      (purpose: launch notification, retention until launch + unsubscribe).
+- [ ] Add the marketing domain to backend `CORS_ALLOWED_ORIGINS`
+      (e.g. `https://grittyfitness.app,https://www.grittyfitness.app`).
+- [ ] Set `WISHLIST_NOTIFY_TO=hello@grittyfitness.app` on the backend so
+      Resend forwards each signup to your inbox.
+- [ ] Set `NEXT_PUBLIC_API_URL` on the web App Platform component so the
+      form points at the real API host.
 - [ ] Confirm the contact email (`hello@grittyfitness.app`) is set up
       and monitored.
 - [ ] Update `metadataBase` in `app/layout.tsx` to the final domain.
@@ -73,7 +93,10 @@ you actually need login / Stripe — then you'll want the Node runtime back.
 
 - **Login & Stripe checkout** — add `app/login/`, `app/account/`, and
   `app/api/stripe/` route handlers. The Premium section's CTA already points
-  at `#download`; switch the href to `/checkout` when ready.
+  at `#download` (the wishlist form); switch the href to `/checkout` when ready.
 - **Cookie banner** — only required if you add non-essential cookies.
   Plausible Analytics is GDPR-friendly and cookieless if you want stats
   without a banner.
+- **Wishlist → launch announcement** — query `SELECT email FROM wishlist_signups`
+  to get the launch mailing list. Use Resend's broadcast API or export to your
+  ESP of choice.

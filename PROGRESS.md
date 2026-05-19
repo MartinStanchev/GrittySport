@@ -99,6 +99,8 @@ Full details for each change are in the `progress/` folder.
 | [birth-year-wheel-picker](progress/birth-year-wheel-picker.md) | Replace 4-digit `TextInput` on consent screen with snap-scroll wheel year picker bounded `[currentYear - 100, currentYear - 16]`; bounds enforce 16+ at the UI layer so error/helper validation goes away |
 | [health-connect-import](progress/health-connect-import.md) | Android Health Connect import: mirrors Apple Health flow via platform-aware façade; covers Fitbit/Garmin/Samsung/Strava/Whoop/Wear OS via on-device hub; source-agnostic dedupe store |
 | [task-28-seo-llm-discoverability](progress/task-28-seo-llm-discoverability.md) | Marketing-site SEO/LLM discoverability: `llms.txt`, `robots.ts` (allowlist incl. CCBot/GPTBot/ClaudeBot/PerplexityBot/Google-Extended), `sitemap.ts`, build-time OG image + favicon via `next/og`, JSON-LD (SoftwareApplication / Organization / FAQPage / PrivacyPolicy / TermsOfService / AboutPage + Person) and an About page |
+| [time-bound-reminders](progress/time-bound-reminders.md) | Task 26: user-scheduled reminders via `set_reminder`/`list_reminders`/`cancel_reminder` tools + `UserReminderChecker` (1-min tick) delivering pre-rendered chat message + push, no LLM on delivery path |
+| [wishlist-signup](progress/wishlist-signup.md) | Pre-launch waitlist: `WishlistForm` replaces store badges on marketing site; `POST /api/wishlist` persists to `wishlist_signups` + Resend notification to `WISHLIST_NOTIFY_TO`; per-IP rate limit; works from static export |
 
 ## Instructions for Agents
 
