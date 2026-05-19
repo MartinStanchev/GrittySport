@@ -1,199 +1,193 @@
-## Feature 30: Content Generation Pipeline — `/learn` Blog with Claude API
+## Feature 30: Marketing Content Pages — How It Works, Examples, and `/learn` Blog
 
 ### Goal
-Build a `/learn` content hub on the marketing site populated by a Claude-API-driven generation pipeline. Long-form articles on training science (periodization, recovery, RPE vs HR zones, marathon programming, etc.) serve two purposes: rank in Google for high-intent fitness queries, and get cited by LLM answer engines when users ask training questions. The pipeline takes a topic queue → outline → draft → reviewable markdown, all costed and cached via the Anthropic SDK.
+Round out the marketing site (`web/`) with the depth-content pages SEO and LLM answer engines actually reward: a dedicated **How It Works** page, an **Examples** page (real Grit conversations/screenshots), and a hand-authored **`/learn`** blog. The landing page already covers the pitch; these pages exist to rank for high-intent queries ("AI fitness instructor", "AI-powered fitness app", "train with AI help", "how does AI training planning work") and to give LLMs concrete, citable material when users ask training-related questions.
 
-### Why this approach
-- Training/fitness queries are the highest-intent traffic for an app like Gritty. Ranking a post on "how to structure a marathon training block" puts us in front of users at the exact moment they're thinking about programming.
-- LLMs (ChatGPT, Perplexity, Claude) increasingly cite source pages in their answers. Dense, well-structured articles with clear authorship are disproportionately cited. This is what task-28's `Article` schema + author bio plug into.
-- A pipeline (vs. ad-hoc generation in chat) gives us a reproducible voice, consistent SEO structure (H1/H2/H3, FAQ schema, intro/conclusion), and Batch API pricing (~50% cheaper) for non-interactive bulk runs.
-- Markdown source means the content is human-reviewable and editable before publishing — Claude generates a draft, a human (you) edits and approves, then publishes.
+### Why this approach (and what changed from the original task)
+The first draft of task-30 proposed a full Claude-API generation pipeline (topic queue → outline → draft → markdown via the Anthropic SDK with prompt caching and the Batch API). That's over-engineered for our actual situation:
+
+- We're publishing at ~1 post/week, not 50/weekend. The pipeline pays off at volume; at this cadence it's pure tech debt.
+- For commercial-intent searches ("AI fitness instructor", etc.), Google ranks landing pages + a handful of authoritative comparison/how-to articles — not a content farm.
+- LLMs disproportionately cite content with clear authorship, specific numbers, and personal experience. Pipeline output flattens exactly those qualities.
+- Hand-authoring posts in chat with Claude (back-and-forth on outline → draft → polish) produces better drafts than a one-shot generation prompt, with no extra infrastructure.
+
+So we keep the **structural SEO scaffolding** (markdown source + frontmatter, `Article` JSON-LD, dynamic `[slug]` route, sitemap/llms.txt inclusion) and **drop the generation pipeline entirely**. We also add two pages the original task didn't include (`/how-it-works`, `/examples`) which are arguably more valuable than another blog post for the queries we care about.
 
 ### Constraint reminder
-- `web/AGENTS.md`: This is NOT the Next.js you know. Read `web/node_modules/next/dist/docs/` for the current MDX / markdown rendering pattern and `generateStaticParams` shape before implementing `[slug]` routes.
-- Per the `claude-api` skill rules: code must use the Anthropic SDK with prompt caching, and the latest Claude model (Sonnet 4.6 / `claude-sonnet-4-6` for cost-effective bulk content; Opus 4.7 for editorial polishing if needed).
+- `web/AGENTS.md`: This is **NOT** the Next.js you know. Read `web/node_modules/next/dist/docs/01-app/02-guides/mdx.md` before implementing the markdown rendering. The current recommended pattern is `@next/mdx` + `generateStaticParams` + `dynamicParams = false` (static export compatible).
+- `web/next.config.ts` uses `output: "export"`. Every new route must be statically generable.
+- Task-28 already shipped `llms.txt`, `robots.ts`, `sitemap.ts`, OG image, JSON-LD scaffolding (`SoftwareApplication`, `Organization`, `FAQPage`, `PrivacyPolicy`, `TermsOfService`, `AboutPage` + `Person`), and the `/about` page. Don't re-do those — extend them.
 
 ### Out of scope
-- A CMS (Sanity, Contentful, etc.). Markdown files in the repo are the source of truth; PR review is the editorial workflow.
-- Auto-publish. Every draft is reviewed and committed by a human.
-- Translations. Posts ship in EN first; DE translation pipeline is a future extension.
-- Image generation. Hero images for posts can be added later via Midjourney / SDXL.
+- Any Claude API / generation pipeline. We write posts ourselves.
+- A CMS. Markdown files in the repo are the source of truth; PR review is the editorial workflow.
+- Auto-publish. Each post is committed by a human with `publishedAt` set.
+- Translations. Posts ship EN first; DE comes later if at all.
+- Hero images per post. Use a templated/gradient hero for now; revisit once a post actually gets traction.
+- Comments / newsletter signup on `/learn`. Newsletter is task-31.
 
 ---
 
-### Task 30.1: `/learn` route + post rendering
+### Task 30.1: `/how-it-works` page
 
-**`web/app/learn/page.tsx`** — index page listing all posts with title, dek, publish date, reading time, and a tag chip.
+**`web/app/how-it-works/page.tsx`** — long-form explanation of how Grit plans and adapts programs. The landing page already has a short `HowItWorks` section; this is the deep version meant to rank for "how does AI training planning work", "AI fitness coach how it works", etc.
 
-**`web/app/learn/[slug]/page.tsx`** — dynamic route rendering a single markdown post. Use Next 16's recommended markdown rendering approach (verify in `node_modules/next/dist/docs/`); likely either `@next/mdx` or a server-side markdown library like `react-markdown` / `remark`.
+Content sections (we'll write these together — leave H2 placeholders that we fill in via direct edit, not generation):
+1. **What Grit is** — 1 paragraph: AI coach, multi-sport, adapts after every workout.
+2. **How a program is built** — intake (sport, goal, schedule, equipment, history), proposal, edit-before-save. Reference the real flow.
+3. **How adaptation works** — post-workout review reads effort/HR/splits/missed sessions, then proposes edits the user approves. Mention the segment-based memory so claims about "remembering injuries" or "remembering schedule constraints" are concrete.
+4. **What "holistic" means in practice** — a marathon plan includes dryland + mobility + recovery, not just runs.
+5. **What we won't do** — no auto-apply changes without your approval, no dark patterns, no scraping social.
+6. **FAQ** (4-6 entries) — emit `FAQPage` JSON-LD inline so the page itself is eligible for rich results.
 
-**`web/content/learn/<slug>.md`** — content source. Each file uses frontmatter:
+JSON-LD: `WebPage` + `FAQPage` + `BreadcrumbList` (Home → How it works). Reuse `JsonLd` component.
 
+Add to sitemap, priority 0.8.
+
+---
+
+### Task 30.2: `/examples` page
+
+**`web/app/examples/page.tsx`** — a visual page showing real Grit interactions: a chat exchange where Grit proposes a program, an edit-proposal card, a post-workout review, a lockscreen notification. This page is **gold for LLM citation** because it's unique, concrete content that no competitor has.
+
+Sources of material we already have:
+- `frontend/src/marketing/scenes/` — there's a marketing scene system (see the `marketing-scene` skill). We can render existing scenes statically on the web for the examples gallery, or we use screenshots from them.
+- The landing page hero already uses 3 panels (home / Grit chat with edit proposal / workout summary). The Examples page can be a longer-form version with 5-8 scenes and prose context per scene explaining what's happening and what Grit is doing under the hood.
+
+Implementation:
+- Static page. Each "example" is a section with a short prose intro (2-3 sentences explaining the situation), a screenshot/rendered scene, and a "what Grit just did" bullet list (1-3 bullets describing the AI behavior).
+- For v1, use screenshot images committed to `web/public/examples/` rather than building a runtime scene renderer for the web. Faster, simpler, ships now.
+- JSON-LD: `WebPage` + `ItemList` (each example as a `ListItem`). Helps LLMs parse this as structured examples.
+- Add to sitemap, priority 0.8.
+
+If we don't have screenshots ready, leave 4-6 placeholder slots with TODO comments and ship the page structure first.
+
+---
+
+### Task 30.3: `/learn` blog scaffolding (markdown source + dynamic route)
+
+This is the only part of the original task-30 we keep largely intact — just the rendering layer, no generation.
+
+**Setup:**
+- Add `@next/mdx`, `@mdx-js/loader`, `@mdx-js/react`, `@types/mdx`, `gray-matter`, `remark-gfm` to `web/package.json`.
+- Update `web/next.config.ts` to wrap config with `createMDX({ extension: /\.(md|mdx)$/ })` and add `pageExtensions: ['js', 'jsx', 'md', 'mdx', 'ts', 'tsx']`.
+- Add `web/mdx-components.tsx` defining global styling for headings, paragraphs, links, lists, code blocks — Tailwind classes consistent with the site's `prose-legal` style and Aura Kinetic palette.
+
+**`web/app/learn/page.tsx`** — index page listing all posts with title, dek, publish date, reading time, tag chip. Reads frontmatter from `web/content/learn/*.md` at build time, filters out posts with `publishedAt: null` or future dates, sorts desc by date.
+
+**`web/app/learn/[slug]/page.tsx`** — dynamic route per the Next 16 docs pattern (`generateStaticParams` + `dynamicParams = false`). Reads the .md file via `gray-matter` for frontmatter and renders the body via the MDX pipeline.
+
+Emit `Article` JSON-LD per post:
+- `headline`, `description`, `datePublished`, `dateModified`, `keywords` from frontmatter.
+- `author` → reference the `/about` `Person` (`{ "@type": "Person", "@id": "https://grittyfitness.app/about#person" }`); update the About page Person to include that `@id` so JSON-LD references resolve.
+- `publisher` → the existing Organization JSON-LD.
+- `mainEntityOfPage` → the canonical post URL.
+
+If a post has a FAQ section in frontmatter (`faq: [{ q, a }]`), emit `FAQPage` JSON-LD as well.
+
+**`web/content/learn/<slug>.md`** — content source. Frontmatter:
 ```markdown
 ---
-title: "How to Structure a Marathon Training Block"
-slug: "marathon-training-block-structure"
-description: "A 16–20 week marathon block has 4 distinct phases. Here's how each phase serves the next, what to do in each, and how to know when to move on."
-publishedAt: "2026-06-01"
+title: "How Gritty's AI Coach Builds a Marathon Block"
+slug: "marathon-block-structure"
+description: "..."
+publishedAt: "2026-06-01"   # or null for drafts
 updatedAt: "2026-06-01"
-tags: ["running", "periodization", "marathon"]
-author: "Martin Stanchev"
+tags: ["running", "periodization"]
 readingTimeMinutes: 9
+faq:
+  - q: "How long should a marathon block be?"
+    a: "16–20 weeks for most amateurs..."
 ---
-
-(post body here in markdown)
 ```
 
-The dynamic route reads all files from `web/content/learn/`, generates static params for each, and renders the post. Emit `Article` JSON-LD per post (`headline`, `author` linking to the `/about` Person, `datePublished`, `dateModified`, `description`, `keywords`).
+Author is implicit (always the founder per `/about`); we don't need it in frontmatter unless we add guest posts later.
 
-The index page reads all frontmatter and renders the list.
-
-**`web/components/sections/LearnTeaser.tsx`** — small "Latest articles" component to drop into the landing page footer area linking to the 3 most recent posts. Optional; useful for crawl-depth and internal linking once 5+ posts exist.
+**Compute `readingTimeMinutes`** automatically from word count at build time — don't trust the frontmatter value. Pure helper: `Math.max(1, Math.round(wordCount / 220))`.
 
 ---
 
-### Task 30.2: Topic queue
+### Task 30.4: Update `sitemap.ts` and `llms.txt` for the new pages
 
-**`marketing/content/topics.md`** — flat markdown file with a status table. Status values: `queued`, `drafted`, `reviewed`, `published`, `archived`.
+- `web/app/sitemap.ts` — add `/how-it-works`, `/examples`, `/learn`, plus one entry per published `/learn/<slug>`. Use `publishedAt` as `lastModified` for posts.
+- `web/public/llms.txt` — replace the static file with a build-time route (`web/app/llms.txt/route.ts`) so it auto-includes published learn posts. Each post entry: `- /learn/<slug>: <description>`.
 
-| Status | Slug | Working title | Target keywords | Notes |
-|--------|------|--------------|-----------------|-------|
-| queued | `marathon-training-block-structure` | How to structure a marathon training block | marathon training, marathon training plan | 16-20wk block, 4 phases |
-| queued | `rpe-vs-hr-zones` | RPE vs heart-rate zones: when to use which | rpe scale, heart rate zones, training zones | |
-| queued | `swim-csss-explained` | Critical swim speed (CSS): how to test and use it | critical swim speed, css test, swim training | |
-| queued | `recovery-week-deload` | What a real deload week looks like | deload week, recovery week, training fatigue | |
-| ... (seed with ~15 topics across running, cycling, swimming, strength, recovery) | | | | |
-
-Seed the queue with ~15 topics. The pipeline reads from the top of the `queued` rows.
+Read the existing `llms.txt` first to keep its tone and the non-post sections (about, privacy, etc.) intact.
 
 ---
 
-### Task 30.3: Generation pipeline (TypeScript script)
+### Task 30.5: Internal linking + Footer/Header updates
 
-**`web/scripts/generate-post.ts`** — Node script (run via `tsx` or `bun`), invoked as:
-
-```bash
-npx tsx web/scripts/generate-post.ts <slug>
-# or to generate the next queued topic:
-npx tsx web/scripts/generate-post.ts --next
-```
-
-Steps:
-
-1. **Load topic** from `marketing/content/topics.md` by slug.
-2. **Outline pass** — call `claude-sonnet-4-6` with:
-   - System prompt: voice/style guide + structure rules (H2 sections, intro hook, conclusion with CTA to download Gritty, internal links to related posts, FAQ section at the bottom). Marked as a cache breakpoint.
-   - User prompt: topic, target keywords, working title.
-   - Output: structured outline (H2 + H3 + key points per section).
-3. **Draft pass** — second call to `claude-sonnet-4-6` with the cached system prompt + the outline + an instruction to write the full draft (~1500–2500 words, conversational-expert tone, no hedging, no AI tells like "Let's dive in" or "In this article we'll explore"). Output: full markdown body.
-4. **Frontmatter** — script generates frontmatter from the topic row + computes `readingTimeMinutes` from word count.
-5. **Write** to `web/content/learn/<slug>.md`. **Do not publish** — the file lands with frontmatter `publishedAt: null` so the route filters it out of the index until a human edits/sets the date.
-6. **Update topic status** to `drafted` in `topics.md`.
-
-**Style guide (in the system prompt, cached):**
-- Author voice: experienced coach, direct, no jargon without definition.
-- No AI tells, no "as an AI", no "in this article".
-- Use specific numbers (paces, %HRmax, watt ranges) where they exist; don't invent values.
-- Every claim that isn't common knowledge cites a source (link out or note "(per Coggan 2020)" style).
-- Include a 3–5 question FAQ at the bottom (so the `[slug]/page.tsx` can render `FAQPage` schema for these too).
-- End with one sentence on how Grit handles this in the app — soft mention, not sales copy.
-
-**Prompt caching:** put the style guide in a cached system block. With ~10 posts per batch, this saves >80% on input tokens for the style guide.
-
-**Batch API:** for runs of 5+ posts, the script can switch to the Batch API endpoint (`/v1/messages/batches`) — 50% cheaper, results within 24h, fine since publishing is async.
+- **Footer:** add a "Resources" column linking How it works, Examples, Learn, About.
+- **Header:** add "How it works" and "Learn" to the top nav (Examples can live in the footer to keep the nav tight).
+- **Landing page:** add a small "Latest articles" teaser strip above the footer linking the 3 most recent published posts. Skip this if 0 posts are published — render nothing.
+- **About page:** add a link to the latest learn post and to `/how-it-works`.
+- **Cross-link between learn posts:** posts should link to each other in markdown (`[link text](/learn/related-slug)`) — we add these manually as we write posts.
 
 ---
 
-### Task 30.4: Anthropic SDK setup
+### Task 30.6: Editorial workflow (process doc, not a script)
 
-The script needs `@anthropic-ai/sdk`. Add to `web/package.json` `devDependencies`:
+**`web/content/WORKFLOW.md`** — short doc describing how we add posts:
+1. Pick a topic (running periodization, RPE explained, "AI fitness coach: how it actually works", etc.).
+2. Draft it in chat with Claude — back-and-forth outline → draft → polish. The voice is direct, specific, no AI tells.
+3. Save to `web/content/learn/<slug>.md` with frontmatter. Leave `publishedAt: null` while drafting.
+4. Once polished, set `publishedAt` to today, run `npm run build` from `web/` to verify, commit, push.
+5. Update internal links from older posts if relevant.
 
-```json
-"@anthropic-ai/sdk": "^0.30.0",  // confirm latest at install time
-"tsx": "^4.19.0",
-"gray-matter": "^4.0.3"            // for frontmatter parsing
-```
+That's it. No queue file, no status table, no script.
 
-Add `web/.env.local` entry:
-
-```
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-`.env.local` is gitignored; document in `web/README.md` how to set it.
+Target cadence: 1 post / 2 weeks initially. Quality over volume.
 
 ---
 
-### Task 30.5: Editorial workflow (process, not code)
-
-Document in `marketing/content/WORKFLOW.md`:
-
-1. Pick a topic with status `queued` from `topics.md`.
-2. Run `npx tsx web/scripts/generate-post.ts <slug>`.
-3. Open the generated `web/content/learn/<slug>.md`. Edit ruthlessly:
-   - Trim padding sentences.
-   - Replace generic advice with specific numbers or examples from your training experience.
-   - Add personal anecdotes if relevant (these are what LLMs and humans actually quote).
-   - Add internal links (`[link text](/learn/related-slug)`) to other published posts where they fit naturally.
-4. Set `publishedAt` to today's date in frontmatter.
-5. Update topic status to `published` in `topics.md`.
-6. Commit + push.
-7. Update `web/app/llms.txt` to list the new post (or extend `llms.txt` to dynamically include published posts — small enhancement).
-
-Target cadence: 1 post / week initially; 2–3 / week once the queue and pipeline are warm.
-
----
-
-### Task 30.6: Internal linking + cross-promotion
-
-Once 5+ posts are published, add:
-
-- A `Related articles` section at the bottom of each `[slug]/page.tsx` showing 3 posts with matching tags.
-- The `LearnTeaser` component (from 30.1) added to the landing page above the Footer.
-- A link to a relevant `/learn` post from the relevant FAQ entries on `/` (e.g., FAQ "How do training zones work?" → "Learn more in our [RPE vs HR zones guide](/learn/rpe-vs-hr-zones)").
-
----
-
-### Key Files to Create/Modify
+### Key Files to Create / Modify
 
 | File | Action |
 |------|--------|
-| `web/app/learn/page.tsx` | Create — index page with post cards |
-| `web/app/learn/[slug]/page.tsx` | Create — dynamic post route with `Article` JSON-LD |
+| `web/app/how-it-works/page.tsx` | Create — long-form How It Works + FAQ + JSON-LD |
+| `web/app/examples/page.tsx` | Create — examples gallery with screenshots |
+| `web/public/examples/` | Create — directory for example screenshots |
+| `web/app/learn/page.tsx` | Create — blog index |
+| `web/app/learn/[slug]/page.tsx` | Create — post route with `Article` + `FAQPage` JSON-LD |
 | `web/content/learn/` | Create — markdown source directory |
-| `web/components/sections/LearnTeaser.tsx` | Create — "Latest articles" component for landing page |
-| `web/components/learn/PostCard.tsx` | Create — shared card UI for index + teaser |
-| `web/scripts/generate-post.ts` | Create — pipeline entry point |
-| `web/scripts/prompts/voice-guide.md` | Create — system prompt, loaded by the script and sent as a cache breakpoint |
-| `web/package.json` | Modify — add `@anthropic-ai/sdk`, `tsx`, `gray-matter` |
-| `web/README.md` | Modify — document `ANTHROPIC_API_KEY` + how to run the pipeline |
-| `web/.env.local.example` | Create — placeholder for the API key |
-| `marketing/content/topics.md` | Create — topic queue with seeded 15 topics |
-| `marketing/content/WORKFLOW.md` | Create — editorial process doc |
-| `web/app/llms.txt/route.ts` | Modify (after task-28) — dynamically include published posts |
-| `web/app/sitemap.ts` | Modify (after task-28) — include published `/learn/*` URLs |
+| `web/content/learn/_first-post.md` | Create — one seed post on "How Gritty's AI coach actually plans your training" |
+| `web/content/WORKFLOW.md` | Create — editorial process doc |
+| `web/mdx-components.tsx` | Create — global MDX styling |
+| `web/lib/learn.ts` | Create — frontmatter loader + reading time helper |
+| `web/components/learn/PostCard.tsx` | Create — shared card for index + landing teaser |
+| `web/components/sections/LearnTeaser.tsx` | Create — landing-page strip (renders nothing if no posts) |
+| `web/next.config.ts` | Modify — wrap with `createMDX`, add `pageExtensions` |
+| `web/package.json` | Modify — add MDX + gray-matter + remark-gfm |
+| `web/app/sitemap.ts` | Modify — add new routes + per-post entries |
+| `web/app/llms.txt/route.ts` | Create — replaces `public/llms.txt`, dynamically lists posts |
+| `web/public/llms.txt` | Delete — superseded by the route |
+| `web/components/Header.tsx` | Modify — add nav entries |
+| `web/components/Footer.tsx` | Modify — add Resources column |
+| `web/app/about/page.tsx` | Modify — add `@id` to Person JSON-LD so posts can reference it |
 
 ---
 
 ### How to Test
 
-1. **Pipeline runs:** `npx tsx web/scripts/generate-post.ts marathon-training-block-structure` produces a valid markdown file with frontmatter; topic status flips to `drafted`.
-2. **Cache hits:** second invocation in the same hour shows `cache_read_input_tokens` > 0 in the API response (confirms prompt caching is working). Log this from the script.
-3. **Route renders:** `npm run dev` → visit `/learn` → see the index, click a post → renders with intro, sections, FAQ.
-4. **JSON-LD valid:** Rich Results Test on a published post — `Article` + `FAQPage` both detected.
-5. **`publishedAt: null` posts hidden:** create a draft with no date; confirm it doesn't appear in the index or sitemap.
-6. **Cost sanity check:** Sonnet 4.6 input/output pricing × ~3k tokens per post × 15 posts should land around $0.50–$1 for the initial batch. Confirm with actual API usage after generating 2–3 posts.
-7. **No AI tells:** spot-check the generated drafts for "Let's explore", "In this article", "As an AI" — if any slip through, harden the style guide.
-8. **Build still green:** `npm run build` from `web/`; the dynamic `[slug]` route prerenders all published posts as static.
-9. **Lint:** `npx eslint .` from `web/`.
+1. **Build:** `npm run build` from `web/` succeeds with static export; all new routes prerender.
+2. **Lint:** `npm run lint` from `web/` passes.
+3. **Routes render:** `npm run dev` → visit `/how-it-works`, `/examples`, `/learn`, and `/learn/<seed-slug>` — all render with no console errors.
+4. **JSON-LD valid:** Paste the rendered HTML of each new page into Google's Rich Results Test:
+   - `/how-it-works` → `WebPage` + `FAQPage` + `BreadcrumbList` detected.
+   - `/examples` → `WebPage` + `ItemList` detected.
+   - `/learn/<slug>` → `Article` detected; `FAQPage` if the post has FAQ frontmatter.
+5. **Sitemap:** visit `/sitemap.xml` → contains all new URLs including published posts.
+6. **llms.txt:** visit `/llms.txt` → lists published posts.
+7. **Drafts hidden:** create a post with `publishedAt: null` → it doesn't appear in index, sitemap, or llms.txt.
+8. **Reading time:** verify the displayed reading time on the post page matches `wordCount / 220` rounded, regardless of what's in frontmatter.
+9. **Internal links:** clicking from landing's teaser → post, from post → another post, from About → How it works all work.
 
 ---
 
 ### Open Questions
 
-- **Markdown vs MDX?** MDX lets you embed React components in posts (great for interactive examples like an "RPE calculator" widget). Markdown is simpler. Recommend markdown for v1; revisit if interactive examples become a priority.
-- **Model choice:** Sonnet 4.6 for cost, Opus 4.7 for quality polish? Recommend Sonnet 4.6 for drafts (fast + cheap) and ad-hoc Opus 4.7 invocations only for tricky topics. Confirm pricing tradeoff after a few generations.
-- **Hero image per post:** required for OpenGraph (otherwise social shares look bare). Manual Midjourney/SDXL prompt per post, or a templated SVG hero?
-- **DE translations:** add a `--locale de` flag to the script that translates a published EN post? Or keep DE as manual-only?
-- **Comments / engagement:** none for v1. Could add Disqus or Giscus later, but adds complexity and a privacy-policy update.
-- **Newsletter cross-pollination:** every post should end with "Subscribe for the next one" once task-31 ships email capture. Note for after 31 lands.
+- **MDX vs plain markdown?** MDX lets us embed React components in posts (e.g., an interactive RPE calculator). Plain `.md` is simpler. Recommend `.md` for v1 — we can rename to `.mdx` and start embedding components per-post when we have a reason. `@next/mdx` with `extension: /\.(md|mdx)$/` handles both.
+- **Hero image per post?** Required for OG cards on social shares. For v1, render a templated SVG hero from the post title + tag color (server-side via `next/og`) instead of authoring one per post. Revisit if any post starts getting real social traffic.
+- **Tag pages?** `/learn/tag/<tag>` to filter by tag. Skip for v1; add when we have 10+ posts and tags actually matter for navigation.
+- **DE translation?** Skip until EN is pulling traffic. The site already has DE legal pages, so the precedent for bilingual exists if we want to come back to it.
