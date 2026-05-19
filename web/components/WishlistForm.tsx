@@ -6,7 +6,7 @@ import Link from "next/link";
 // Public marketing-site endpoint on the Go backend. Configurable per
 // environment via NEXT_PUBLIC_API_URL (baked in at build time because the
 // site is statically exported).
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://api.grittyfitness.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://grittyfitness.app";
 
 type Status = "idle" | "submitting" | "success" | "error";
 
