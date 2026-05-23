@@ -102,6 +102,7 @@ Full details for each change are in the `progress/` folder.
 | [time-bound-reminders](progress/time-bound-reminders.md) | Task 26: user-scheduled reminders via `set_reminder`/`list_reminders`/`cancel_reminder` tools + `UserReminderChecker` (1-min tick) delivering pre-rendered chat message + push, no LLM on delivery path |
 | [wishlist-signup](progress/wishlist-signup.md) | Pre-launch waitlist: `WishlistForm` replaces store badges on marketing site; `POST /api/wishlist` persists to `wishlist_signups` + Resend notification to `WISHLIST_NOTIFY_TO`; per-IP rate limit; works from static export |
 | [workout-export-and-share](progress/workout-export-and-share.md) | Phase 1 of workout sharing: GPX/TCX file export from `WorkoutDetailScreen` via OS share sheet (Strava/Garmin/AirDrop/etc.); HR+cadence merged into trackpoints by nearest-timestamp lookup; HR-only workouts supported via TCX without Position elements |
+| [passive-activity-notification-skip](progress/passive-activity-notification-skip.md) | Workout reminders + missed-workout reviews now skip passive scheduled types (`rest`, `recovery`, `mobility`, `yoga`) via `notifications.PassiveActivityTypes` threaded into `scheduler.go` + `reminder.go` SQL filters — rest days no longer trigger pushes |
 
 ## Instructions for Agents
 

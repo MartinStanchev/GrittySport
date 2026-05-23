@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/notifications"
 	"github.com/grittyfitness/api/internal/usage"
 )
 
@@ -94,7 +95,9 @@ func (c *MissedWorkoutChecker) checkUser(ctx context.Context, userID string, loc
 		dayOfWeek = 7 // Sunday = 7
 	}
 
-	// Find scheduled activities for today that have no linked workout and no review sent
+	// Find scheduled activities for today that have no linked workout and no
+	// review sent. Passive types (rest/recovery/mobility/yoga) are skipped —
+	// missing a rest day isn't a missed workout.
 	rows, err := c.pool.Query(ctx,
 		`SELECT sa.id
 		 FROM scheduled_activities sa
@@ -105,13 +108,14 @@ func (c *MissedWorkoutChecker) checkUser(ctx context.Context, userID string, loc
 		   AND p.status = 'active'
 		   AND sa.day_of_week = $2
 		   AND sa.missed_review_sent = false
+		   AND sa.activity_type <> ALL($4::text[])
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date <= $3::date
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date + 6 >= $3::date
 		   AND NOT EXISTS (
 		     SELECT 1 FROM workouts wo
 		     WHERE wo.scheduled_activity_id = sa.id
 		   )`,
-		userID, dayOfWeek, today,
+		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
 	)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to query missed activities")

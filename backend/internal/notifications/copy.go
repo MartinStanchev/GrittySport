@@ -5,6 +5,12 @@ import (
 	"strings"
 )
 
+// PassiveActivityTypes are scheduled activity types that should NOT trigger
+// workout reminders or missed-workout reviews. Missing one of these isn't
+// "missing a workout" — it's skipping rest or low-effort restorative work
+// that doesn't warrant a push notification.
+var PassiveActivityTypes = []string{"rest", "recovery", "mobility", "yoga"}
+
 // FormatActivityLabel turns a canonical snake_case activity type into a
 // human-friendly label suitable for notification titles.
 // e.g. "strength_training" -> "Strength", "long_run" -> "Long Run".

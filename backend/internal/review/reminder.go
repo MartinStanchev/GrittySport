@@ -93,7 +93,9 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		dayOfWeek = 7
 	}
 
-	// Find scheduled activities for today that haven't had a reminder sent
+	// Find scheduled activities for today that haven't had a reminder sent.
+	// Passive types (rest/recovery/mobility/yoga) are excluded — we don't ping
+	// users for rest days.
 	var activityType string
 	var count int
 	err := s.pool.QueryRow(ctx,
@@ -105,11 +107,12 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		 WHERE p.user_id = $1
 		   AND p.status = 'active'
 		   AND sa.day_of_week = $2
+		   AND sa.activity_type <> ALL($4::text[])
 		   AND (sa.reminder_sent_date IS NULL OR sa.reminder_sent_date < $3::date)
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date <= $3::date
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date + 6 >= $3::date
 		 LIMIT 1`,
-		userID, dayOfWeek, today,
+		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
 	).Scan(&activityType, &count)
 	if err != nil {
 		return false // no activities today or already reminded
@@ -134,7 +137,7 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		return false
 	}
 
-	// Mark all today's activities as reminded
+	// Mark today's non-passive activities as reminded.
 	_, _ = s.pool.Exec(ctx,
 		`UPDATE scheduled_activities sa
 		 SET reminder_sent_date = $3::date
@@ -145,9 +148,10 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		   AND p.user_id = $1
 		   AND p.status = 'active'
 		   AND sa.day_of_week = $2
+		   AND sa.activity_type <> ALL($4::text[])
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date <= $3::date
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date + 6 >= $3::date`,
-		userID, dayOfWeek, today,
+		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
 	)
 
 	return true
