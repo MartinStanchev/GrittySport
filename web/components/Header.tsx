@@ -8,8 +8,8 @@ export function Header() {
         <Link href="/" className="flex items-center" aria-label="Gritty Fitness">
           <Logo height={70} />
         </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm text-ink-soft">
-          <Link href="/#how" className="hover:text-ink transition">
+        <div className="hidden md:flex items-center gap-7 text-sm text-ink-soft">
+          <Link href="/how-it-works" className="hover:text-ink transition">
             How it works
           </Link>
           <Link href="/#features" className="hover:text-ink transition">
@@ -17,6 +17,9 @@ export function Header() {
           </Link>
           <Link href="/#premium" className="hover:text-ink transition">
             Premium
+          </Link>
+          <Link href="/learn" className="hover:text-ink transition">
+            Learn
           </Link>
           <Link href="/#faq" className="hover:text-ink transition">
             FAQ

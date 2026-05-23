@@ -101,6 +101,7 @@ Full details for each change are in the `progress/` folder.
 | [task-28-seo-llm-discoverability](progress/task-28-seo-llm-discoverability.md) | Marketing-site SEO/LLM discoverability: `llms.txt`, `robots.ts` (allowlist incl. CCBot/GPTBot/ClaudeBot/PerplexityBot/Google-Extended), `sitemap.ts`, build-time OG image + favicon via `next/og`, JSON-LD (SoftwareApplication / Organization / FAQPage / PrivacyPolicy / TermsOfService / AboutPage + Person) and an About page |
 | [time-bound-reminders](progress/time-bound-reminders.md) | Task 26: user-scheduled reminders via `set_reminder`/`list_reminders`/`cancel_reminder` tools + `UserReminderChecker` (1-min tick) delivering pre-rendered chat message + push, no LLM on delivery path |
 | [wishlist-signup](progress/wishlist-signup.md) | Pre-launch waitlist: `WishlistForm` replaces store badges on marketing site; `POST /api/wishlist` persists to `wishlist_signups` + Resend notification to `WISHLIST_NOTIFY_TO`; per-IP rate limit; works from static export |
+| [workout-export-and-share](progress/workout-export-and-share.md) | Phase 1 of workout sharing: GPX/TCX file export from `WorkoutDetailScreen` via OS share sheet (Strava/Garmin/AirDrop/etc.); HR+cadence merged into trackpoints by nearest-timestamp lookup; HR-only workouts supported via TCX without Position elements |
 
 ## Instructions for Agents
 

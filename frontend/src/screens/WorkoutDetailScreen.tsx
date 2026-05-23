@@ -9,6 +9,7 @@ import { getActivityIcon, formatActivityType } from '../constants/activityIcons'
 import { formatDuration, formatFullDate, formatRelativeDay } from '../utils/dates';
 import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
+import { canExportWorkout, workoutHasGPS, shareWorkoutExport, type ExportFormat } from '../services/workoutExport';
 import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
 import { formatPaceSecPerKm, formatSpeedKph, isRunSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
@@ -342,6 +343,37 @@ function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
   );
 }
 
+// ── Animated Sheet Hook ────────────────────────────────────────────────────────
+
+interface AnimatedSheet {
+  slideAnim: Animated.Value;
+  opacityAnim: Animated.Value;
+  open: () => void;
+  close: () => void;
+}
+
+function useAnimatedSheet(setVisible: (v: boolean) => void): AnimatedSheet {
+  const slideAnim = useRef(new Animated.Value(200)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  const open = useCallback(() => {
+    setVisible(true);
+    Animated.parallel([
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 320 }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [slideAnim, opacityAnim, setVisible]);
+
+  const close = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(slideAnim, { toValue: 200, duration: 180, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => setVisible(false));
+  }, [slideAnim, opacityAnim, setVisible]);
+
+  return { slideAnim, opacityAnim, open, close };
+}
+
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
 type Props = NativeStackScreenProps<any, 'WorkoutDetail'>;
@@ -357,8 +389,10 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState(false);
   const [linkSheetVisible, setLinkSheetVisible] = useState(false);
   const [linkOptions, setLinkOptions] = useState<LinkOption[]>([]);
-  const slideAnim = useRef(new Animated.Value(200)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const [shareSheetVisible, setShareSheetVisible] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const linkSheet = useAnimatedSheet(setLinkSheetVisible);
+  const shareSheet = useAnimatedSheet(setShareSheetVisible);
 
   const loadWorkout = useCallback(() => {
     const promises: [Promise<WorkoutResponse>, Promise<WorkoutAnalytics | null>] = [
@@ -378,30 +412,19 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
 
   const openLinkSheet = useCallback((options: LinkOption[]) => {
     setLinkOptions(options);
-    setLinkSheetVisible(true);
-    Animated.parallel([
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 22, stiffness: 320 }),
-      Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
-  }, [slideAnim, opacityAnim]);
-
-  const closeLinkSheet = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(slideAnim, { toValue: 200, duration: 180, useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start(() => setLinkSheetVisible(false));
-  }, [slideAnim, opacityAnim]);
+    linkSheet.open();
+  }, [linkSheet]);
 
   const handleLink = useCallback(async (activityId: string) => {
     if (!workout) return;
-    closeLinkSheet();
+    linkSheet.close();
     try {
       await linkWorkoutToActivity(workout.id, activityId);
       loadWorkout();
     } catch {
       Alert.alert('Error', 'Could not link workout.');
     }
-  }, [workout, closeLinkSheet, loadWorkout]);
+  }, [workout, linkSheet, loadWorkout]);
 
   const handleLinkToProgram = useCallback(async () => {
     if (!workout) return;
@@ -422,6 +445,19 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
       Alert.alert('Error', 'Could not load program activities.');
     }
   }, [workout, openLinkSheet]);
+
+  const handleShare = useCallback(async (format: ExportFormat) => {
+    if (!workout) return;
+    shareSheet.close();
+    setSharing(true);
+    try {
+      await shareWorkoutExport(workout, format);
+    } catch (e: any) {
+      Alert.alert('Share Failed', e?.message ?? 'Could not export workout.');
+    } finally {
+      setSharing(false);
+    }
+  }, [workout, shareSheet]);
 
   const handleDelete = useCallback(() => {
     Alert.alert('Delete Workout', 'This workout will be permanently deleted.', [
@@ -574,6 +610,24 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
         </Pressable>
       )}
 
+      {/* Share */}
+      {canExportWorkout(workout) && (
+        <Pressable
+          style={[styles.linkBtn, { borderColor: colors.primary, marginTop: 12 }]}
+          onPress={shareSheet.open}
+          disabled={sharing}
+        >
+          {sharing ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <>
+              <Ionicons name="share-outline" size={16} color={colors.primary} />
+              <Text style={[styles.linkBtnText, { color: colors.primary }]}>Share Workout</Text>
+            </>
+          )}
+        </Pressable>
+      )}
+
       {/* Delete */}
       <Pressable style={[styles.deleteBtn, { borderColor: colors.error }]} onPress={handleDelete}>
         <Ionicons name="trash-outline" size={16} color={colors.error} />
@@ -581,10 +635,10 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
       </Pressable>
     </ScrollView>
 
-    <Modal visible={linkSheetVisible} transparent animationType="none" onRequestClose={closeLinkSheet}>
-      <Animated.View style={[styles.sheetBackdrop, { opacity: opacityAnim }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={closeLinkSheet} />
-        <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: slideAnim }] }]}>
+    <Modal visible={linkSheetVisible} transparent animationType="none" onRequestClose={linkSheet.close}>
+      <Animated.View style={[styles.sheetBackdrop, { opacity: linkSheet.opacityAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={linkSheet.close} />
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: linkSheet.slideAnim }] }]}>
           <View style={styles.sheetHeader}>
             <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Link to Program Activity</Text>
             <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>Select the scheduled activity for this workout</Text>
@@ -606,7 +660,49 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
             </View>
           ))}
           <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
-          <Pressable style={[styles.sheetRow, styles.sheetCancelRow]} onPress={closeLinkSheet}>
+          <Pressable style={[styles.sheetRow, styles.sheetCancelRow]} onPress={linkSheet.close}>
+            <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>Cancel</Text>
+          </Pressable>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+
+    <Modal visible={shareSheetVisible} transparent animationType="none" onRequestClose={shareSheet.close}>
+      <Animated.View style={[styles.sheetBackdrop, { opacity: shareSheet.opacityAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={shareSheet.close} />
+        <Animated.View style={[styles.sheet, { backgroundColor: colors.surface, transform: [{ translateY: shareSheet.slideAnim }] }]}>
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Share Workout</Text>
+            <Text style={[styles.sheetSubtitle, { color: colors.textSecondary }]}>Export as a file to send to Strava, Garmin Connect, or another app</Text>
+          </View>
+          <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
+          {workoutHasGPS(workout) && (
+            <>
+              <Pressable style={styles.sheetRow} onPress={() => handleShare('gpx')}>
+                <View style={[styles.sheetRowIcon, { backgroundColor: colors.primary + '18' }]}>
+                  <Ionicons name="map-outline" size={22} color={colors.primary} />
+                </View>
+                <View style={styles.sheetRowText}>
+                  <Text style={[styles.sheetRowTitle, { color: colors.textPrimary }]}>GPX</Text>
+                  <Text style={[styles.sheetRowSubtitle, { color: colors.textSecondary }]}>Route + heart rate. Widely supported.</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+              </Pressable>
+              <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
+            </>
+          )}
+          <Pressable style={styles.sheetRow} onPress={() => handleShare('tcx')}>
+            <View style={[styles.sheetRowIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Ionicons name="document-outline" size={22} color={colors.primary} />
+            </View>
+            <View style={styles.sheetRowText}>
+              <Text style={[styles.sheetRowTitle, { color: colors.textPrimary }]}>TCX</Text>
+              <Text style={[styles.sheetRowSubtitle, { color: colors.textSecondary }]}>Includes laps + cadence. Best for Strava and Garmin.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+          </Pressable>
+          <View style={[styles.sheetSeparator, { backgroundColor: colors.border }]} />
+          <Pressable style={[styles.sheetRow, styles.sheetCancelRow]} onPress={shareSheet.close}>
             <Text style={[styles.sheetCancelText, { color: colors.textSecondary }]}>Cancel</Text>
           </Pressable>
         </Animated.View>

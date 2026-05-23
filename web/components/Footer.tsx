@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 export function Footer() {
   return (
     <footer className="border-t border-black/5 bg-cream">
-      <div className="max-w-6xl mx-auto px-6 py-12 grid gap-10 md:grid-cols-4">
+      <div className="max-w-6xl mx-auto px-6 py-12 grid gap-10 md:grid-cols-5">
         <div className="md:col-span-2">
           <div className="flex items-center">
             <Logo height={48} />
@@ -21,7 +21,7 @@ export function Footer() {
           </h4>
           <ul className="space-y-2 text-sm text-ink-soft">
             <li>
-              <Link href="/#how" className="hover:text-ink">
+              <Link href="/how-it-works" className="hover:text-ink">
                 How it works
               </Link>
             </li>
@@ -38,6 +38,24 @@ export function Footer() {
             <li>
               <Link href="/#faq" className="hover:text-ink">
                 FAQ
+              </Link>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-display font-semibold text-sm mb-3 text-ink">
+            Resources
+          </h4>
+          <ul className="space-y-2 text-sm text-ink-soft">
+            <li>
+              <Link href="/learn" className="hover:text-ink">
+                Learn
+              </Link>
+            </li>
+            <li>
+              <Link href="/examples" className="hover:text-ink">
+                Examples
               </Link>
             </li>
             <li>
