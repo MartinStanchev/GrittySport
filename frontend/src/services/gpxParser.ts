@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { GPSPoint, HRReading } from '../types/gps';
-import type { WorkoutFileParseResult } from './workoutFileParser';
-import { emptyParseResult } from './workoutFileParser';
+import type { WorkoutFileParseResult } from './workoutFileTypes';
+import { emptyParseResult } from './workoutFileTypes';
 import { haversineMetres, computeElevationGain } from './gpsUtils';
 
 /** Parse GPX XML string into WorkoutFileParseResult */

@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../../types/gps';
-import type { WorkoutFileParseResult } from '../workoutFileParser';
-import { emptyParseResult } from '../workoutFileParser';
+import type { WorkoutFileParseResult } from '../workoutFileTypes';
+import { emptyParseResult } from '../workoutFileTypes';
 import { haversineMetres, computeElevationGain, avgPaceSecPerKm, avgSpeedKph } from '../gpsUtils';
 
 const SPORT_MAP: Record<string, string> = {

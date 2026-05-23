@@ -1,6 +1,6 @@
 import type { GPSPoint, HRReading, CadenceReading, PowerReading } from '../../types/gps';
-import type { WorkoutFileParseResult } from '../workoutFileParser';
-import { emptyParseResult } from '../workoutFileParser';
+import type { WorkoutFileParseResult } from '../workoutFileTypes';
+import { emptyParseResult } from '../workoutFileTypes';
 import { haversineMetres, computeElevationGain } from '../gpsUtils';
 
 // Column name aliases (case-insensitive)

@@ -1,8 +1,8 @@
 import { Buffer } from 'buffer';
 import FitParser from 'fit-file-parser';
 import type { GPSPoint, HRReading, CadenceReading, Lap, PowerReading } from '../../types/gps';
-import type { WorkoutFileParseResult } from '../workoutFileParser';
-import { emptyParseResult } from '../workoutFileParser';
+import type { WorkoutFileParseResult } from '../workoutFileTypes';
+import { emptyParseResult } from '../workoutFileTypes';
 import { haversineMetres, computeElevationGain, avgPaceSecPerKm, avgSpeedKph } from '../gpsUtils';
 
 // Ensure Buffer polyfill is globally available for fit-file-parser

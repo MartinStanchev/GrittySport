@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import { Buffer } from 'buffer';
-import type { WorkoutFileParseResult } from '../workoutFileParser';
-import { getExtension } from '../workoutFileParser';
+import type { WorkoutFileParseResult } from '../workoutFileTypes';
+import { getExtension } from '../workoutFileTypes';
 import { parseGPXFile } from '../gpxParser';
 import { parseTCXFile } from './tcxParser';
 import { parseFITFile } from './fitParser';

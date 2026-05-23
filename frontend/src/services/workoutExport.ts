@@ -1,7 +1,14 @@
 import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import type { WorkoutResponse } from './api';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
+
+// Lazy-load expo-sharing so a missing native module (e.g. on a stale dev client
+// built before this package was added) doesn't crash the app at startup. The
+// import only resolves when the user actually taps the share button.
+type SharingModule = typeof import('expo-sharing');
+function loadSharing(): SharingModule {
+  return require('expo-sharing') as SharingModule;
+}
 
 export type ExportFormat = 'gpx' | 'tcx';
 
@@ -99,6 +106,7 @@ export async function shareWorkoutExport(
   workout: WorkoutResponse,
   format: ExportFormat,
 ): Promise<void> {
+  const Sharing = loadSharing();
   const available = await Sharing.isAvailableAsync();
   if (!available) {
     throw new Error('Sharing is not available on this device');

@@ -1,6 +1,5 @@
 import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import type { GPSPoint, HRReading, CadenceReading, Lap, PowerReading } from '../types/gps';
 import type { SaveWorkoutInput } from './api';
 import { buildFinalGPSPayload } from './gpsUtils';
 import { parseGPXFile } from './gpxParser';
@@ -8,39 +7,17 @@ import { parseTCXFile } from './parsers/tcxParser';
 import { parseFITFile } from './parsers/fitParser';
 import { parseCSVFile } from './parsers/csvParser';
 import { parseZIPFile } from './parsers/zipHandler';
+import { getExtension, type WorkoutFileParseResult } from './workoutFileTypes';
 
 export type { ZipParseResult } from './parsers/zipHandler';
-
-export type SourceFormat = 'gpx' | 'tcx' | 'fit' | 'csv' | 'apple_health' | 'health_connect';
-
-export interface WorkoutFileParseResult {
-  name: string;
-  type: string;
-  sourceFormat: SourceFormat;
-  points: GPSPoint[];
-  hrReadings: HRReading[];
-  cadenceReadings: CadenceReading[];
-  powerReadings: PowerReading[];
-  laps: Lap[];
-  startTime: Date | null;
-  endTime: Date | null;
-  totalDistanceM: number;
-  durationSec: number;
-  elevationGainM: number;
-  caloriesKcal?: number;
-  sourceDevice?: string;
-}
+export { emptyParseResult, getExtension } from './workoutFileTypes';
+export type { SourceFormat, WorkoutFileParseResult } from './workoutFileTypes';
 
 export type ParseResult =
   | { kind: 'single'; workout: WorkoutFileParseResult }
   | { kind: 'zip'; data: import('./parsers/zipHandler').ZipParseResult };
 
 const SUPPORTED_EXTENSIONS = ['.gpx', '.tcx', '.fit', '.csv', '.zip'];
-
-export function getExtension(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  return dot >= 0 ? filename.slice(dot).toLowerCase() : '';
-}
 
 /** Open file picker for workout files; returns { uri, fileName } or null */
 export async function pickWorkoutFile(): Promise<{ uri: string; fileName: string } | null> {
@@ -198,24 +175,3 @@ export function buildFileSavePayload(
   };
 }
 
-export function emptyParseResult(
-  name: string = 'Imported Workout',
-  type: string = '',
-  sourceFormat: SourceFormat = 'gpx',
-): WorkoutFileParseResult {
-  return {
-    name,
-    type,
-    sourceFormat,
-    points: [],
-    hrReadings: [],
-    cadenceReadings: [],
-    powerReadings: [],
-    laps: [],
-    startTime: null,
-    endTime: null,
-    totalDistanceM: 0,
-    durationSec: 0,
-    elevationGainM: 0,
-  };
-}
