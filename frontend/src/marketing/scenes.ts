@@ -1,8 +1,18 @@
 import type { Scene } from './types';
+import { exampleEditProposalScene } from './scenes/example-edit-proposal';
+import { examplePostWorkoutReviewScene } from './scenes/example-post-workout-review';
+import { exampleProgramProposalScene } from './scenes/example-program-proposal';
+import { exampleSetReminderScene } from './scenes/example-set-reminder';
 import { sanityCheckScene } from './scenes/sanity-check';
 
 // Registry. Add one import + one entry per new scene file in scenes/.
-export const SCENES: Scene[] = [sanityCheckScene];
+export const SCENES: Scene[] = [
+  sanityCheckScene,
+  exampleProgramProposalScene,
+  exampleEditProposalScene,
+  examplePostWorkoutReviewScene,
+  exampleSetReminderScene,
+];
 
 export function findScene(id: string): Scene | undefined {
   return SCENES.find((s) => s.id === id);

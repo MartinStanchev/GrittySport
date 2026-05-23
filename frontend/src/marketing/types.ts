@@ -8,6 +8,10 @@ export type DeviceFrame = 'iphone-15-pro' | 'iphone-15-pro-max' | 'pixel-8';
 
 export interface ChatSceneProps {
   messages: ChatMessage[];
+  // Optional quick-reply chips rendered below the message list, matching the
+  // chips HomeScreen shows when Grit suggests replies. Same rendering rules as
+  // production: borderColor primary, surface fill, primary-tinted text.
+  quickReplies?: string[];
 }
 
 export type Scene =

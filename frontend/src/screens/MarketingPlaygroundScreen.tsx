@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -7,6 +17,10 @@ import { Fonts } from '../constants/fonts';
 import { ChatMessageItem } from '../components/ChatMessageItem';
 import { ChatHeader } from '../components/ChatHeader';
 import { LockScreenMockup } from '../components/LockScreenMockup';
+import { ProposalReviewView } from '../components/ProposalReviewView';
+import { EditProposalReviewView } from '../components/EditProposalReviewView';
+import type { ProgramProposalData } from '../components/ProgramProposalCard';
+import type { ProgramEditData } from '../components/ProgramEditCard';
 import { findScene, groupScenes } from '../marketing/scenes';
 import type { Scene } from '../marketing/types';
 import { DEVICE_DIMENSIONS } from '../marketing/types';
@@ -40,7 +54,7 @@ interface MarketingPlaygroundScreenProps {
 }
 
 export default function MarketingPlaygroundScreen({ onClose }: MarketingPlaygroundScreenProps = {}) {
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
@@ -64,8 +78,27 @@ export default function MarketingPlaygroundScreen({ onClose }: MarketingPlaygrou
             <Text style={[styles.backLinkText, { color: colors.textSecondary }]}>Back to sign-in</Text>
           </Pressable>
         )}
-        <Text style={[styles.pickerEyebrow, { color: colors.primary }]}>MARKETING</Text>
-        <Text style={[styles.pickerTitle, { color: colors.textPrimary }]}>Playground</Text>
+        <View style={styles.titleRow}>
+          <View style={styles.titleColumn}>
+            <Text style={[styles.pickerEyebrow, { color: colors.primary }]}>MARKETING</Text>
+            <Text style={[styles.pickerTitle, { color: colors.textPrimary }]}>Playground</Text>
+          </View>
+          <Pressable
+            onPress={toggleTheme}
+            style={[styles.themeToggle, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            hitSlop={8}
+            accessibilityLabel={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            <Ionicons
+              name={isDark ? 'sunny-outline' : 'moon-outline'}
+              size={16}
+              color={colors.textPrimary}
+            />
+            <Text style={[styles.themeToggleText, { color: colors.textPrimary }]}>
+              {isDark ? 'Light' : 'Dark'}
+            </Text>
+          </Pressable>
+        </View>
         <Text style={[styles.pickerSub, { color: colors.textSecondary }]}>
           Tap a scene to render it full-screen for screenshots. Drag down or tap Done to come back.
         </Text>
@@ -110,52 +143,126 @@ interface SceneStageProps {
 function SceneStage({ scene, onExit, markdownStyles }: SceneStageProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const [reviewingProposal, setReviewingProposal] = useState<ProgramProposalData | null>(null);
+  const [reviewingEdit, setReviewingEdit] = useState<ProgramEditData | null>(null);
+  // Drives the send-button enabled style + lets the user clear it before
+  // capture. No send handler — this is a screenshot stage, not real chat.
+  const [inputText, setInputText] = useState('');
 
-  // The "Done" pill is anchored top-right of the stage. It's intentionally
-  // small + low-contrast so it can be cropped out of screenshots, or you can
-  // just take the shot via the simulator chrome and the pill stays out of
-  // the captured device frame entirely.
-  const doneOverlay = (
-    <Pressable
-      style={[styles.donePill, { top: insets.top + 8, backgroundColor: colors.surface, borderColor: colors.border }]}
-      onPress={onExit}
-      hitSlop={12}
-    >
-      <Text style={[styles.doneText, { color: colors.textPrimary }]}>Done</Text>
-    </Pressable>
+  // Invisible 44x44 tap target in the top-left status-bar zone. The status bar
+  // is cropped out of marketing screenshots anyway, so this gives an exit
+  // without anything appearing in the captured frame.
+  const exitTap = (
+    <Pressable style={styles.exitTap} onPress={onExit} accessibilityLabel="Exit scene" hitSlop={8} />
   );
 
   if (scene.kind === 'lockscreen') {
     return (
       <View style={styles.stageRoot}>
         <LockScreenMockup {...scene.props} />
-        {doneOverlay}
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (reviewingProposal) {
+    return (
+      <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
+        <ProposalReviewView
+          data={reviewingProposal}
+          onAccept={() => setReviewingProposal(null)}
+          onDeny={() => setReviewingProposal(null)}
+          onBack={() => setReviewingProposal(null)}
+        />
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (reviewingEdit) {
+    return (
+      <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
+        <EditProposalReviewView
+          data={reviewingEdit}
+          onAccept={() => setReviewingEdit(null)}
+          onDeny={() => setReviewingEdit(null)}
+          onBack={() => setReviewingEdit(null)}
+        />
+        {exitTap}
       </View>
     );
   }
 
   // Chat scene
+  const quickReplies = scene.props.quickReplies ?? [];
   return (
     <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
       <ChatHeader onClose={onExit} isConnected />
-      <FlatList
-        data={scene.props.messages}
-        keyExtractor={(m) => m.id}
-        contentContainerStyle={styles.messageListContent}
-        renderItem={({ item }) => (
-          <ChatMessageItem
-            item={item}
-            colors={colors}
-            markdownStyles={markdownStyles}
-            respondedProposalIds={EMPTY_SET}
-            onReviewProposal={() => {}}
-            onAcceptEdit={() => {}}
-            onDenyEdit={() => {}}
-            onReviewEdit={() => {}}
-          />
+      <KeyboardAvoidingView
+        style={styles.chatBody}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <FlatList
+          data={scene.props.messages}
+          keyExtractor={(m) => m.id}
+          contentContainerStyle={styles.messageListContent}
+          renderItem={({ item }) => (
+            <ChatMessageItem
+              item={item}
+              colors={colors}
+              markdownStyles={markdownStyles}
+              respondedProposalIds={EMPTY_SET}
+              onReviewProposal={(data) => setReviewingProposal(data)}
+              onAcceptEdit={() => {}}
+              onDenyEdit={() => {}}
+              onReviewEdit={(data) => setReviewingEdit(data)}
+            />
+          )}
+        />
+        {quickReplies.length > 0 && (
+          <View style={styles.quickReplyContainer}>
+            {quickReplies.map((reply) => (
+              <View
+                key={reply}
+                style={[styles.quickReplyButton, { borderColor: colors.primary, backgroundColor: colors.surface }]}
+              >
+                <Text style={[styles.quickReplyText, { color: colors.primary }]}>{reply}</Text>
+              </View>
+            ))}
+          </View>
         )}
-      />
-      {doneOverlay}
+        <View
+          style={[
+            styles.chatInputContainer,
+            { paddingBottom: insets.bottom + 8, borderTopColor: colors.border, backgroundColor: colors.surface },
+          ]}
+        >
+          <TextInput
+            style={[styles.chatInput, { color: colors.textPrimary, backgroundColor: colors.background }]}
+            placeholder="Message Grit..."
+            placeholderTextColor={colors.textSecondary}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={2000}
+            autoCapitalize="sentences"
+          />
+          <View
+            style={[
+              styles.sendButton,
+              { backgroundColor: inputText.trim() ? colors.primary : colors.surfaceAlt },
+            ]}
+          >
+            <Ionicons
+              name="arrow-up"
+              size={18}
+              color={inputText.trim() ? colors.surface : colors.textSecondary}
+            />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+      {exitTap}
     </View>
   );
 }
@@ -181,6 +288,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Fonts.body,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  titleColumn: {
+    flex: 1,
+  },
   pickerEyebrow: {
     fontSize: 11,
     fontFamily: Fonts.bodySemiBold,
@@ -190,6 +305,20 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontFamily: Fonts.heading,
     marginTop: 4,
+  },
+  themeToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 4,
+  },
+  themeToggleText: {
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
   },
   pickerSub: {
     fontSize: 13,
@@ -238,20 +367,63 @@ const styles = StyleSheet.create({
   stageRoot: {
     flex: 1,
   },
+  chatBody: {
+    flex: 1,
+  },
   messageListContent: {
     padding: 16,
     paddingBottom: 8,
   },
-  donePill: {
-    position: 'absolute',
-    right: 12,
+  chatInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  doneText: {
-    fontSize: 12,
+  chatInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: Fonts.body,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 8,
+    maxHeight: 120,
+    minHeight: 40,
+  },
+  sendButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+    marginBottom: 4,
+  },
+  quickReplyContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  quickReplyButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  quickReplyText: {
+    fontSize: 14,
     fontFamily: Fonts.bodySemiBold,
+  },
+  exitTap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 44,
+    height: 44,
   },
 });
