@@ -280,12 +280,12 @@ describe('formatPaceSecPerKm', () => {
 });
 
 describe('formatSpeedKph', () => {
-  it('returns 0.0 for 0', () => {
-    expect(formatSpeedKph(0)).toBe('0.0');
+  it('returns 0.00 for 0', () => {
+    expect(formatSpeedKph(0)).toBe('0.00');
   });
 
-  it('formats with one decimal place', () => {
-    expect(formatSpeedKph(12.345)).toBe('12.3');
+  it('formats with two decimal places', () => {
+    expect(formatSpeedKph(12.345)).toBe('12.35');
   });
 });
 

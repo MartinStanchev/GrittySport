@@ -13,8 +13,8 @@ export function ProgramAlignmentCard({ data }: ProgramAlignmentCardProps) {
   if (data.prescribed_distance_km != null && data.actual_distance_km != null) {
     rows.push({
       label: 'Distance',
-      prescribed: `${data.prescribed_distance_km.toFixed(1)} km`,
-      actual: `${data.actual_distance_km.toFixed(1)} km`,
+      prescribed: `${data.prescribed_distance_km.toFixed(2)} km`,
+      actual: `${data.actual_distance_km.toFixed(2)} km`,
       deviationPct: data.distance_deviation_pct,
     });
   }

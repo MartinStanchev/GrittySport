@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppShot } from "@/components/AppShot";
 import { Eyebrow } from "@/components/Eyebrow";
 import { JsonLd } from "@/components/JsonLd";
 
@@ -24,7 +25,62 @@ type Section = {
   id: string;
   title: string;
   body: React.ReactNode;
+  visual?: React.ReactNode;
 };
+
+function ProgramBuildingVisual() {
+  return (
+    <div className="grid sm:grid-cols-2 gap-10 sm:gap-8 justify-items-center">
+      <AppShot
+        src="/app_screenshots/program-chat-light.png"
+        alt="Chat with Grit drafting a 14-week half-marathon program, ending in a program proposal card."
+        width={399}
+        height={859}
+        eyebrow="Step 1 · Tell Grit your goal"
+        caption="Plain-language intake. Grit asks for benchmarks, then drafts the block."
+      />
+      <AppShot
+        src="/app_screenshots/program-review-light.png"
+        alt="Full-screen program review showing weeks, days per week, phases, and the base-phase week template."
+        width={395}
+        height={860}
+        eyebrow="Step 2 · Review before saving"
+        caption="The whole plan as one card. Edit any session, or send it back to Grit."
+      />
+    </div>
+  );
+}
+
+function GritToolsVisual() {
+  return (
+    <div className="grid sm:grid-cols-3 gap-10 sm:gap-6 justify-items-center">
+      <AppShot
+        src="/app_screenshots/edit-proposal-light.png"
+        alt="Grit's program-adjustment card bumping Tuesday's threshold reps 10s/km faster after a tempo run felt easy."
+        width={397}
+        height={860}
+        eyebrow="Propose an edit"
+        caption="Before/after on the affected sessions. Apply or discuss."
+      />
+      <AppShot
+        src="/app_screenshots/post-workout-review-light.png"
+        alt="Saturday long-run review from Grit summarising 18.4 km, splits, HR zones, with quick-reply chips."
+        width={431}
+        height={768}
+        eyebrow="Review every workout"
+        caption="Effort, splits, HR — and quick replies to keep the thread going."
+      />
+      <AppShot
+        src="/app_screenshots/reminder-light.png"
+        alt="Grit confirming a 15-minute mobility reminder for 8 PM tonight, with recurring options."
+        width={434}
+        height={768}
+        eyebrow="Set reminders"
+        caption="Ask in chat. Grit schedules a real push notification."
+      />
+    </div>
+  );
+}
 
 const SECTIONS: Section[] = [
   {
@@ -65,6 +121,7 @@ const SECTIONS: Section[] = [
         </p>
       </>
     ),
+    visual: <ProgramBuildingVisual />,
   },
   {
     id: "what-grit-can-do",
@@ -109,6 +166,7 @@ const SECTIONS: Section[] = [
         </ul>
       </>
     ),
+    visual: <GritToolsVisual />,
   },
   {
     id: "connecting-your-workouts",
@@ -290,6 +348,9 @@ export default function HowItWorksPage() {
               {s.title}
             </h2>
             {s.body}
+            {s.visual && (
+              <div className="mt-12 lg:-mx-24 xl:-mx-32">{s.visual}</div>
+            )}
           </section>
         ))}
 

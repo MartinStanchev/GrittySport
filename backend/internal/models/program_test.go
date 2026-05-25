@@ -109,6 +109,19 @@ func TestWeekToResponse_FallbackFromProgramStart(t *testing.T) {
 	}
 }
 
+func TestIsValidEditAction(t *testing.T) {
+	for _, a := range ValidEditActions {
+		if !IsValidEditAction(a) {
+			t.Errorf("IsValidEditAction(%q) = false, want true", a)
+		}
+	}
+	for _, a := range []string{"", "update_activity_type_filter", "delete_activity", "unknown"} {
+		if IsValidEditAction(a) {
+			t.Errorf("IsValidEditAction(%q) = true, want false", a)
+		}
+	}
+}
+
 func TestWeekToResponse_SundayActivity(t *testing.T) {
 	programStart, _ := time.Parse("2006-01-02", "2026-02-23")
 

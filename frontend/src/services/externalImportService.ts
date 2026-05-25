@@ -117,11 +117,14 @@ export async function loadWorkoutParseResult(
   if (source === 'apple_health') {
     const summary = await healthKit.getWorkoutByUUID(externalId);
     if (!summary) throw new Error('Workout not found in Apple Health.');
-    const [hr, pts] = await Promise.all([
+    const isCycling = summary.mappedActivityType === 'cycling';
+    const [hr, pts, cad, pwr] = await Promise.all([
       healthKit.getWorkoutHeartRate(summary.startDate, summary.endDate),
       summary.isIndoor ? Promise.resolve([]) : healthKit.getWorkoutRoute(summary.uuid),
+      isCycling ? healthKit.getWorkoutCyclingCadence(summary.startDate, summary.endDate) : Promise.resolve([]),
+      isCycling ? healthKit.getWorkoutCyclingPower(summary.startDate, summary.endDate) : Promise.resolve([]),
     ]);
-    return healthKit.buildHealthKitParseResult(summary, hr, pts);
+    return healthKit.buildHealthKitParseResult(summary, hr, pts, cad, pwr);
   }
   if (source === 'health_connect') {
     const summary = await healthConnect.getWorkoutById(externalId);

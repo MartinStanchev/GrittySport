@@ -35,6 +35,7 @@ import {
   isRunSport,
   avgPaceSecPerKm,
   avgSpeedKph,
+  cadenceUnit,
 } from '../services/gpsUtils';
 import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
@@ -426,7 +427,7 @@ function WorkoutPreview({
           )}
           {stats.avgCad != null && (
             <View style={styles.statTile}>
-              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.avgCad} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>spm</Text></Text>
+              <Text style={[styles.statValue, { color: colors.textPrimary }]}>{stats.avgCad} <Text style={[styles.statUnit, { color: colors.textSecondary }]}>{cadenceUnit(activityType)}</Text></Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Cadence</Text>
             </View>
           )}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/grittyfitness/api/internal/ai"
@@ -516,7 +517,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 							"action": {
 								Type:        genai.TypeString,
 								Description: "Edit type",
-								Enum:        []string{"update_activity", "remove_activity", "add_activity", "swap_day", "update_criteria"},
+								Enum:        models.ValidEditActions,
 							},
 							"activity_id":          {Type: genai.TypeString, Description: "Target a specific activity by ID (update_activity, remove_activity)"},
 							"week_id":              {Type: genai.TypeString, Description: "Target a specific week (add_activity to one week only)"},
@@ -563,12 +564,22 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("marshal edits: %w", err)
 			}
 
-			// Enrich edits with "before" state for frontend diffs.
 			var rawEdits []models.ProgramEdit
-			if err := json.Unmarshal(editsJSON, &rawEdits); err == nil {
-				if enriched, err := programSvc.ResolveEditsBefore(ctx, programID, userID, rawEdits); err == nil {
-					editsJSON, _ = json.Marshal(enriched)
+			if err := json.Unmarshal(editsJSON, &rawEdits); err != nil {
+				return nil, fmt.Errorf("invalid edits payload: %w", err)
+			}
+			if len(rawEdits) == 0 {
+				return nil, fmt.Errorf("edits array is empty — include at least one edit action")
+			}
+			for i, e := range rawEdits {
+				if !models.IsValidEditAction(e.Action) {
+					return nil, fmt.Errorf("edit[%d]: unknown action %q — valid actions are: %s", i, e.Action, strings.Join(models.ValidEditActions, ", "))
 				}
+			}
+
+			// Enrich edits with "before" state for frontend diffs.
+			if enriched, err := programSvc.ResolveEditsBefore(ctx, programID, userID, rawEdits); err == nil {
+				editsJSON, _ = json.Marshal(enriched)
 			}
 
 			metaJSON, _ := json.Marshal(map[string]string{
@@ -606,7 +617,6 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			if proposal.Type != "program_edit" {
 				return nil, fmt.Errorf("pending proposal is not a program edit")
 			}
-			defer proposals.Delete(userID)
 
 			var meta map[string]string
 			if err := json.Unmarshal(proposal.Criteria, &meta); err != nil {
@@ -621,8 +631,11 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 
 			count, err := programSvc.ApplyEdits(ctx, programID, userID, edits)
 			if err != nil {
-				return nil, fmt.Errorf("apply edits: %w", err)
+				// Keep the pending proposal in place so the model surfaces the failure to
+				// the user instead of silently re-proposing (which created an accept-loop).
+				return nil, fmt.Errorf("apply edits failed; do NOT call edit_program again — explain the failure to the user: %w", err)
 			}
+			proposals.Delete(userID)
 			return map[string]any{
 				"status":  "applied",
 				"count":   count,

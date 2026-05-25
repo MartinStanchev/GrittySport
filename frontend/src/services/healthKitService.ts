@@ -1,5 +1,5 @@
 import { LogBox, Platform } from 'react-native';
-import type { GPSPoint, HRReading } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, PowerReading, Lap } from '../types/gps';
 import type { WorkoutFileParseResult } from './workoutFileParser';
 import { computeElevationGain } from './gpsUtils';
 
@@ -84,6 +84,9 @@ export interface HealthKitWorkoutSummary {
   totalEnergyBurnedKcal: number | null;
   sourceDevice: string | null;
   isIndoor: boolean;
+  // Lap boundaries from HKWorkoutEvent (type=lap). Each entry is a (start, end) pair
+  // in milliseconds since epoch. May be empty if the source watch didn't record laps.
+  lapEvents: { startMs: number; endMs: number }[];
 }
 
 // ── Service (lazy-loaded to avoid import crash on Android/web/Expo Go) ───────
@@ -142,6 +145,9 @@ export async function requestPermissions(): Promise<boolean> {
       'HKQuantityTypeIdentifierDistanceCycling',
       'HKQuantityTypeIdentifierDistanceSwimming',
       'HKWorkoutRouteTypeIdentifier',
+      // iOS 17+ cycling sensors. Older iOS ignores unknown identifiers in the array.
+      'HKQuantityTypeIdentifierCyclingCadence',
+      'HKQuantityTypeIdentifierCyclingPower',
     ],
   });
   return true;
@@ -152,6 +158,17 @@ function summarizeSample(s: any): HealthKitWorkoutSummary {
   const endDate = new Date(s.endDate);
   const durationSeconds = s.duration?.quantity ?? (endDate.getTime() - startDate.getTime()) / 1000;
   const hkTypeName = resolveActivityTypeName(s.workoutActivityType as any);
+
+  // WorkoutEventType.lap = 3
+  const lapEvents: { startMs: number; endMs: number }[] = [];
+  const events: any[] = s.events ?? [];
+  for (const ev of events) {
+    if (ev.type !== 3) continue;
+    const eStart = new Date(ev.startDate).getTime();
+    const eEnd = new Date(ev.endDate).getTime();
+    lapEvents.push({ startMs: eStart, endMs: eEnd > eStart ? eEnd : eStart });
+  }
+  lapEvents.sort((a, b) => a.startMs - b.startMs);
 
   return {
     uuid: s.uuid,
@@ -164,6 +181,7 @@ function summarizeSample(s: any): HealthKitWorkoutSummary {
     totalEnergyBurnedKcal: s.totalEnergyBurned?.quantity ?? null,
     sourceDevice: s.sourceRevision?.source?.name ?? null,
     isIndoor: s.metadataIndoorWorkout ?? false,
+    lapEvents,
   };
 }
 
@@ -225,6 +243,51 @@ export async function getWorkoutHeartRate(
   }));
 }
 
+/**
+ * Fetch cycling cadence (rpm) samples for a workout window. Only available on
+ * iOS 17+; returns [] on older OS or if the identifier query throws.
+ */
+export async function getWorkoutCyclingCadence(
+  startDate: Date,
+  endDate: Date,
+): Promise<CadenceReading[]> {
+  try {
+    const hk = getHK();
+    const result = await hk.queryQuantitySamples(
+      'HKQuantityTypeIdentifierCyclingCadence' as any,
+      { filter: { date: { startDate, endDate } }, ascending: true, limit: 0 },
+    );
+    return extractSamples(result).map((s: any) => ({
+      spm: Math.round(s.quantity),
+      timestamp: new Date(s.startDate).getTime(),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fetch cycling power (watts) samples for a workout window. iOS 17+ only.
+ */
+export async function getWorkoutCyclingPower(
+  startDate: Date,
+  endDate: Date,
+): Promise<PowerReading[]> {
+  try {
+    const hk = getHK();
+    const result = await hk.queryQuantitySamples(
+      'HKQuantityTypeIdentifierCyclingPower' as any,
+      { filter: { date: { startDate, endDate } }, ascending: true, limit: 0 },
+    );
+    return extractSamples(result).map((s: any) => ({
+      watts: Math.round(s.quantity),
+      timestamp: new Date(s.startDate).getTime(),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getWorkoutRoute(
   workoutUUID: string,
 ): Promise<GPSPoint[]> {
@@ -275,14 +338,84 @@ export async function getWorkoutRoute(
 
 // ── Build shared WorkoutFileParseResult ──────────────────────────────────────
 
+/**
+ * Construct Lap[] from HealthKit lap events + GPS points + HR readings.
+ *
+ * Some watches emit a lap event per lap with distinct startDate/endDate; others
+ * just drop a marker at each lap boundary. We handle both: if events have a
+ * non-zero duration we use them directly, otherwise we treat each timestamp as
+ * a lap boundary and split between successive boundaries (with workout-start
+ * as the implicit first boundary).
+ */
+function buildLapsFromEvents(
+  lapEvents: { startMs: number; endMs: number }[],
+  workoutStartMs: number,
+  workoutEndMs: number,
+  gpsPoints: GPSPoint[],
+  hrReadings: HRReading[],
+): Lap[] {
+  if (lapEvents.length === 0) return [];
+
+  // Detect whether events carry real intervals or just boundary markers
+  const hasIntervals = lapEvents.some((e) => e.endMs - e.startMs > 1000);
+  const intervals: { startMs: number; endMs: number }[] = [];
+  if (hasIntervals) {
+    for (const e of lapEvents) {
+      if (e.endMs - e.startMs > 1000) intervals.push({ startMs: e.startMs, endMs: e.endMs });
+    }
+  } else {
+    let prev = workoutStartMs;
+    for (const e of lapEvents) {
+      if (e.startMs > prev) intervals.push({ startMs: prev, endMs: e.startMs });
+      prev = e.startMs;
+    }
+    if (workoutEndMs > prev) intervals.push({ startMs: prev, endMs: workoutEndMs });
+  }
+
+  return intervals.map((iv, idx) => {
+    // Exclusive on start so a boundary point doesn't double-count its segment
+    // into the previous lap.
+    const pointsInLap = gpsPoints.filter((p) => p.timestamp > iv.startMs && p.timestamp <= iv.endMs);
+    const distanceM = pointsInLap.reduce((s, p) => s + p.distance_from_prev, 0);
+    const durationSec = (iv.endMs - iv.startMs) / 1000;
+    const speed = distanceM > 0 && durationSec > 0 ? (distanceM / 1000) / (durationSec / 3600) : 0;
+    const pace = distanceM > 0 && durationSec > 0 ? (durationSec / distanceM) * 1000 : 0;
+    const hrInLap = hrReadings.filter((r) => r.timestamp >= iv.startMs && r.timestamp <= iv.endMs);
+    const avgHr = hrInLap.length > 0
+      ? Math.round(hrInLap.reduce((s, r) => s + r.bpm, 0) / hrInLap.length)
+      : undefined;
+    return {
+      lap_number: idx + 1,
+      start_time: iv.startMs,
+      end_time: iv.endMs,
+      distance_m: distanceM,
+      duration_sec: durationSec,
+      avg_pace_sec_per_km: pace,
+      avg_speed_kph: speed,
+      avg_hr: avgHr,
+      elevation_gain_m: computeElevationGain(pointsInLap),
+    };
+  });
+}
+
 export function buildHealthKitParseResult(
   summary: HealthKitWorkoutSummary,
   hrReadings: HRReading[],
   gpsPoints: GPSPoint[],
+  cadenceReadings: CadenceReading[] = [],
+  powerReadings: PowerReading[] = [],
 ): WorkoutFileParseResult {
   const totalDistanceM = gpsPoints.length > 0
     ? gpsPoints.reduce((s, p) => s + p.distance_from_prev, 0)
     : (summary.distanceKm ?? 0) * 1000;
+
+  const laps = buildLapsFromEvents(
+    summary.lapEvents,
+    summary.startDate.getTime(),
+    summary.endDate.getTime(),
+    gpsPoints,
+    hrReadings,
+  );
 
   return {
     name: 'Apple Health Workout',
@@ -290,9 +423,9 @@ export function buildHealthKitParseResult(
     sourceFormat: 'apple_health',
     points: gpsPoints,
     hrReadings,
-    cadenceReadings: [],
-    powerReadings: [],
-    laps: [],
+    cadenceReadings,
+    powerReadings,
+    laps,
     startTime: summary.startDate,
     endTime: summary.endDate,
     totalDistanceM,

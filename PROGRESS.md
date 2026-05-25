@@ -103,6 +103,8 @@ Full details for each change are in the `progress/` folder.
 | [wishlist-signup](progress/wishlist-signup.md) | Pre-launch waitlist: `WishlistForm` replaces store badges on marketing site; `POST /api/wishlist` persists to `wishlist_signups` + Resend notification to `WISHLIST_NOTIFY_TO`; per-IP rate limit; works from static export |
 | [workout-export-and-share](progress/workout-export-and-share.md) | Phase 1 of workout sharing: GPX/TCX file export from `WorkoutDetailScreen` via OS share sheet (Strava/Garmin/AirDrop/etc.); HR+cadence merged into trackpoints by nearest-timestamp lookup; HR-only workouts supported via TCX without Position elements |
 | [passive-activity-notification-skip](progress/passive-activity-notification-skip.md) | Workout reminders + missed-workout reviews now skip passive scheduled types (`rest`, `recovery`, `mobility`, `yoga`) via `notifications.PassiveActivityTypes` threaded into `scheduler.go` + `reminder.go` SQL filters — rest days no longer trigger pushes |
+| [how-it-works-app-screenshots](progress/how-it-works-app-screenshots.md) | Real in-app screenshots on marketing `/how-it-works`: new `AppShot` phone-card component, 2-up (chat→review) under "Building your program" + 3-up (edit/review/reminder) under "What Grit can do", breaking out wider than the prose column; light variants shown, dark kept for later |
+| [cycling-metrics-and-rounding](progress/cycling-metrics-and-rounding.md) | Workout summary screens: km/h + raw distance fields rounded to 2 decimals, cadence label `rpm` for cycling, power (avg/max W) persisted end-to-end, Energy (kJ) + Moving Time + VAM cycling stats, Apple Health importer now extracts laps from `WorkoutEvent` + cycling cadence/power (iOS 17+) |
 
 ## Instructions for Agents
 

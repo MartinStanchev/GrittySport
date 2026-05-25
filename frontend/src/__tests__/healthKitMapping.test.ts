@@ -14,7 +14,7 @@ import type { HealthKitWorkoutSummary } from '../services/healthKitService';
 // eslint-disable-next-line import/first
 import { buildFileSavePayload } from '../services/workoutFileParser';
 // eslint-disable-next-line import/first
-import type { GPSPoint, HRReading } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, PowerReading } from '../types/gps';
 
 // ── resolveActivityTypeName ──────────────────────────────────────────────────
 
@@ -90,6 +90,7 @@ function makeSummary(overrides: Partial<HealthKitWorkoutSummary> = {}): HealthKi
     totalEnergyBurnedKcal: 350,
     sourceDevice: 'Apple Watch',
     isIndoor: false,
+    lapEvents: [],
     ...overrides,
   };
 }
@@ -128,6 +129,63 @@ describe('buildHealthKitParseResult', () => {
 
     expect(result.totalDistanceM).toBe(0);
     expect(result.caloriesKcal).toBeUndefined();
+  });
+
+  test('builds laps from boundary-style lap events', () => {
+    const summary = makeSummary({
+      startDate: new Date(0),
+      endDate: new Date(30_000),
+      lapEvents: [
+        { startMs: 10_000, endMs: 10_000 },
+        { startMs: 20_000, endMs: 20_000 },
+      ],
+    });
+    const points: GPSPoint[] = [
+      { lat: 0, lng: 0, altitude: 0, accuracy: 5, speed: null, timestamp: 0, distance_from_prev: 0 },
+      { lat: 0, lng: 0, altitude: 0, accuracy: 5, speed: null, timestamp: 10_000, distance_from_prev: 50 },
+      { lat: 0, lng: 0, altitude: 0, accuracy: 5, speed: null, timestamp: 20_000, distance_from_prev: 60 },
+      { lat: 0, lng: 0, altitude: 0, accuracy: 5, speed: null, timestamp: 30_000, distance_from_prev: 40 },
+    ];
+    const result = buildHealthKitParseResult(summary, [], points);
+
+    expect(result.laps).toHaveLength(3);
+    expect(result.laps[0].lap_number).toBe(1);
+    expect(result.laps[0].duration_sec).toBe(10);
+    expect(result.laps[0].distance_m).toBe(50);
+    expect(result.laps[1].distance_m).toBe(60);
+    expect(result.laps[2].distance_m).toBe(40);
+  });
+
+  test('builds laps from interval-style lap events', () => {
+    const summary = makeSummary({
+      startDate: new Date(0),
+      endDate: new Date(30_000),
+      lapEvents: [
+        { startMs: 0, endMs: 10_000 },
+        { startMs: 10_000, endMs: 30_000 },
+      ],
+    });
+    const result = buildHealthKitParseResult(summary, [], []);
+
+    expect(result.laps).toHaveLength(2);
+    expect(result.laps[0].duration_sec).toBe(10);
+    expect(result.laps[1].duration_sec).toBe(20);
+  });
+
+  test('passes cadence and power readings through', () => {
+    const cad: CadenceReading[] = [
+      { spm: 80, timestamp: 1000 },
+      { spm: 90, timestamp: 2000 },
+    ];
+    const pwr: PowerReading[] = [
+      { watts: 200, timestamp: 1000 },
+      { watts: 220, timestamp: 2000 },
+    ];
+    const result = buildHealthKitParseResult(makeSummary(), [], [], cad, pwr);
+
+    expect(result.cadenceReadings).toHaveLength(2);
+    expect(result.powerReadings).toHaveLength(2);
+    expect(result.powerReadings[0].watts).toBe(200);
   });
 });
 

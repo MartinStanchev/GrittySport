@@ -1,4 +1,4 @@
-import type { GPSPoint, HRReading, CadenceReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution, KmSplit, EffortScoreData, SplitsAnalysis } from '../types/gps';
+import type { GPSPoint, HRReading, CadenceReading, PowerReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution, KmSplit, EffortScoreData, SplitsAnalysis } from '../types/gps';
 
 // --- Distance ---
 
@@ -151,8 +151,8 @@ export function formatPaceSecPerKm(secPerKm: number): string {
 }
 
 export function formatSpeedKph(kph: number): string {
-  if (kph <= 0) return '0.0';
-  return kph.toFixed(1);
+  if (kph <= 0) return '0.00';
+  return kph.toFixed(2);
 }
 
 export function formatDistanceKm(distM: number): string {
@@ -222,6 +222,31 @@ export function isRunSport(activityType: string): boolean {
 
 export function isCyclingSport(activityType: string): boolean {
   return CYCLING_TYPES.has(activityType.toLowerCase());
+}
+
+/** Display unit for cadence based on activity. Cycling pedals revolve, so it's RPM. */
+export function cadenceUnit(activityType: string): 'rpm' | 'spm' {
+  return isCyclingSport(activityType) ? 'rpm' : 'spm';
+}
+
+/** Derived cycling stats: moving time, VAM (m/h), energy (kJ). Returns 0s when inputs are missing. */
+export function computeCyclingDerivedStats(params: {
+  durationSec: number;
+  autoPausedSec?: number;
+  elevationGainM?: number;
+  avgPower?: number;
+}): { movingSec: number; vamMetersPerHour: number; energyKJ: number } {
+  const { durationSec, autoPausedSec = 0, elevationGainM = 0, avgPower = 0 } = params;
+  const movingSec = Math.max(0, durationSec - autoPausedSec);
+  const vamMetersPerHour =
+    elevationGainM > 0 && durationSec > 0
+      ? Math.round((elevationGainM * 3600) / durationSec)
+      : 0;
+  const energyKJ =
+    avgPower > 0 && durationSec > 0
+      ? Math.round((avgPower * durationSec) / 1000)
+      : 0;
+  return { movingSec, vamMetersPerHour, energyKJ };
 }
 
 // --- Downsampling ---
@@ -416,6 +441,7 @@ export function buildFinalGPSPayload(params: {
   laps: Lap[];
   hrReadings: HRReading[];
   cadenceReadings?: CadenceReading[];
+  powerReadings?: PowerReading[];
   totalDistanceM: number;
   autoPausedDurationSec: number;
   startedAt: Date;
@@ -423,7 +449,7 @@ export function buildFinalGPSPayload(params: {
   hrDeviceName?: string;
 }): FinalGPSPayload {
   const {
-    activityType, points, laps, hrReadings, cadenceReadings,
+    activityType, points, laps, hrReadings, cadenceReadings, powerReadings,
     totalDistanceM, autoPausedDurationSec, startedAt, finishedAt, hrDeviceName,
   } = params;
 
@@ -445,6 +471,15 @@ export function buildFinalGPSPayload(params: {
   const maxCad =
     cadenceReadings && cadenceReadings.length > 0
       ? Math.max(...cadenceReadings.map((r) => r.spm))
+      : undefined;
+
+  const avgPow =
+    powerReadings && powerReadings.length > 0
+      ? Math.round(powerReadings.reduce((s, r) => s + r.watts, 0) / powerReadings.length)
+      : undefined;
+  const maxPow =
+    powerReadings && powerReadings.length > 0
+      ? Math.max(...powerReadings.map((r) => r.watts))
       : undefined;
 
   // Best lap = fastest pace (run) or fastest speed (cycling)
@@ -477,6 +512,8 @@ export function buildFinalGPSPayload(params: {
     max_hr: maxHR,
     avg_cadence: avgCad,
     max_cadence: maxCad,
+    avg_power: avgPow,
+    max_power: maxPow,
     points,
     laps,
     auto_paused_duration_sec: autoPausedDurationSec,
@@ -491,9 +528,14 @@ export function buildFinalGPSPayload(params: {
     max_hr: maxHR,
     avg_cadence: avgCad,
     max_cadence: maxCad,
+    avg_power: avgPow,
+    max_power: maxPow,
   };
 
-  const hasSensorData = hrReadings.length > 0 || (cadenceReadings && cadenceReadings.length > 0);
+  const hasSensorData =
+    hrReadings.length > 0 ||
+    (cadenceReadings && cadenceReadings.length > 0) ||
+    (powerReadings && powerReadings.length > 0);
 
   return {
     routeData,
@@ -502,6 +544,7 @@ export function buildFinalGPSPayload(params: {
       ? {
           readings: hrReadings,
           cadence_readings: cadenceReadings,
+          power_readings: powerReadings,
           device_name: hrDeviceName,
         }
       : null,

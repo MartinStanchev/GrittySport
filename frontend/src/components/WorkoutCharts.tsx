@@ -8,6 +8,7 @@ import {
   computePaceTimeSeries,
   computeSpeedTimeSeries,
   formatPaceSecPerKm,
+  cadenceUnit,
 } from '../services/gpsUtils';
 import type { HRReading, CadenceReading, GPSPoint } from '../types/gps';
 
@@ -370,9 +371,10 @@ export function SpeedOverTimeChart({ points }: SpeedOverTimeChartProps) {
 
 interface CadenceChartProps {
   readings: CadenceReading[];
+  activityType?: string;
 }
 
-export function CadenceChart({ readings }: CadenceChartProps) {
+export function CadenceChart({ readings, activityType }: CadenceChartProps) {
   const { width: screenWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const chartWidth = screenWidth - 80;
@@ -395,6 +397,7 @@ export function CadenceChart({ readings }: CadenceChartProps) {
   if (chartData.length < 3) return null;
 
   const chartMax = maxCad + 20;
+  const unit = cadenceUnit(activityType ?? '');
 
   return (
     <View style={styles.chartSection}>
@@ -403,11 +406,11 @@ export function CadenceChart({ readings }: CadenceChartProps) {
         <View style={styles.chartStatsInline}>
           <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Avg </Text>
           <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{avgCad}</Text>
-          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> spm</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> {unit}</Text>
           <Text style={styles.chartStatSep}>  </Text>
           <Text style={[styles.chartStatLabel, { color: colors.textSecondary }]}>Peak </Text>
           <Text style={[styles.chartStatValue, { color: colors.textPrimary }]}>{maxCad}</Text>
-          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> spm</Text>
+          <Text style={[styles.chartStatUnit, { color: colors.textSecondary }]}> {unit}</Text>
         </View>
       </View>
       <View style={styles.chartClip}>

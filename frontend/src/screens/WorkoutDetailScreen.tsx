@@ -11,7 +11,7 @@ import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAna
 import type { WorkoutResponse } from '../services/api';
 import { canExportWorkout, workoutHasGPS, shareWorkoutExport, type ExportFormat } from '../services/workoutExport';
 import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
-import { formatPaceSecPerKm, formatSpeedKph, isRunSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories } from '../services/gpsUtils';
+import { formatPaceSecPerKm, formatSpeedKph, isRunSport, isCyclingSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories, cadenceUnit, computeCyclingDerivedStats } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { isPremium } from '../utils/premium';
@@ -80,7 +80,7 @@ function StatGrid({ stats }: { stats: StatItem[] }) {
 
 function RunDetail({ data }: { data: Record<string, any> }) {
   const stats: StatItem[] = [
-    { label: 'Distance', value: data.distance_km ? `${data.distance_km}` : '', unit: 'km' },
+    { label: 'Distance', value: data.distance_km ? Number(data.distance_km).toFixed(2) : '', unit: 'km' },
     { label: 'Avg Pace', value: data.avg_pace_sec_per_km ? formatPaceSecPerKm(data.avg_pace_sec_per_km) : '', unit: '/km' },
   ];
   return <StatGrid stats={stats} />;
@@ -88,8 +88,8 @@ function RunDetail({ data }: { data: Record<string, any> }) {
 
 function CyclingDetail({ data }: { data: Record<string, any> }) {
   const stats: StatItem[] = [
-    { label: 'Distance', value: data.distance_km ? `${data.distance_km}` : '', unit: 'km' },
-    { label: 'Avg Speed', value: data.avg_speed_kph ? `${data.avg_speed_kph}` : '', unit: 'km/h' },
+    { label: 'Distance', value: data.distance_km ? Number(data.distance_km).toFixed(2) : '', unit: 'km' },
+    { label: 'Avg Speed', value: data.avg_speed_kph ? formatSpeedKph(data.avg_speed_kph) : '', unit: 'km/h' },
   ];
   return <StatGrid stats={stats} />;
 }
@@ -203,6 +203,15 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
     return data.splits.length > 0 ? data : null;
   }, [points, hrReadings]);
 
+  const isCycling = isCyclingSport(workout.activity_type);
+  const { movingSec, vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
+    durationSec,
+    autoPausedSec: route.auto_paused_duration_sec,
+    elevationGainM: isCycling ? Number(summary.elevation_gain_m ?? 0) : 0,
+    avgPower: Number(summary.avg_power ?? 0),
+  });
+  const showMovingTime = isCycling && (route.auto_paused_duration_sec ?? 0) > 0;
+
   const stats: StatItem[] = [
     { label: 'Distance', value: summary.distance_km ? Number(summary.distance_km).toFixed(2) : '', unit: 'km' },
     isRun
@@ -214,13 +223,18 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
         ? { label: 'Top Speed', value: formatSpeedKph(maxSpeedKph), unit: 'km/h' }
         : { label: '', value: '' },
     { label: 'Elevation', value: summary.elevation_gain_m ? `+${Math.round(summary.elevation_gain_m)}` : '', unit: 'm' },
+    showMovingTime ? { label: 'Moving Time', value: formatTime(Math.round(movingSec)) } : { label: '', value: '' },
+    vamMetersPerHour > 0 ? { label: 'VAM', value: `${vamMetersPerHour}`, unit: 'm/h' } : { label: '', value: '' },
     calories > 0 ? { label: 'Calories', value: `${calories}`, unit: 'kcal' } : { label: '', value: '' },
+    energyKJ > 0 ? { label: 'Energy', value: `${energyKJ}`, unit: 'kJ' } : { label: '', value: '' },
     summary.avg_hr ? { label: 'Avg HR', value: `${summary.avg_hr}`, unit: 'bpm' } : { label: '', value: '' },
     summary.max_hr ? { label: 'Max HR', value: `${summary.max_hr}`, unit: 'bpm' } : { label: '', value: '' },
     effortData && effortData.score > 0
       ? { label: 'Effort', value: `${effortData.score}/100`, unit: effortData.label }
       : { label: '', value: '' },
-    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: 'spm' } : { label: '', value: '' },
+    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: cadenceUnit(workout.activity_type) } : { label: '', value: '' },
+    summary.avg_power ? { label: 'Avg Power', value: `${summary.avg_power}`, unit: 'W' } : { label: '', value: '' },
+    summary.max_power ? { label: 'Max Power', value: `${summary.max_power}`, unit: 'W' } : { label: '', value: '' },
   ];
 
   return (
@@ -233,7 +247,7 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
       )}
 
       {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
-        <CadenceChart readings={hrData.cadence_readings} />
+        <CadenceChart readings={hrData.cadence_readings} activityType={workout.activity_type} />
       )}
 
       {laps.length > 0 && (
@@ -288,7 +302,7 @@ function HROnlyDetail({ workout }: { workout: WorkoutResponse }) {
     effortData && effortData.score > 0
       ? { label: 'Effort', value: `${effortData.score}/100`, unit: effortData.label }
       : { label: '', value: '' },
-    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: 'spm' } : { label: '', value: '' },
+    summary.avg_cadence ? { label: 'Cadence', value: `${summary.avg_cadence}`, unit: cadenceUnit(workout.activity_type) } : { label: '', value: '' },
   ];
 
   return (
@@ -300,7 +314,7 @@ function HROnlyDetail({ workout }: { workout: WorkoutResponse }) {
       )}
 
       {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
-        <CadenceChart readings={hrData.cadence_readings} />
+        <CadenceChart readings={hrData.cadence_readings} activityType={workout.activity_type} />
       )}
     </>
   );
@@ -349,7 +363,7 @@ interface AnimatedSheet {
   slideAnim: Animated.Value;
   opacityAnim: Animated.Value;
   open: () => void;
-  close: () => void;
+  close: () => Promise<void>;
 }
 
 function useAnimatedSheet(setVisible: (v: boolean) => void): AnimatedSheet {
@@ -364,12 +378,19 @@ function useAnimatedSheet(setVisible: (v: boolean) => void): AnimatedSheet {
     ]).start();
   }, [slideAnim, opacityAnim, setVisible]);
 
-  const close = useCallback(() => {
+  const close = useCallback(() => new Promise<void>((resolve) => {
     Animated.parallel([
       Animated.timing(slideAnim, { toValue: 200, duration: 180, useNativeDriver: true }),
       Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
-    ]).start(() => setVisible(false));
-  }, [slideAnim, opacityAnim, setVisible]);
+    ]).start(() => {
+      setVisible(false);
+      // Wait one frame for React to unmount the Modal before resolving.
+      // iOS refuses to present UIActivityViewController while another modal
+      // is still on screen, so callers (e.g. the share flow) need to know
+      // the sheet is gone before they present their own UI.
+      requestAnimationFrame(() => resolve());
+    });
+  }), [slideAnim, opacityAnim, setVisible]);
 
   return { slideAnim, opacityAnim, open, close };
 }
@@ -448,11 +469,14 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
 
   const handleShare = useCallback(async (format: ExportFormat) => {
     if (!workout) return;
-    shareSheet.close();
     setSharing(true);
     try {
+      // iOS will not present UIActivityViewController while our sheet Modal
+      // is still on screen, so wait for it to fully unmount first.
+      await shareSheet.close();
       await shareWorkoutExport(workout, format);
     } catch (e: any) {
+      console.warn('[workout-export] share failed', e);
       Alert.alert('Share Failed', e?.message ?? 'Could not export workout.');
     } finally {
       setSharing(false);

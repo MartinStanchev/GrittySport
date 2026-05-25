@@ -32,10 +32,13 @@ import {
   formatSpeedKph,
   formatDistanceKm,
   isRunSport,
+  isCyclingSport,
   computeHRZoneDistribution,
   HR_ZONE_COLORS,
   computeEffortScore,
   computeKmSplits,
+  cadenceUnit,
+  computeCyclingDerivedStats,
 } from '../services/gpsUtils';
 import type { Lap, HRZone } from '../types/gps';
 import { isPremium } from '../utils/premium';
@@ -114,10 +117,18 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
   const workout = activeGPSWorkout;
   const isRun = isRunSport(workout.activityType);
+  const isCycling = isCyclingSport(workout.activityType);
   const finishedAt = workout.finishedAt ?? new Date();
   const { routeData, summaryData, hrData } = gpsPayload;
 
   const totalElapsed = routeData.duration_sec;
+  const { movingSec, vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
+    durationSec: totalElapsed,
+    autoPausedSec: routeData.auto_paused_duration_sec,
+    elevationGainM: isCycling ? routeData.elevation_gain_m : 0,
+    avgPower: routeData.avg_power,
+  });
+  const showMovingTime = isCycling && routeData.auto_paused_duration_sec > 0;
   let bestLap = null;
   if (workout.laps.length > 0) {
     bestLap = isRun
@@ -319,10 +330,25 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
               <StatCard label="Max HR" value={`${routeData.max_hr}`} unit="bpm" colors={colors} />
             )}
             {routeData.avg_cadence && (
-              <StatCard label="Avg Cadence" value={`${routeData.avg_cadence}`} unit="spm" colors={colors} />
+              <StatCard label="Avg Cadence" value={`${routeData.avg_cadence}`} unit={cadenceUnit(workout.activityType)} colors={colors} />
             )}
             {routeData.max_cadence && (
-              <StatCard label="Max Cadence" value={`${routeData.max_cadence}`} unit="spm" colors={colors} />
+              <StatCard label="Max Cadence" value={`${routeData.max_cadence}`} unit={cadenceUnit(workout.activityType)} colors={colors} />
+            )}
+            {routeData.avg_power && (
+              <StatCard label="Avg Power" value={`${routeData.avg_power}`} unit="W" colors={colors} />
+            )}
+            {routeData.max_power && (
+              <StatCard label="Max Power" value={`${routeData.max_power}`} unit="W" colors={colors} />
+            )}
+            {energyKJ > 0 && (
+              <StatCard label="Energy" value={`${energyKJ}`} unit="kJ" colors={colors} />
+            )}
+            {showMovingTime && (
+              <StatCard label="Moving Time" value={formatTime(Math.round(movingSec))} colors={colors} />
+            )}
+            {vamMetersPerHour > 0 && (
+              <StatCard label="VAM" value={`${vamMetersPerHour}`} unit="m/h" colors={colors} />
             )}
             <StatCard label="Laps" value={`${workout.laps.length}`} colors={colors} />
           </View>
@@ -369,7 +395,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
           )}
 
           {hrData?.cadence_readings && hrData.cadence_readings.length > 5 && (
-            <CadenceChart readings={hrData.cadence_readings} />
+            <CadenceChart readings={hrData.cadence_readings} activityType={workout.activityType} />
           )}
 
           {/* Lap splits */}

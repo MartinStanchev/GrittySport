@@ -37,6 +37,8 @@ export interface GPSRouteData {
   max_hr?: number;
   avg_cadence?: number;
   max_cadence?: number;
+  avg_power?: number;
+  max_power?: number;
   points: GPSPoint[];
   laps: Lap[];
   auto_paused_duration_sec: number;
@@ -46,6 +48,7 @@ export interface GPSRouteData {
 export interface HRData {
   readings: HRReading[];
   cadence_readings?: CadenceReading[];
+  power_readings?: PowerReading[];
   device_name?: string;
   device_id?: string;
 }
@@ -60,6 +63,8 @@ export interface GPSSummaryData {
   max_hr?: number;
   avg_cadence?: number;
   max_cadence?: number;
+  avg_power?: number;
+  max_power?: number;
 }
 
 export interface CadenceReading {

@@ -152,6 +152,7 @@ export function buildFileSavePayload(
     laps: result.laps,
     hrReadings: result.hrReadings,
     cadenceReadings: result.cadenceReadings.length > 0 ? result.cadenceReadings : undefined,
+    powerReadings: result.powerReadings.length > 0 ? result.powerReadings : undefined,
     totalDistanceM: result.totalDistanceM,
     autoPausedDurationSec: 0,
     startedAt,

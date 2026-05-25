@@ -106,8 +106,10 @@ export async function shareWorkoutExport(
   workout: WorkoutResponse,
   format: ExportFormat,
 ): Promise<void> {
+  console.log('[workout-export] start', { format, workoutId: workout.id });
   const Sharing = loadSharing();
   const available = await Sharing.isAvailableAsync();
+  console.log('[workout-export] sharing available', available);
   if (!available) {
     throw new Error('Sharing is not available on this device');
   }
@@ -118,6 +120,7 @@ export async function shareWorkoutExport(
   if (file.exists) file.delete();
   file.create();
   file.write(content);
+  console.log('[workout-export] file written', { uri: file.uri, bytes: content.length });
 
   const mime = format === 'gpx' ? 'application/gpx+xml' : 'application/vnd.garmin.tcx+xml';
   const uti = format === 'gpx' ? 'com.topografix.gpx' : 'com.garmin.tcx';
@@ -127,6 +130,7 @@ export async function shareWorkoutExport(
     UTI: uti,
     dialogTitle: 'Share workout',
   });
+  console.log('[workout-export] shareAsync returned');
 }
 
 // ── Input extraction ───────────────────────────────────────────────────────────

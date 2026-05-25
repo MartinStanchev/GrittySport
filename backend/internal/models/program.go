@@ -283,10 +283,29 @@ type UpdateProgramInput struct {
 	Status *string `json:"status,omitempty"`
 }
 
+// ValidEditActions enumerates the supported edit actions for ProgramEdit.Action.
+// Single source of truth for the LLM tool schema enum and the apply-time validator.
+var ValidEditActions = []string{
+	"update_activity",
+	"remove_activity",
+	"add_activity",
+	"swap_day",
+	"update_criteria",
+}
+
+func IsValidEditAction(action string) bool {
+	for _, a := range ValidEditActions {
+		if a == action {
+			return true
+		}
+	}
+	return false
+}
+
 // ProgramEdit is a unified edit action for modifying saved programs.
 // The Action field determines which other fields are relevant.
 type ProgramEdit struct {
-	// Action: update_activity, remove_activity, add_activity, swap_day, update_criteria
+	// Action: see ValidEditActions
 	Action string `json:"action"`
 
 	// Target a specific activity by ID (update_activity, remove_activity)
