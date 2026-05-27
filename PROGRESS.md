@@ -105,6 +105,7 @@ Full details for each change are in the `progress/` folder.
 | [passive-activity-notification-skip](progress/passive-activity-notification-skip.md) | Workout reminders + missed-workout reviews now skip passive scheduled types (`rest`, `recovery`, `mobility`, `yoga`) via `notifications.PassiveActivityTypes` threaded into `scheduler.go` + `reminder.go` SQL filters — rest days no longer trigger pushes |
 | [how-it-works-app-screenshots](progress/how-it-works-app-screenshots.md) | Real in-app screenshots on marketing `/how-it-works`: new `AppShot` phone-card component, 2-up (chat→review) under "Building your program" + 3-up (edit/review/reminder) under "What Grit can do", breaking out wider than the prose column; light variants shown, dark kept for later |
 | [cycling-metrics-and-rounding](progress/cycling-metrics-and-rounding.md) | Workout summary screens: km/h + raw distance fields rounded to 2 decimals, cadence label `rpm` for cycling, power (avg/max W) persisted end-to-end, Energy (kJ) + Moving Time + VAM cycling stats, Apple Health importer now extracts laps from `WorkoutEvent` + cycling cadence/power (iOS 17+) |
+| [skip-grit-review-option](progress/skip-grit-review-option.md) | `PostWorkoutReview` now lets users skip Grit's review: explicit "Get review / Skip" prompt when no linkable activity (or already linked) and a third "Skip Grit's review" button alongside the link options |
 
 ## Instructions for Agents
 

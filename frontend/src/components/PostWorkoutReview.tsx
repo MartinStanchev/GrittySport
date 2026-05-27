@@ -52,6 +52,7 @@ interface Props {
   activityType: string;
   scheduledActivityId?: string;
   onContinueInChat: () => void;
+  onSkipReview?: () => void;
 }
 
 export function PostWorkoutReview({
@@ -59,22 +60,26 @@ export function PostWorkoutReview({
   activityType,
   scheduledActivityId,
   onContinueInChat,
+  onSkipReview,
 }: Props) {
   const { colors } = useTheme();
-  const [phase, setPhase] = useState<ReviewPhase>(
-    scheduledActivityId ? 'polling' : 'linking',
-  );
+  const [phase, setPhase] = useState<ReviewPhase>('linking');
   const [reviewContent, setReviewContent] = useState('');
   const [compatibleActivities, setCompatibleActivities] = useState<LinkableActivity[]>([]);
+  const [linkLookupDone, setLinkLookupDone] = useState(!!scheduledActivityId);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
   const reviewTriggered = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
-  // Pulse animation for loading states (linking check + polling)
+  const showLinkOptions = phase === 'linking' && !scheduledActivityId && linkLookupDone && compatibleActivities.length > 0;
+  const showReviewPrompt = phase === 'linking' && linkLookupDone && !showLinkOptions;
+  const showLinkingLoader = phase === 'linking' && !linkLookupDone;
+
+  // Pulse animation for loading states (link lookup + polling)
   useEffect(() => {
-    if (phase !== 'polling' && !(phase === 'linking' && compatibleActivities.length === 0)) return;
+    if (phase !== 'polling' && !showLinkingLoader) return;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -93,37 +98,26 @@ export function PostWorkoutReview({
     );
     loop.start();
     return () => loop.stop();
-  }, [phase, compatibleActivities.length, pulseAnim]);
+  }, [phase, showLinkingLoader, pulseAnim]);
 
-  // Fetch compatible activities for linking phase
+  // Fetch compatible activities (skipped when workout is already linked)
   useEffect(() => {
-    if (phase !== 'linking') return;
+    if (scheduledActivityId) return;
     let active = true;
 
     getLinkableActivities(activityType)
       .then((activities) => {
         if (!active) return;
-        if (activities.length > 0) {
-          setCompatibleActivities(activities.slice(0, 5));
-        } else {
-          triggerAndPoll();
-        }
+        setCompatibleActivities(activities.slice(0, 5));
+        setLinkLookupDone(true);
       })
       .catch(() => {
-        if (active) triggerAndPoll();
+        if (active) setLinkLookupDone(true);
       });
 
     return () => { active = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Trigger review for already-linked workouts (started from scheduled activity)
-  useEffect(() => {
-    if (scheduledActivityId && !reviewTriggered.current) {
-      triggerAndPoll();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scheduledActivityId]);
 
   async function triggerAndPoll() {
     if (reviewTriggered.current) return;
@@ -190,7 +184,7 @@ export function PostWorkoutReview({
       </View>
 
       {/* Linking phase — show compatible activities */}
-      {phase === 'linking' && compatibleActivities.length > 0 && (
+      {showLinkOptions && (
         <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.linkTitle, { color: colors.textPrimary }]}>
             Link to Scheduled Activity
@@ -239,14 +233,47 @@ export function PostWorkoutReview({
             </Pressable>
             <Pressable style={styles.skipBtn} onPress={triggerAndPoll}>
               <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
-                Skip — review without linking
+                Skip linking — review without linking
               </Text>
             </Pressable>
+            {onSkipReview && (
+              <Pressable style={styles.skipBtn} onPress={onSkipReview}>
+                <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
+                  Skip Grit&apos;s review
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
       )}
 
-      {phase === 'linking' && compatibleActivities.length === 0 && (
+      {showReviewPrompt && (
+        <View style={[styles.panel, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.linkTitle, { color: colors.textPrimary }]}>
+            Get Grit&apos;s review?
+          </Text>
+          <Text style={[styles.linkSubtitle, { color: colors.textSecondary }]}>
+            Grit will analyze your workout and share feedback in chat.
+          </Text>
+          <View style={styles.linkActions}>
+            <Pressable
+              style={[styles.linkBtn, { backgroundColor: colors.primary }]}
+              onPress={triggerAndPoll}
+            >
+              <Text style={styles.linkBtnText}>Get review</Text>
+            </Pressable>
+            {onSkipReview && (
+              <Pressable style={styles.skipBtn} onPress={onSkipReview}>
+                <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
+                  Skip Grit&apos;s review
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
+
+      {showLinkingLoader && (
         <LoadingPanel pulseAnim={pulseAnim} text="Checking your schedule..." colors={colors} />
       )}
 

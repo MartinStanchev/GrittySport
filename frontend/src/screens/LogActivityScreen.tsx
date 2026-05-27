@@ -9,7 +9,6 @@ import {
   Text,
   TextInput,
   View,
-
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -518,6 +517,7 @@ export default function LogActivityScreen({ navigation }: Props) {
               requestOpenChat();
               navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
             }}
+            onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
           />
         ) : (
           <Pressable

@@ -512,6 +512,7 @@ function WorkoutPreview({
               requestOpenChat();
               navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
             }}
+            onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
           />
         ) : (
           <>

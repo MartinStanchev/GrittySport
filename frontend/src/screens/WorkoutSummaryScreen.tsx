@@ -455,6 +455,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 requestOpenChat();
                 navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
               }}
+              onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
             />
           ) : (
             <>
