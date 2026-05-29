@@ -24,7 +24,7 @@ export async function generateMetadata({
   const { slug } = await params;
   const post = getPostBySlug(slug);
   if (!post) return {};
-  const url = `${SITE_URL}/learn/${post.frontmatter.slug}`;
+  const url = `${SITE_URL}/learn/${post.frontmatter.slug}/`;
   return {
     title: `${post.frontmatter.title} — Gritty Fitness`,
     description: post.frontmatter.description,
@@ -65,7 +65,7 @@ export default async function LearnPostPage({ params }: PageProps) {
     `@/content/learn/${slug}.md`
   );
 
-  const url = `${SITE_URL}/learn/${post.frontmatter.slug}`;
+  const url = `${SITE_URL}/learn/${post.frontmatter.slug}/`;
 
   const articleJsonLd = {
     "@context": "https://schema.org",
@@ -97,7 +97,7 @@ export default async function LearnPostPage({ params }: PageProps) {
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: "Learn", item: `${SITE_URL}/learn` },
+      { "@type": "ListItem", position: 2, name: "Learn", item: `${SITE_URL}/learn/` },
       { "@type": "ListItem", position: 3, name: post.frontmatter.title, item: url },
     ],
   };

@@ -6,13 +6,13 @@ export const metadata: Metadata = {
   title: "Privacy Policy — Gritty Fitness",
   description:
     "How Gritty Fitness collects, stores, and protects your workout and health data. GDPR-compliant, EU-hosted.",
-  alternates: { canonical: "https://grittyfitness.app/privacy" },
+  alternates: { canonical: "https://grittyfitness.app/privacy/" },
   openGraph: {
     title: "Privacy Policy — Gritty Fitness",
     description:
       "How Gritty Fitness collects, stores, and protects your workout and health data.",
     type: "website",
-    url: "https://grittyfitness.app/privacy",
+    url: "https://grittyfitness.app/privacy/",
   },
 };
 
@@ -20,7 +20,7 @@ const privacyPolicyJsonLd = {
   "@context": "https://schema.org",
   "@type": "PrivacyPolicy",
   name: "Gritty Fitness Privacy Policy",
-  url: "https://grittyfitness.app/privacy",
+  url: "https://grittyfitness.app/privacy/",
   inLanguage: "en",
   isPartOf: {
     "@type": "WebSite",

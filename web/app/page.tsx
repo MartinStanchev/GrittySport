@@ -5,10 +5,15 @@ import { Features } from "@/components/sections/Features";
 import { Premium } from "@/components/sections/Premium";
 import { FAQ } from "@/components/sections/FAQ";
 import { FinalCTA } from "@/components/sections/FinalCTA";
+import type { Metadata } from "next";
 import { JsonLd } from "@/components/JsonLd";
 import { faqEntries } from "@/components/sections/faq-data";
 
 const SITE_URL = "https://grittyfitness.app";
+
+export const metadata: Metadata = {
+  alternates: { canonical: `${SITE_URL}/` },
+};
 
 const softwareApplication = {
   "@context": "https://schema.org",

@@ -5,7 +5,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { getPublishedPosts } from "@/lib/learn";
 
 const SITE_URL = "https://grittyfitness.app";
-const PAGE_URL = `${SITE_URL}/learn`;
+const PAGE_URL = `${SITE_URL}/learn/`;
 
 export const metadata: Metadata = {
   title: "Learn — AI fitness coaching, training science, multi-sport playbooks",

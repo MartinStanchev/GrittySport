@@ -6,13 +6,13 @@ export const metadata: Metadata = {
   title: "Impressum — Gritty Fitness",
   description:
     "Anbieterkennzeichnung gemäß § 5 TMG für Gritty Fitness.",
-  alternates: { canonical: "https://grittyfitness.app/impressum" },
+  alternates: { canonical: "https://grittyfitness.app/impressum/" },
   openGraph: {
     title: "Impressum — Gritty Fitness",
     description: "Anbieterkennzeichnung gemäß § 5 TMG für Gritty Fitness.",
     type: "website",
     locale: "de_DE",
-    url: "https://grittyfitness.app/impressum",
+    url: "https://grittyfitness.app/impressum/",
   },
 };
 
@@ -20,7 +20,7 @@ const impressumJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebPage",
   name: "Impressum — Gritty Fitness",
-  url: "https://grittyfitness.app/impressum",
+  url: "https://grittyfitness.app/impressum/",
   inLanguage: "de",
   isPartOf: {
     "@type": "WebSite",

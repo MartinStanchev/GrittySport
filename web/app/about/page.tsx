@@ -7,13 +7,13 @@ export const metadata: Metadata = {
   title: "About — Gritty Fitness",
   description:
     "The team behind Gritty Fitness — and why we're building an AI coach that respects the realities of training across multiple sports.",
-  alternates: { canonical: "https://grittyfitness.app/about" },
+  alternates: { canonical: "https://grittyfitness.app/about/" },
   openGraph: {
     title: "About — Gritty Fitness",
     description:
       "The team behind Gritty Fitness and the training philosophy behind the AI coach.",
     type: "website",
-    url: "https://grittyfitness.app/about",
+    url: "https://grittyfitness.app/about/",
   },
 };
 
@@ -25,7 +25,7 @@ const personJsonLd = {
   "@type": "Person",
   name: "[Founder Name]",
   jobTitle: "Founder",
-  url: "https://grittyfitness.app/about",
+  url: "https://grittyfitness.app/about/",
   email: "hello@grittyfitness.app",
   worksFor: {
     "@type": "Organization",
@@ -38,7 +38,7 @@ const aboutPageJsonLd = {
   "@context": "https://schema.org",
   "@type": "AboutPage",
   name: "About Gritty Fitness",
-  url: "https://grittyfitness.app/about",
+  url: "https://grittyfitness.app/about/",
   inLanguage: "en",
   isPartOf: {
     "@type": "WebSite",

@@ -6,13 +6,13 @@ export const metadata: Metadata = {
   title: "Terms of Service — Gritty Fitness",
   description:
     "Terms of Service governing use of the Gritty Fitness app, the AI coaching features, and the Premium subscription.",
-  alternates: { canonical: "https://grittyfitness.app/terms" },
+  alternates: { canonical: "https://grittyfitness.app/terms/" },
   openGraph: {
     title: "Terms of Service — Gritty Fitness",
     description:
       "Terms governing use of the Gritty Fitness app and Premium subscription.",
     type: "website",
-    url: "https://grittyfitness.app/terms",
+    url: "https://grittyfitness.app/terms/",
   },
 };
 
@@ -20,7 +20,7 @@ const termsJsonLd = {
   "@context": "https://schema.org",
   "@type": "TermsOfService",
   name: "Gritty Fitness Terms of Service",
-  url: "https://grittyfitness.app/terms",
+  url: "https://grittyfitness.app/terms/",
   inLanguage: "en",
   isPartOf: {
     "@type": "WebSite",

@@ -4,7 +4,7 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { JsonLd } from "@/components/JsonLd";
 
 const SITE_URL = "https://grittyfitness.app";
-const PAGE_URL = `${SITE_URL}/examples`;
+const PAGE_URL = `${SITE_URL}/examples/`;
 
 export const metadata: Metadata = {
   title: "Examples — Real conversations with the AI fitness coach",

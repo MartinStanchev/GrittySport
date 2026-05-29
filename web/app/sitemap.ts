@@ -9,14 +9,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [
-    { url: base, lastModified: now, priority: 1.0, changeFrequency: "monthly" },
-    { url: `${base}/how-it-works`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
-    { url: `${base}/examples`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
-    { url: `${base}/learn`, lastModified: now, priority: 0.7, changeFrequency: "weekly" },
-    { url: `${base}/about`, lastModified: now, priority: 0.6, changeFrequency: "monthly" },
-    { url: `${base}/privacy`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
-    { url: `${base}/terms`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
-    { url: `${base}/impressum`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
+    { url: `${base}/`, lastModified: now, priority: 1.0, changeFrequency: "monthly" },
+    { url: `${base}/how-it-works/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
+    { url: `${base}/examples/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
+    { url: `${base}/learn/`, lastModified: now, priority: 0.7, changeFrequency: "weekly" },
+    { url: `${base}/about/`, lastModified: now, priority: 0.6, changeFrequency: "monthly" },
+    { url: `${base}/privacy/`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
+    { url: `${base}/terms/`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
+    { url: `${base}/impressum/`, lastModified: now, priority: 0.3, changeFrequency: "yearly" },
   ];
 
   const posts = getPublishedPosts(now).map((p) => {
@@ -24,7 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       p.frontmatter.updatedAt ?? p.frontmatter.publishedAt ?? null;
     const lastModified = last ? new Date(last) : now;
     return {
-      url: `${base}/learn/${p.frontmatter.slug}`,
+      url: `${base}/learn/${p.frontmatter.slug}/`,
       lastModified,
       priority: 0.6,
       changeFrequency: "monthly" as const,
