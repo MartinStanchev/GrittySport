@@ -35,7 +35,7 @@ const faq = [
   },
   {
     q: "Can I import workouts from my bike computer or Garmin?",
-    a: "Yes. Record open-water swims and rides in-app, or import from Apple Health, Health Connect (Garmin, Wahoo, Coros, Suunto, Wear OS), and GPX/TCX/FIT files — including cycling power and cadence — so Grit reviews each session in context.",
+    a: "Yes. Record open-water swims and rides in-app, or import from Apple Health and Health Connect (Wahoo, Coros, Suunto, Wear OS) — or export a GPX/TCX/FIT file from Garmin Connect or your bike computer and upload it, including cycling power and cadence — so Grit reviews each session in context.",
   },
   {
     q: "Do I still need a human coach?",
@@ -104,7 +104,7 @@ const data: UseCaseData = {
     },
     {
       title: "Record or import any discipline",
-      body: "Open-water swim and ride GPS in-app, or import rides with power from Garmin, Wahoo, and others via Health Connect, Apple Health, or files.",
+      body: "Open-water swim and ride GPS in-app, or import rides with power via Apple Health, Health Connect, or GPX/TCX/FIT files exported from Garmin Connect, Wahoo, and others.",
     },
     {
       title: "You stay in control",
@@ -149,7 +149,7 @@ const data: UseCaseData = {
     },
     {
       title: "Power & HR imports",
-      body: "Pull in rides with power and cadence from Garmin, Wahoo, Apple Health, or files.",
+      body: "Pull in rides with power and cadence via Apple Health, Health Connect, or files exported from Garmin Connect, Wahoo, and others.",
     },
     {
       title: "Race-date periodization",

@@ -7,7 +7,7 @@ updatedAt: "2026-05-29"
 tags: ["imports", "data"]
 faq:
   - q: "How do I get my Garmin data into Apple Health or another app?"
-    a: "Two routes. On iOS, many apps read your full workout history straight from Apple Health, where your watch already writes it. On Android, Health Connect plays the same role — Garmin, Fitbit, Samsung, Strava, Whoop, and Wear OS apps all sync into it, and other apps read from there. For a one-time move you can also export GPX/TCX/FIT files from Garmin Connect and import them directly."
+    a: "On iOS, many apps read your full workout history straight from Apple Health, where your watch already writes it. On Android, Health Connect plays the same role — Fitbit, Samsung, Strava, Whoop, and Wear OS apps sync into it, and other apps read from there. Garmin is the exception: it doesn't sync cleanly into either hub, so the reliable route is to export your activities from Garmin Connect as GPX/TCX/FIT files and import them directly."
   - q: "Can I combine workouts from multiple apps in one place?"
     a: "Yes. Apple Health (iOS) and Health Connect (Android) are designed as central hubs that other apps both write to and read from. An app that reads from the hub — plus accepts file imports for anything that doesn't sync — can assemble your complete history regardless of which device recorded it."
   - q: "Will importing the same workout twice create duplicates?"
@@ -21,7 +21,7 @@ If you've been training for a few years, your data is scattered. The marathon bl
 You probably don't need a tangle of point-to-point integrations. On modern phones, two platform services act as central hubs:
 
 - **Apple Health (iOS).** Your Apple Watch and most third-party fitness apps write workouts here automatically. Any app you grant access can then read that full history — route, heart rate, splits and all.
-- **Health Connect (Android).** The Android equivalent. Fitbit, Garmin, Samsung Health, Strava, Whoop, Wear OS, and other compatible apps sync into it, and other apps read from the same place.
+- **Health Connect (Android).** The Android equivalent. Fitbit, Samsung Health, Strava, Whoop, Wear OS, and other compatible apps sync into it, and other apps read from the same place. (Garmin is a notable holdout — it doesn't sync cleanly into either hub, so move Garmin data with file exports instead, covered below.)
 
 So the practical move is usually: make sure each of your devices syncs into the hub for your phone, then use an app that reads from that hub. You don't connect ten apps to each other — you connect them all to the one hub.
 
@@ -39,6 +39,6 @@ A complete history isn't just tidy — it's what makes good coaching possible. A
 
 ## How Gritty handles it
 
-[Gritty Fitness](/how-it-works) is built around this exact problem. It reads your history from **Apple Health** on iOS and **Health Connect** on Android — which covers Garmin, Fitbit, Samsung, Strava, Whoop, and Wear OS — and accepts **GPX, TCX, FIT, CSV, and ZIP** files for anything else. Every import runs through one preview screen with the route map, stats and heart-rate chart, gets de-duplicated against what's already there, and can be linked to a scheduled session so Grit reviews it in context.
+[Gritty Fitness](/how-it-works) is built around this exact problem. It reads your history from **Apple Health** on iOS and **Health Connect** on Android — covering Fitbit, Samsung, Strava, Whoop, and Wear OS — and accepts **GPX, TCX, FIT, CSV, and ZIP** files for everything else, including Garmin: export your activities from Garmin Connect and upload them. Every import runs through one preview screen with the route map, stats and heart-rate chart, gets de-duplicated against what's already there, and can be linked to a scheduled session so Grit reviews it in context.
 
 The result is one coach looking at one complete history — instead of five apps each showing a sliver. That's the whole reason to consolidate: not neatness, but a plan that's built on all of your training, not part of it.

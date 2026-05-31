@@ -31,7 +31,7 @@ const faq = [
   },
   {
     q: "Do I need a Garmin or smartwatch?",
-    a: "No. You can record runs with your phone's GPS and an optional Bluetooth heart-rate strap. If you do use a watch, import runs from Apple Health, Health Connect (Garmin, Coros, Suunto, etc.), or GPX/TCX/FIT files so Grit reviews them in context.",
+    a: "No. You can record runs with your phone's GPS and an optional Bluetooth heart-rate strap. If you do use a watch, import runs from Apple Health or Health Connect (Coros, Suunto, etc.) — or export a GPX/TCX/FIT file from Garmin Connect and upload it — so Grit reviews them in context.",
   },
   {
     q: "How does it set my paces?",
@@ -100,7 +100,7 @@ const data: UseCaseData = {
     },
     {
       title: "Record or import any run",
-      body: "Track outdoor runs with phone GPS and a Bluetooth HR strap, or import from Apple Health, Health Connect (Garmin, Coros, Suunto), and GPX/TCX/FIT files.",
+      body: "Track outdoor runs with phone GPS and a Bluetooth HR strap, or import from Apple Health and Health Connect (Coros, Suunto), or GPX/TCX/FIT files exported from Garmin Connect and other watches.",
     },
   ],
   shots: [

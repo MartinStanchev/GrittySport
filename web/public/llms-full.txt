@@ -55,7 +55,8 @@ A coach is only as good as the data it sees, so Gritty doubles as a full fitness
 - **In-app recording.** GPS tracking for runs, rides, hikes, and open-water swims with route maps; optional pairing to any Bluetooth heart-rate strap. Manual logging for strength, mobility, and indoor sessions with pause/resume and HR-spike set detection.
 - **No smartwatch required.** Phone GPS plus an optional HR strap covers most sessions.
 - **Apple Health (iOS).** Imports workouts written by an Apple Watch or third-party apps, with route, HR, and splits intact.
-- **Health Connect (Android).** Reads workouts collected on-device from Fitbit, Garmin, Samsung Health, Strava, Whoop, Wear OS, and other Health-Connect-aware apps.
+- **Health Connect (Android).** Reads workouts collected on-device from Fitbit, Samsung Health, Strava, Whoop, Wear OS, and other Health-Connect-aware apps.
+- **Garmin.** No direct Garmin account sync. To bring Garmin workouts in, export the activity from Garmin Connect as a GPX/TCX/FIT file and upload it through file import.
 - **File import.** GPX, TCX, FIT, CSV, and ZIP bundles — useful for exports from Garmin Connect, Suunto, Coros, Polar Flow, and others.
 - **Export.** Workouts can be exported as GPX/TCX and shared to other services (Strava, Garmin, etc.).
 

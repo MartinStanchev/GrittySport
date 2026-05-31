@@ -191,9 +191,9 @@ const SECTIONS: Section[] = [
           </li>
           <li>
             <strong>Health Connect (Android).</strong> One hub on the device
-            collects workouts from Fitbit, Garmin, Samsung Health, Strava,
-            Whoop, Wear OS and other Health-Connect-aware apps — Gritty reads
-            them through the same import preview.
+            collects workouts from Fitbit, Samsung Health, Strava, Whoop,
+            Wear OS and other Health-Connect-aware apps — Gritty reads them
+            through the same import preview.
           </li>
           <li>
             <strong>File imports.</strong> GPX, TCX, FIT, CSV — and ZIP bundles.
@@ -267,7 +267,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Does Grit need a smartwatch?",
-    a: "No. Phone GPS plus an optional Bluetooth HR strap covers most sessions, and you can import everything from Apple Health, Health Connect (Fitbit / Garmin / Samsung / Strava / Whoop / Wear OS), or GPX/TCX/FIT/CSV files.",
+    a: "No. Phone GPS plus an optional Bluetooth HR strap covers most sessions, and you can import everything from Apple Health, Health Connect (Fitbit / Samsung / Strava / Whoop / Wear OS), or GPX/TCX/FIT/CSV files exported from Garmin Connect and others.",
   },
   {
     q: "Can I train for more than one sport at the same time?",
