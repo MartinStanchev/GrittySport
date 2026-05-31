@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { MobileMenu } from "@/components/MobileMenu";
 
 // Pages grouped under the "How it works" dropdown — the product-explanation
 // content plus the per-sport landing pages (which otherwise only live in the
-// footer). CSS-only menu (group-hover / group-focus-within) keeps this a
-// server component and works for keyboard users.
-const PRODUCT_LINKS = [
+// footer). Shared with the mobile menu so the link set stays in one place.
+export const PRODUCT_LINKS = [
   { href: "/how-it-works", label: "How it works" },
   { href: "/examples", label: "Examples" },
 ];
 
-const USE_CASE_LINKS = [
+export const USE_CASE_LINKS = [
   { href: "/ai-running-coach", label: "AI running coach" },
   { href: "/ai-strength-coach", label: "AI strength coach" },
   { href: "/ai-triathlon-coach", label: "AI triathlon coach" },
+];
+
+export const MAIN_LINKS = [
+  { href: "/#features", label: "Features" },
+  { href: "/#premium", label: "Premium" },
+  { href: "/learn", label: "Learn" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
 export function Header() {
@@ -23,6 +30,8 @@ export function Header() {
         <Link href="/" className="flex items-center" aria-label="Gritty Fitness">
           <Logo height={70} />
         </Link>
+
+        {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-7 text-sm text-ink-soft">
           <div className="relative group">
             <Link
@@ -65,25 +74,27 @@ export function Header() {
               </div>
             </div>
           </div>
-          <Link href="/#features" className="hover:text-ink transition">
-            Features
-          </Link>
-          <Link href="/#premium" className="hover:text-ink transition">
-            Premium
-          </Link>
-          <Link href="/learn" className="hover:text-ink transition">
-            Learn
-          </Link>
-          <Link href="/#faq" className="hover:text-ink transition">
-            FAQ
-          </Link>
+          {MAIN_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} className="hover:text-ink transition">
+              {l.label}
+            </Link>
+          ))}
         </div>
-        <Link
-          href="/#download"
-          className="text-sm font-medium px-4 py-2 rounded-full bg-ink text-white hover:bg-brand transition"
-        >
-          Join the waitlist
-        </Link>
+
+        {/* Right side: desktop CTA, or hamburger on mobile */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/#download"
+            className="hidden md:inline-block text-sm font-medium px-4 py-2 rounded-full bg-ink text-white hover:bg-brand transition"
+          >
+            Join the waitlist
+          </Link>
+          <MobileMenu
+            productLinks={PRODUCT_LINKS}
+            useCaseLinks={USE_CASE_LINKS}
+            mainLinks={MAIN_LINKS}
+          />
+        </div>
       </nav>
     </header>
   );
