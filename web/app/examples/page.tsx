@@ -101,7 +101,7 @@ const EXAMPLES: Example[] = [
       "Placed mobility right after the hardest session of the week.",
       "Left recovery days actually empty — no junk filler to pad the calendar.",
     ],
-    image: null,
+    image: "/app_screenshots/multi-sport-week-light.png",
   },
   {
     id: "hr-spike-set-detection",
@@ -114,7 +114,7 @@ const EXAMPLES: Example[] = [
       "Detected the recovery-to-effort transition and advanced the set automatically.",
       "Let the user override with a single tap when needed.",
     ],
-    image: null,
+    image: "/app_screenshots/hr-spike-set-detection-light.png",
   },
 ];
 
