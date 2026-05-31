@@ -29,20 +29,20 @@ const steps = [
 
 const adaptations = [
   {
-    title: "Missed a week?",
-    body: "Grit resets your targets to get you back on track.",
+    title: "Going on vacation?",
+    body: "Tell Grit the dates — it shifts your block and rebuilds the ramp back when you return.",
   },
   {
-    title: "Slept badly?",
-    body: "Grit dials today's session to how you actually feel.",
+    title: "Caught a cold?",
+    body: "Say the word and Grit pauses your plan, then eases you back in when you're ready.",
   },
   {
-    title: "Long Sunday hikes?",
-    body: "Tell Grit which activities count — he'll plan around them.",
+    title: "Want to push harder?",
+    body: "Ask for more volume or intensity and Grit raises the load safely into next week.",
   },
   {
-    title: "Feeling extra strong?",
-    body: "Push it. Grit banks the gain into next week's progression.",
+    title: "Week got busy?",
+    body: "Drop to fewer days and Grit reshapes the week around the time you actually have.",
   },
 ];
 
@@ -80,7 +80,7 @@ export function HowItWorks() {
 
         <div className="mt-16">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand/70 text-center">
-            And when life happens
+            Your plan, your call
           </p>
           <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {adaptations.map((a) => (
@@ -97,6 +97,11 @@ export function HowItWorks() {
               </div>
             ))}
           </div>
+          <p className="mt-8 text-center text-ink-soft leading-relaxed max-w-2xl mx-auto">
+            Just ask — Grit does the rework, and every change is a proposal you
+            approve. You stay in control of your own program, and can track every
+            activity and your progress along the way.
+          </p>
         </div>
       </div>
     </section>

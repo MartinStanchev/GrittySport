@@ -22,7 +22,7 @@ const PANELS: Panel[] = [
       </>
     ),
     subtitle:
-      "Meet Grit — your AI training partner. One app wthat allows you to track every sport you're doing. Grit helps adapt your workouts your way. Get started for free. ",
+      "Meet Grit — your AI training partner. One app that allows you to track every sport you're doing. Grit helps adapt your workouts your way. Get started for free. ",
   },
   {
     eyebrow: "Your AI training partner",

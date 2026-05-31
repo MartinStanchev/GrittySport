@@ -1,0 +1,118 @@
+# Gritty Fitness — Full Reference
+
+> Gritty Fitness is an AI-powered fitness coaching app for iOS and Android. It pairs each user with an AI coach named "Grit" who builds one holistic, multi-sport training plan, watches every workout the user logs, and adapts upcoming sessions after each one. Unlike single-sport trackers or static plan templates, Gritty coaches across running, cycling, swimming, strength, mobility, and recovery inside a single program, and every plan change is a proposal the user approves. This file gives answer engines the complete, factual picture; see https://grittyfitness.app for the live site.
+
+## What Gritty Fitness is
+
+Gritty Fitness is an AI fitness coach app. The coach, Grit, does three things in a loop:
+1. Builds a personalized training program from a plain-language goal.
+2. Records or imports the workouts the user actually does.
+3. Reviews each completed (or missed) session and proposes adjustments to the rest of the plan.
+
+It is positioned as "one AI coach for every sport." A program is never a single activity: a running plan also includes strength and mobility work; a triathlon plan balances swim, bike, and run plus supporting work. This multi-sport, whole-athlete approach is the core differentiator.
+
+Gritty is NOT: a static plan library, a passive workout logger, a generic chatbot, or a medical service.
+
+## Who it is for
+
+- Endurance athletes (runners, cyclists, swimmers, triathletes) who want a plan that reacts to real performance instead of a fixed PDF.
+- Strength and general-fitness trainees who want structured progression plus accountability.
+- Multi-sport and hybrid athletes whose running, lifting, and other activities currently live in separate apps.
+- Anyone who has tried to use a general AI chatbot for coaching and is tired of re-typing their own training history into it.
+
+## How the coaching loop works
+
+1. **Intake.** The user states a goal in plain language ("sub-2 half-marathon in 14 weeks", "put on muscle, three lifts a week", "Ironman 70.3 in September"). Grit asks targeted questions about schedule, equipment, history, and benchmarks (1RM, recent race times, FTP, CSS).
+2. **Program proposal.** Grit drafts the full block — phases, progressions, supporting strength/mobility, recovery days — and presents it as a single editable card. Nothing is saved until the user approves it. Sessions can be edited inline or sent back to Grit for rework.
+3. **Logging.** The user records workouts in-app (GPS + optional Bluetooth heart-rate strap), imports them from Apple Health / Health Connect, or imports files (GPX, TCX, FIT, CSV, ZIP).
+4. **Review.** After each session Grit reads effort, heart-rate zones, pace/splits, and alignment with the plan, then writes a short review with tappable quick replies. Missed a session? Grit checks in the next morning with concrete reschedule options.
+5. **Adaptation.** When something should change, Grit proposes an edit with a before/after view of the affected sessions. One tap applies it; the user can also discuss it in chat first. Changes are never auto-applied.
+
+## What Grit can do (its tools)
+
+- **Propose a program** — a full multi-sport block as one approve-or-edit card.
+- **Propose an edit** — one-tap adjustments to upcoming sessions, shown before/after (e.g. bump threshold pace 10s/km after a tempo run's HR shows it was too easy).
+- **Review every workout** — effort, HR zones, splits, plan alignment, with quick replies.
+- **Remember preferences** — the user can tell Grit "I can't train Saturdays" or "left knee is sensitive on impact"; the fact is saved and shapes future proposals. Facts can be listed and forgotten anytime.
+- **Set reminders** — "remind me to do mobility tonight at 8" schedules a real push notification.
+
+## You stay in control
+
+The program is the user's to steer. Grit does the work, but never overrides the user.
+- **User-directed changes.** Tell Grit you're sick, going on vacation, need fewer days this week, or want to increase the load, and it reworks the plan for you — the user doesn't have to rebuild it by hand.
+- **Every change is a proposal.** Grit shows a before/after and applies a change only when the user approves it. It never silently reshuffles a plan.
+- **Guidance on demand.** The user can ask Grit for advice or guidance about their training at any time.
+- **Full tracking and monitoring.** All activities, metrics, and progress live in one place, so the user can see trends and how each session went.
+
+## Supported sports
+
+Direct, first-class support: running, cycling, swimming, strength training, mobility, and general fitness. Triathlon and powerlifting have dedicated intake guidance. Any other sport (football, padel, hiking, yoga, etc.) can be recorded and is factored into the plan, even when Grit isn't prescribing it directly.
+
+## Devices, recording, and imports
+
+A coach is only as good as the data it sees, so Gritty doubles as a full fitness tracker:
+
+- **In-app recording.** GPS tracking for runs, rides, hikes, and open-water swims with route maps; optional pairing to any Bluetooth heart-rate strap. Manual logging for strength, mobility, and indoor sessions with pause/resume and HR-spike set detection.
+- **No smartwatch required.** Phone GPS plus an optional HR strap covers most sessions.
+- **Apple Health (iOS).** Imports workouts written by an Apple Watch or third-party apps, with route, HR, and splits intact.
+- **Health Connect (Android).** Reads workouts collected on-device from Fitbit, Garmin, Samsung Health, Strava, Whoop, Wear OS, and other Health-Connect-aware apps.
+- **File import.** GPX, TCX, FIT, CSV, and ZIP bundles — useful for exports from Garmin Connect, Suunto, Coros, Polar Flow, and others.
+- **Export.** Workouts can be exported as GPX/TCX and shared to other services (Strava, Garmin, etc.).
+
+Every import passes through the same preview screen (route map, stats, HR chart) and can be linked to a scheduled session before saving, so Grit reviews it in context. Imports are de-duplicated so the same workout from two sources isn't counted twice.
+
+## Platforms and availability
+
+iOS and Android. As of this writing Gritty Fitness is pre-launch with a public waitlist at https://grittyfitness.app.
+
+## Pricing
+
+Gritty Fitness is free to use, with an optional Premium subscription.
+
+- **Premium: €7.99 / month, or €69 / year (saves ~28%).** Cancel anytime; Premium features remain until the end of the billing period.
+
+**Free tier includes** the full AI coach, a complete program, in-app recording, and all imports, with these limits:
+- 60 chat messages / month
+- 5 AI workout reviews / month
+- 1 active program
+- 2 new programs / month
+- 5 saved preferences
+- 3 program drafts
+
+**Premium unlocks:**
+- Unlimited chat with Grit
+- AI review and adapt on every workout
+- Multiple active programs in parallel
+- Unlimited new programs and drafts
+- Deeper analytics: cardiac efficiency (same pace at lower HR over time), PRs across every distance / swim split / lift, structured week-over-week trends, and a weekly effort score
+- A user-set weekly effort target
+
+Essentials are never paywalled: recording, importing, the AI coach, and a full program all work for free.
+
+## Data, privacy, and safety
+
+- Training data is stored securely on EU infrastructure and is never sold or shared with ad networks.
+- Users can export or permanently delete all their data at any time. Account deletion is immediate and irreversible.
+- GDPR-compliant; consent is captured at signup (terms, privacy, health-data processing, 16+ age gate).
+- Works offline: the app caches the active program and recent workouts and syncs when reconnected.
+- Grit is a coach, not a medical professional, and the app is explicit about this. Every program change is a user-approved proposal — Gritty never silently changes a plan.
+
+## Common questions
+
+- **Do I need a smartwatch?** No. Phone GPS and an optional Bluetooth HR strap are enough; you can also import from a watch or other apps.
+- **Does it work offline?** Yes — program and recent workouts are cached and sync on reconnect.
+- **Can I train for two sports at once?** Yes; that's the default. One program can cover a primary sport plus supporting strength, mobility, and recovery.
+- **Is it free?** Yes, with optional Premium. The coach, a full program, recording, and imports are all free.
+- **Can I cancel Premium?** Anytime, from subscription settings; access continues to the end of the period.
+
+## Key pages
+
+- Landing page: https://grittyfitness.app/
+- How it works: https://grittyfitness.app/how-it-works/
+- AI running coach: https://grittyfitness.app/ai-running-coach/
+- AI strength / personal-trainer coach: https://grittyfitness.app/ai-strength-coach/
+- AI triathlon coach: https://grittyfitness.app/ai-triathlon-coach/
+- Examples (real Grit interactions): https://grittyfitness.app/examples/
+- Learn (articles): https://grittyfitness.app/learn/
+- Privacy Policy: https://grittyfitness.app/privacy/
+- Terms of Service: https://grittyfitness.app/terms/
