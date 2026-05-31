@@ -1,6 +1,10 @@
 import type { Scene } from './types';
 import { exampleEditProposalScene } from './scenes/example-edit-proposal';
+import { exampleMissedWorkoutCheckinScene } from './scenes/example-missed-workout-checkin';
+import { exampleMissedWorkoutLockscreenScene } from './scenes/example-missed-workout-lockscreen';
+import { exampleMultiSportWeekScene } from './scenes/example-multi-sport-week';
 import { examplePostWorkoutReviewScene } from './scenes/example-post-workout-review';
+import { exampleStrengthSetDetectionScene } from './scenes/example-strength-set-detection';
 import { exampleProgramProposalScene } from './scenes/example-program-proposal';
 import { exampleSetReminderScene } from './scenes/example-set-reminder';
 import { sanityCheckScene } from './scenes/sanity-check';
@@ -10,7 +14,11 @@ export const SCENES: Scene[] = [
   sanityCheckScene,
   exampleProgramProposalScene,
   exampleEditProposalScene,
+  exampleMissedWorkoutCheckinScene,
+  exampleMissedWorkoutLockscreenScene,
+  exampleMultiSportWeekScene,
   examplePostWorkoutReviewScene,
+  exampleStrengthSetDetectionScene,
   exampleSetReminderScene,
 ];
 

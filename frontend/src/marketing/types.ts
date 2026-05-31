@@ -1,5 +1,9 @@
 import type { ChatMessage } from '../hooks/useChatWebSocket';
 import type { LockScreenMockupProps } from '../components/LockScreenMockup';
+import type { ExerciseLog } from '../contexts/WorkoutContext';
+import type { SetHighlight } from '../utils/setDetection';
+import type { HRReading } from '../types/gps';
+import type { ScheduledActivityResponse } from '../services/api';
 
 // Device frame the scene is authored for. Use this to drop a "Capture at this
 // device" hint on the playground header so screenshots come out at the right
@@ -12,6 +16,24 @@ export interface ChatSceneProps {
   // chips HomeScreen shows when Grit suggests replies. Same rendering rules as
   // production: borderColor primary, surface fill, primary-tinted text.
   quickReplies?: string[];
+}
+
+// Renders the real RecordManual strength logger with one set highlighted, plus
+// a LiveHRChart above it, to show HR-spike-driven set detection.
+export interface StrengthLogSceneProps {
+  activityName: string;
+  exercises: ExerciseLog[];
+  highlight: SetHighlight | null;
+  hrReadings: HRReading[];
+  maxHR: number;
+}
+
+// Renders the real ProgramDetail week timeline (color-coded multi-sport week).
+// weekMonday is an ISO 'YYYY-MM-DD' string the playground converts to a Date.
+export interface ProgramWeekSceneProps {
+  weekMonday: string;
+  activities: ScheduledActivityResponse[];
+  highlightDayIdx?: number;
 }
 
 export type Scene =
@@ -30,6 +52,22 @@ export type Scene =
       device: DeviceFrame;
       kind: 'lockscreen';
       props: LockScreenMockupProps;
+    }
+  | {
+      id: string;
+      title: string;
+      group: string;
+      device: DeviceFrame;
+      kind: 'strength-log';
+      props: StrengthLogSceneProps;
+    }
+  | {
+      id: string;
+      title: string;
+      group: string;
+      device: DeviceFrame;
+      kind: 'program-week';
+      props: ProgramWeekSceneProps;
     };
 
 export const DEVICE_DIMENSIONS: Record<DeviceFrame, { width: number; height: number }> = {

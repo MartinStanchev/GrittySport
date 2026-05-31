@@ -17,6 +17,11 @@ import { Fonts } from '../constants/fonts';
 import { ChatMessageItem } from '../components/ChatMessageItem';
 import { ChatHeader } from '../components/ChatHeader';
 import { LockScreenMockup } from '../components/LockScreenMockup';
+import { StrengthLogger } from '../components/StrengthLogger';
+import { ProgramWeekTimeline } from '../components/ProgramWeekTimeline';
+import LiveHRChart from '../components/LiveHRChart';
+import { addDays } from '../utils/scheduleDisplay';
+import { getHRZoneColor } from '../services/gpsUtils';
 import { ProposalReviewView } from '../components/ProposalReviewView';
 import { EditProposalReviewView } from '../components/EditProposalReviewView';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
@@ -160,6 +165,66 @@ function SceneStage({ scene, onExit, markdownStyles }: SceneStageProps) {
     return (
       <View style={styles.stageRoot}>
         <LockScreenMockup {...scene.props} />
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (scene.kind === 'strength-log') {
+    const { activityName, exercises, highlight, hrReadings, maxHR } = scene.props;
+    const currentBpm = hrReadings.length > 0 ? hrReadings[hrReadings.length - 1].bpm : 0;
+    const tint = getHRZoneColor(currentBpm, maxHR);
+    const chartWidth = DEVICE_DIMENSIONS[scene.device].width - 32;
+    return (
+      <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
+        <View style={[styles.strengthHeader, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.strengthTitle, { color: colors.textPrimary }]}>{activityName}</Text>
+          <View style={[styles.strengthHrPill, { backgroundColor: colors.surfaceAlt, borderColor: tint }]}>
+            <Ionicons name="heart" size={13} color={tint} />
+            <Text style={[styles.strengthHrValue, { color: tint }]}>{currentBpm}</Text>
+            <Text style={[styles.strengthHrUnit, { color: colors.textSecondary }]}>bpm</Text>
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={styles.strengthScroll}>
+          <View style={styles.strengthChartWrap}>
+            <LiveHRChart
+              hrReadings={hrReadings}
+              maxHR={maxHR}
+              startedAt={new Date(hrReadings[0]?.timestamp ?? Date.now())}
+              width={chartWidth}
+            />
+          </View>
+          <StrengthLogger
+            exercises={exercises}
+            highlight={highlight}
+            colors={colors}
+            onChange={() => {}}
+            onRest={() => {}}
+            onDismissHighlight={() => {}}
+          />
+        </ScrollView>
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (scene.kind === 'program-week') {
+    const weekMonday = new Date(scene.props.weekMonday + 'T00:00:00');
+    const highlightDayIdx = scene.props.highlightDayIdx ?? 0;
+    const today = addDays(weekMonday, highlightDayIdx);
+    return (
+      <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
+        <ScrollView>
+          <ProgramWeekTimeline
+            week={{ weekMonday, activities: scene.props.activities }}
+            today={today}
+            highlightDayIdx={highlightDayIdx}
+            colors={colors}
+            onActivityPress={() => {}}
+            onRecordActivity={() => {}}
+            onAddActivity={() => {}}
+          />
+        </ScrollView>
         {exitTap}
       </View>
     );
@@ -366,6 +431,44 @@ const styles = StyleSheet.create({
   },
   stageRoot: {
     flex: 1,
+  },
+  strengthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  strengthTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.heading,
+  },
+  strengthHrPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  strengthHrValue: {
+    fontSize: 15,
+    fontFamily: Fonts.headingMedium,
+  },
+  strengthHrUnit: {
+    fontSize: 11,
+    fontFamily: Fonts.body,
+  },
+  strengthScroll: {
+    paddingBottom: 24,
+  },
+  strengthChartWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   chatBody: {
     flex: 1,
