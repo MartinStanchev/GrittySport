@@ -88,7 +88,7 @@ const EXAMPLES: Example[] = [
       "Sent a lockscreen notification that opens straight into the chat.",
       "Proposed three concrete reschedule options instead of just moving on.",
     ],
-    image: null,
+    image: "/app_screenshots/missed-workout.png",
   },
   {
     id: "multi-sport-week",
