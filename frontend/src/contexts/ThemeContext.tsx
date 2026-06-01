@@ -21,10 +21,13 @@ async function getSecureStore() {
   return _secureStore;
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [isDark, setIsDark] = useState(false);
+export function ThemeProvider({ children, forceDark }: { children: ReactNode; forceDark?: boolean }) {
+  const [isDark, setIsDark] = useState(forceDark ?? false);
 
   useEffect(() => {
+    // When forceDark is set (marketing render route), the theme is pinned by the
+    // caller — skip the stored preference so captures are deterministic.
+    if (forceDark !== undefined) return;
     (async () => {
       try {
         const store = await getSecureStore();
@@ -34,7 +37,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // ignore — default to light
       }
     })();
-  }, []);
+  }, [forceDark]);
 
   const toggleTheme = useCallback(() => {
     setIsDark((prev) => {

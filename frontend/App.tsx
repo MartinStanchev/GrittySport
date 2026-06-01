@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -15,6 +15,8 @@ import AuthScreen from './src/screens/auth/AuthScreen';
 import ConsentScreen from './src/screens/auth/ConsentScreen';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import MarketingPlaygroundScreen from './src/screens/MarketingPlaygroundScreen';
+import { MarketingRender } from './src/marketing/MarketingRender';
+import { getMarketingRenderParams } from './src/marketing/renderParams';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { OfflineBanner } from './src/components/OfflineBanner';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -108,6 +110,19 @@ export default function App() {
         <View style={styles.loading}>
           <ActivityIndicator size="large" />
         </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Headless marketing render target (web + dev only): bypass auth/navigation
+  // and render a single scene for the marketing-studio/ capture tooling.
+  const marketingRender = __DEV__ ? getMarketingRenderParams() : null;
+  if (marketingRender) {
+    return (
+      <SafeAreaProvider>
+        <ThemeProvider forceDark={marketingRender.theme === 'dark'}>
+          <MarketingRender sceneId={marketingRender.sceneId} />
+        </ThemeProvider>
       </SafeAreaProvider>
     );
   }

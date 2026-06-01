@@ -34,7 +34,7 @@ import type { ThemeColors } from '../constants/colors';
 // Same markdown styles HomeScreen uses, so chat scenes render with identical
 // typography to the real chat. Kept local rather than re-exported because
 // these are very specific to the chat bubble context.
-function getMarkdownStyles(colors: ThemeColors) {
+export function getMarkdownStyles(colors: ThemeColors) {
   return {
     body: { fontSize: 15, lineHeight: 21, color: colors.textPrimary, fontFamily: Fonts.body },
     heading1: { fontSize: 20, fontFamily: Fonts.heading, color: colors.textPrimary, marginBottom: 4, marginTop: 8 },
@@ -145,7 +145,7 @@ interface SceneStageProps {
   markdownStyles: any;
 }
 
-function SceneStage({ scene, onExit, markdownStyles }: SceneStageProps) {
+export function SceneStage({ scene, onExit, markdownStyles }: SceneStageProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [reviewingProposal, setReviewingProposal] = useState<ProgramProposalData | null>(null);

@@ -1,0 +1,14 @@
+{
+  "name": "gritty-marketing-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local marketing content studio: render Gritty Fitness scenes to images/video, queue, review, and export for manual posting.",
+  "scripts": {
+    "still": "node capture/still.mjs",
+    "dev-server": "cd ../frontend && npx expo start --web"
+  },
+  "dependencies": {
+    "playwright": "1.59.0"
+  }
+}
