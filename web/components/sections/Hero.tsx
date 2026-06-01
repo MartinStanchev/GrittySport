@@ -50,6 +50,32 @@ const PANELS: Panel[] = [
   },
 ];
 
+type PanelTextProps = {
+  panel: Panel;
+  progress: number;
+  index: number;
+  containerClassName: string;
+  titleClassName: string;
+  subtitleClassName: string;
+};
+
+function PanelText({
+  panel,
+  progress,
+  index,
+  containerClassName,
+  titleClassName,
+  subtitleClassName,
+}: PanelTextProps) {
+  return (
+    <div className={`absolute inset-0 ${containerClassName}`} style={panelStyle(progress, index)}>
+      <EyebrowBadge text={panel.eyebrow} />
+      <h1 className={titleClassName}>{panel.title}</h1>
+      <p className={subtitleClassName}>{panel.subtitle}</p>
+    </div>
+  );
+}
+
 function EyebrowBadge({ text }: { text: string }) {
   return (
     <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium bg-white/10 border border-white/15 mb-6">
@@ -59,18 +85,28 @@ function EyebrowBadge({ text }: { text: string }) {
   );
 }
 
-function PhoneGlowWrapper({ children }: { children: ReactNode }) {
-  return (
+function PhoneGlowWrapper({ children, scale = 1 }: { children: ReactNode; scale?: number }) {
+  const phone = (
     <div className="relative">
       <div className="absolute -inset-8 bg-gradient-to-br from-brand/30 to-teal/20 blur-3xl rounded-full" />
       <PhoneFrame>{children}</PhoneFrame>
+    </div>
+  );
+  if (scale === 1) return phone;
+  // Scale the 300×600 frame down (e.g. for mobile) while collapsing its layout
+  // footprint to the scaled size so it stacks neatly under the title.
+  return (
+    <div className="relative" style={{ width: 300 * scale, height: 600 * scale }}>
+      <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `scale(${scale})` }}>
+        {phone}
+      </div>
     </div>
   );
 }
 
 function DownloadBlock() {
   return (
-    <div id="download">
+    <div>
       <WishlistForm />
       <p className="mt-4 text-sm text-white/55">
         Launching soon · Be the first to know
@@ -81,6 +117,9 @@ function DownloadBlock() {
 
 const SEGMENT = 1 / (PANELS.length - 1);
 const SLIDE_PX = 36;
+// How far the 300×600 phone mockup is scaled down in the mobile hero so the
+// title, phone, and waitlist form all fit inside one pinned viewport.
+const MOBILE_SCALE = 0.52;
 // Width of the crossfade band, as a fraction of a segment. Smaller = sharper hand-off,
 // less time spent visibly in-between two panels.
 const FADE_BAND = 0.25;
@@ -140,17 +179,17 @@ export function Hero() {
     Math.max(0, Math.round(progress * (PANELS.length - 1))),
   );
 
-  return (
-    <section className="bg-hero-gradient text-white relative overflow-x-clip">
-      {/* Mobile: stacked panels */}
-      <div className="lg:hidden">
-        {PANELS.map((p, i) => (
-          <MobilePanel key={i} panel={p} index={i} />
-        ))}
-      </div>
+  // The cross-fading phone screens — shared between the desktop and mobile
+  // layouts (only one of the two is ever visible at a given breakpoint).
+  const phoneScreens = PANELS.map((_, i) => (
+    <div key={i} className="absolute inset-0" style={panelStyle(progress, i)}>
+      <PanelScreen index={i} />
+    </div>
+  ));
 
-      {/* Desktop: scrollytelling */}
-      <div ref={wrapperRef} className="hidden lg:block relative" style={{ height: "300vh" }}>
+  return (
+    <section id="download" className="bg-hero-gradient text-white relative overflow-x-clip">
+      <div ref={wrapperRef} className="relative" style={{ height: "300vh" }}>
         {/* Snap targets so the page locks onto each panel's center on scroll-end */}
         {PANELS.map((_, i) => (
           <div
@@ -160,53 +199,60 @@ export function Hero() {
             style={{ top: `${i * 100}vh` }}
           />
         ))}
-        <div className="sticky top-0 h-screen flex items-center pt-16">
-          <div className="max-w-6xl mx-auto px-6 grid grid-cols-12 gap-12 items-center w-full">
-            <div className="col-span-7">
-              <div className="relative min-h-[460px]">
-                {PANELS.map((p, i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-0"
-                    style={panelStyle(progress, i)}
-                  >
-                    <EyebrowBadge text={p.eyebrow} />
-                    <h1 className="font-display text-5xl xl:text-7xl font-bold leading-[1.05] tracking-tight">
-                      {p.title}
-                    </h1>
-                    <p className="mt-6 text-lg xl:text-xl text-white/75 max-w-xl">{p.subtitle}</p>
-                  </div>
-                ))}
+
+        <div className="sticky top-0 h-screen overflow-hidden">
+          {/* Desktop: title + phone side by side */}
+          <div className="hidden lg:flex h-full items-center pt-16">
+            <div className="max-w-6xl mx-auto px-6 grid grid-cols-12 gap-12 items-center w-full">
+              <div className="col-span-7">
+                <div className="relative min-h-[460px]">
+                  {PANELS.map((p, i) => (
+                    <PanelText
+                      key={i}
+                      panel={p}
+                      progress={progress}
+                      index={i}
+                      containerClassName=""
+                      titleClassName="font-display text-5xl xl:text-7xl font-bold leading-[1.05] tracking-tight"
+                      subtitleClassName="mt-6 text-lg xl:text-xl text-white/75 max-w-xl"
+                    />
+                  ))}
+                </div>
+
+                <div className="mt-8">
+                  <DownloadBlock />
+                </div>
+
+                <StepDots activeIdx={activeIdx} className="mt-8" />
               </div>
 
-              <div className="mt-8">
-                <DownloadBlock />
-              </div>
-
-              <div className="mt-8 flex gap-2">
-                {PANELS.map((_, i) => (
-                  <span
-                    key={i}
-                    className={`h-1.5 rounded-full transition-all duration-500 ease-out ${
-                      activeIdx === i ? "w-8 bg-brand" : "w-1.5 bg-white/25"
-                    }`}
-                  />
-                ))}
+              <div className="col-span-5 flex justify-end">
+                <PhoneGlowWrapper>{phoneScreens}</PhoneGlowWrapper>
               </div>
             </div>
+          </div>
 
-            <div className="col-span-5 flex justify-end">
-              <PhoneGlowWrapper>
-                {PANELS.map((_, i) => (
-                  <div
-                    key={i}
-                    className="absolute inset-0"
-                    style={panelStyle(progress, i)}
-                  >
-                    <PanelScreen index={i} />
-                  </div>
-                ))}
-              </PhoneGlowWrapper>
+          {/* Mobile: title above a scaled phone, both cross-fading on scroll */}
+          <div className="flex lg:hidden h-full flex-col items-center justify-between px-6 pt-16 pb-6 text-center">
+            <div className="relative w-full min-h-[168px]">
+              {PANELS.map((p, i) => (
+                <PanelText
+                  key={i}
+                  panel={p}
+                  progress={progress}
+                  index={i}
+                  containerClassName="flex flex-col items-center"
+                  titleClassName="font-display text-[1.75rem] sm:text-4xl font-bold leading-[1.1] tracking-tight"
+                  subtitleClassName="mt-3 text-sm text-white/70 max-w-md line-clamp-2"
+                />
+              ))}
+            </div>
+
+            <PhoneGlowWrapper scale={MOBILE_SCALE}>{phoneScreens}</PhoneGlowWrapper>
+
+            <div className="w-full flex flex-col items-center gap-4">
+              <StepDots activeIdx={activeIdx} />
+              <DownloadBlock />
             </div>
           </div>
         </div>
@@ -215,27 +261,17 @@ export function Hero() {
   );
 }
 
-function MobilePanel({ panel, index }: { panel: Panel; index: number }) {
-  const isFirst = index === 0;
+function StepDots({ activeIdx, className = "" }: { activeIdx: number; className?: string }) {
   return (
-    <div className={`px-6 ${isFirst ? "pt-20" : "pt-12"} pb-12`}>
-      <EyebrowBadge text={panel.eyebrow} />
-      <h1 className="font-display text-4xl md:text-5xl font-bold leading-[1.05] tracking-tight">
-        {panel.title}
-      </h1>
-      <p className="mt-6 text-lg text-white/75 max-w-xl">{panel.subtitle}</p>
-      <div className="mt-10 flex justify-center">
-        <PhoneGlowWrapper>
-          <div className="absolute inset-0">
-            <PanelScreen index={index} />
-          </div>
-        </PhoneGlowWrapper>
-      </div>
-      {isFirst && (
-        <div className="mt-10">
-          <DownloadBlock />
-        </div>
-      )}
+    <div className={`flex gap-2 ${className}`}>
+      {PANELS.map((_, i) => (
+        <span
+          key={i}
+          className={`h-1.5 rounded-full transition-all duration-500 ease-out ${
+            activeIdx === i ? "w-8 bg-brand" : "w-1.5 bg-white/25"
+          }`}
+        />
+      ))}
     </div>
   );
 }
