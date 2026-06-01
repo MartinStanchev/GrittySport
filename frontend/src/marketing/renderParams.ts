@@ -6,6 +6,9 @@ import { Platform } from 'react-native';
 export interface MarketingRenderParams {
   sceneId: string;
   theme: 'light' | 'dark';
+  // When true, chat scenes render the step-controllable ChatReplayStage (for
+  // video capture) instead of the static all-messages SceneStage.
+  replay: boolean;
 }
 
 export function getMarketingRenderParams(): MarketingRenderParams | null {
@@ -13,5 +16,9 @@ export function getMarketingRenderParams(): MarketingRenderParams | null {
   const params = new URLSearchParams(window.location.search);
   const sceneId = params.get('marketingRender');
   if (!sceneId) return null;
-  return { sceneId, theme: params.get('theme') === 'dark' ? 'dark' : 'light' };
+  return {
+    sceneId,
+    theme: params.get('theme') === 'dark' ? 'dark' : 'light',
+    replay: params.has('replay'),
+  };
 }

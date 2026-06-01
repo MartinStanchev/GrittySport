@@ -121,7 +121,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <ThemeProvider forceDark={marketingRender.theme === 'dark'}>
-          <MarketingRender sceneId={marketingRender.sceneId} />
+          <MarketingRender sceneId={marketingRender.sceneId} replay={marketingRender.replay} />
         </ThemeProvider>
       </SafeAreaProvider>
     );

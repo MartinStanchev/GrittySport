@@ -10,9 +10,12 @@ export const config = {
   // 3x gives crisp, retina-quality assets for social.
   deviceScaleFactor: Number(process.env.STUDIO_SCALE || 3),
   stillsDir: path.join(here, 'content', '_stills'),
+  videoDir: path.join(here, 'content', '_video'),
   // The first web bundle can take a while; later captures are fast.
   navTimeoutMs: 180000,
   readyTimeoutMs: 60000,
   // Let fonts/layout fully settle before the shot.
   settleMs: 700,
+  // Social vertical video target (TikTok / IG Reels / Shorts).
+  video: { width: 1080, height: 1920, fps: 30 },
 };

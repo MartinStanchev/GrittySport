@@ -56,9 +56,43 @@ URL: `http://localhost:8081/?marketingRender=<sceneId>&theme=light|dark`
 - Inline markdown code renders with a line-overlap quirk on react-native-web (fine on
   device). Not a blocker — marketing scenes avoid inline code.
 
+## Phase 2: video templates (MP4)
+
+Vertical MP4 output for TikTok / IG Reels / Shorts. Playwright's bundled ffmpeg is a
+stripped VP8/WebM build (no H.264, no `zoompan`/`xfade`/`fps`), so the studio depends
+on **`ffmpeg-static`** (full libx264 build, no sudo).
+
+Frontend (replay support):
+- `src/marketing/ChatReplayStage.tsx` (new): renders a chat scene with a
+  controllable visible-message count + optional "Thinking..." typing row, reusing the
+  real `ChatHeader` / `ChatMessageItem` and a static input bar. Exposes
+  `window.__marketingReplay = { ready, total, roles, setStep(count, typing) }` so the
+  capture tool drives timing (timing lives in the tool, not the app).
+- `renderParams.ts` + `App.tsx` + `MarketingRender.tsx`: thread a `replay` flag
+  (`?…&replay`); chat scenes with `replay` render `ChatReplayStage`.
+
+Studio:
+- `lib/browser.mjs`: `withScenePage()` — shared boot + readiness handshake (still,
+  scroll, replay all use it; `waitForReplay` waits on `window.__marketingReplay`).
+- `lib/ffmpeg.mjs`: `runFfmpeg`, `readPngSize`, `encodeScroll` (pan a tall still down
+  a 1080×1920 window), `encodeFrameSequence` (held stills → constant-fps MP4 via the
+  concat demuxer; last frame repeated so its duration is honored).
+- `lib/cli.mjs`: `parseSceneArgs` + `isMain` (dedupes the per-script arg parsing).
+- `video/chat-replay.mjs`: builds a storyboard from message roles (typing hold before
+  each Grit message), steps the page, screenshots each state, encodes. Output is
+  1080-wide at the phone's natural aspect (e.g. 1080×2342).
+- `video/scroll.mjs`: full-page screenshot → `encodeScroll` → 1080×1920 9:16.
+- `still.mjs` refactored onto `withScenePage`.
+
+Verified end-to-end against the running Expo web server:
+- `example-post-workout-review` chat replay → valid 1080×2342 H.264, 8.2s; mid-frame
+  shows header + segment eyebrow + first Grit message + input bar.
+- `example-program-proposal` scroll → 1080×1920 H.264, 7s; pans the full conversation
+  through the proposal card.
+- `eslint` clean on changed frontend files; `node --check` clean on all studio files.
+
 ## Next phases
 
-- Video templates (chat replay, screenshot scroll) → MP4 via Playwright frames + ffmpeg.
 - Content queue (`content/<id>/post.json` + asset + caption + platforms + status).
 - Local review dashboard (preview, edit caption, set status, download for manual posting).
 - Publishing automation deferred until platform API access is approved.

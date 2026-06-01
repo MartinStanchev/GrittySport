@@ -41,6 +41,25 @@ node capture/still.mjs example-post-workout-review --theme dark
 Scene ids come from the registry in `frontend/src/marketing/scenes.ts`. Author new
 scenes with the `marketing-scene` skill.
 
+## Capture a video (MP4, for TikTok / IG Reels / Shorts)
+
+Uses `ffmpeg-static` (bundled full H.264 build — no system ffmpeg needed).
+
+**Chat replay** — a chat scene plays back message-by-message with the real
+"Thinking..." typing indicator, like watching the conversation happen:
+```
+node video/chat-replay.mjs <chatSceneId> [--theme light|dark] [--out file.mp4]
+# → content/_video/<scene>-<theme>-replay.mp4  (1080-wide, phone aspect, 30fps H.264)
+```
+
+**Scroll** — pan a vertical 1080×1920 window down the full content of a (tall) scene:
+```
+node video/scroll.mjs <sceneId> [--theme light|dark] [--duration 8] [--out file.mp4]
+# → content/_video/<scene>-<theme>-scroll.mp4  (1080×1920 9:16, 30fps H.264)
+```
+
+Chat-replay pacing lives in `video/chat-replay.mjs` (typing / message / end holds).
+
 ## Notes
 
 - Inline code (markdown `` `code` ``) renders with a layout quirk on react-native-web;
@@ -49,7 +68,8 @@ scenes with the `marketing-scene` skill.
 
 ## Roadmap
 
-- [ ] Video templates (chat replay message-by-message, screenshot scroll) → MP4 via ffmpeg
+- [x] Still capture → PNG
+- [x] Video templates (chat replay message-by-message, screenshot scroll) → MP4 via ffmpeg
 - [ ] Content queue (`content/<id>/post.json` + asset + caption + target platforms + status)
 - [ ] Local review dashboard (preview, edit caption, set status, download)
 - [ ] Publishing (deferred — manual posting until platform API access is approved)

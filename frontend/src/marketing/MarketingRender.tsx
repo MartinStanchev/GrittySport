@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { findScene } from './scenes';
 import { DEVICE_DIMENSIONS } from './types';
+import { ChatReplayStage } from './ChatReplayStage';
 import { SceneStage, getMarkdownStyles } from '../screens/MarketingPlaygroundScreen';
 
 const noop = () => {};
@@ -11,7 +12,9 @@ const noop = () => {};
 // ?marketingRender=<id> URL param is present. Renders the same SceneStage the
 // playground uses, so captures are pixel-identical to the in-app preview. The
 // device viewport is set by the capture tool (marketing-studio/), not here.
-export function MarketingRender({ sceneId }: { sceneId: string }) {
+// When `replay` is set, chat scenes use the step-controllable ChatReplayStage
+// for video capture.
+export function MarketingRender({ sceneId, replay = false }: { sceneId: string; replay?: boolean }) {
   const { colors } = useTheme();
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
   const scene = findScene(sceneId);
@@ -35,6 +38,14 @@ export function MarketingRender({ sceneId }: { sceneId: string }) {
     return (
       <View style={styles.missing} testID="marketing-render-missing">
         <Text style={styles.missingText}>Unknown scene: {sceneId}</Text>
+      </View>
+    );
+  }
+
+  if (replay && scene.kind === 'chat') {
+    return (
+      <View style={styles.fill}>
+        <ChatReplayStage messages={scene.props.messages} />
       </View>
     );
   }
