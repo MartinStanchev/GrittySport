@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 export function Footer() {
   return (
     <footer className="border-t border-black/5 bg-cream">
-      <div className="max-w-6xl mx-auto px-6 py-12 grid gap-10 md:grid-cols-5">
+      <div className="max-w-6xl mx-auto px-6 py-12 grid gap-10 md:grid-cols-6">
         <div className="md:col-span-2">
           <div className="flex items-center">
             <Logo height={48} />
@@ -13,6 +13,29 @@ export function Footer() {
             One AI coach for every sport. Personalized training that adapts to
             every workout you log.
           </p>
+        </div>
+
+        <div>
+          <h4 className="font-display font-semibold text-sm mb-3 text-ink">
+            Coaching
+          </h4>
+          <ul className="space-y-2 text-sm text-ink-soft">
+            <li>
+              <Link href="/ai-running-coach" className="hover:text-ink">
+                AI running coach
+              </Link>
+            </li>
+            <li>
+              <Link href="/ai-strength-coach" className="hover:text-ink">
+                AI strength coach
+              </Link>
+            </li>
+            <li>
+              <Link href="/ai-triathlon-coach" className="hover:text-ink">
+                AI triathlon coach
+              </Link>
+            </li>
+          </ul>
         </div>
 
         <div>

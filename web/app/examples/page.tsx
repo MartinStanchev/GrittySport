@@ -27,92 +27,94 @@ type Example = {
   context: string;
   whatGritDid: string[];
   image: string | null;
+  imageAlt?: string;
 };
 
-// TODO content: each slot below is a placeholder we'll fill together. v1 plan
-// is to drop static screenshots into `web/public/examples/<id>.png` (sourced
-// from `frontend/src/marketing/scenes/` via the marketing-scene skill, or
-// captured directly in the app) and write a 2-3 sentence prose intro per
-// example. When `image` is null, the slot renders a labeled placeholder so the
-// page still ships clean.
 const EXAMPLES: Example[] = [
   {
     id: "program-proposal",
     eyebrow: "Example 1",
-    title: "TODO — Grit proposes your first program",
+    title: "Grit proposes your first program",
     context:
-      "TODO — short intro: user told Grit they want to run their first half-marathon in 14 weeks; Grit proposes a phased plan with strength + mobility built in.",
+      "A new user tells Grit they want to run their first half-marathon in 14 weeks. Grit asks a few questions about their schedule and recent runs, then drafts a complete, phased plan — and presents it as one editable card before anything is saved.",
     whatGritDid: [
-      "TODO — sized the block to 14 weeks with base / build / peak / taper phases.",
-      "TODO — added 2 strength sessions per week even though the user asked for \"running plan\".",
-      "TODO — surfaced the full proposal as an editable card before saving anything.",
+      "Sized the block to 14 weeks across base, build, peak, and taper phases.",
+      'Built in two strength sessions and weekly mobility, even though the user asked for a "running plan".',
+      "Set training paces from the user's recent 5K time, not generic tables.",
+      "Showed the whole program as an editable proposal — nothing saved until the user approved it.",
     ],
-    image: null,
+    image: "/app_screenshots/program-review-light.png",
+    imageAlt:
+      "Full-screen program proposal showing a 14-week half-marathon plan with phases and a weekly template.",
   },
   {
     id: "edit-proposal",
     eyebrow: "Example 2",
-    title: "TODO — One-tap workout adjustment",
+    title: "A one-tap workout adjustment",
     context:
-      "TODO — user told Grit today's tempo run felt easy; Grit reviewed HR / pace and proposed bumping next week's threshold work.",
+      "After a tempo run, the user mentions it felt easy. Grit checks the recorded heart rate, agrees, and proposes bumping next week's threshold session — shown as a before/after card the user can apply in one tap.",
     whatGritDid: [
-      "TODO — cross-checked the user's note against the actual recorded HR zones.",
-      "TODO — proposed a +10s/km adjustment on the next threshold session only.",
-      "TODO — rendered the before/after as a single Apply Changes card.",
+      "Cross-checked the user's note against the actual recorded HR zones.",
+      "Proposed a +10s/km bump on the next threshold session only — not the whole plan.",
+      "Rendered the change as a single before/after card with Apply or Discuss.",
     ],
-    image: null,
+    image: "/app_screenshots/edit-proposal-light.png",
+    imageAlt:
+      "Grit's program-adjustment card bumping Tuesday's threshold reps 10s/km faster, shown before and after.",
   },
   {
     id: "post-workout-review",
     eyebrow: "Example 3",
-    title: "TODO — Post-workout review",
+    title: "A review after every workout",
     context:
-      "TODO — Grit's automated review after a long run, with effort score, splits, and a quick reply prompt.",
+      "The morning after a long run, Grit posts an automated review — effort score, splits, heart-rate zones, and how the session lined up with the plan — with quick replies to keep the conversation going.",
     whatGritDid: [
-      "TODO — pulled context from the user's program + memory.",
-      "TODO — flagged a negative-split pacing pattern as a positive trend.",
-      "TODO — offered three quick replies + continue-in-chat.",
+      "Pulled context from the user's program and saved preferences.",
+      "Flagged a negative-split pacing pattern as a positive trend.",
+      "Offered three quick-reply chips plus continue-in-chat.",
     ],
-    image: null,
+    image: "/app_screenshots/post-workout-review-light.png",
+    imageAlt:
+      "A long-run review from Grit summarising distance, splits, and HR zones with quick-reply chips.",
   },
   {
     id: "missed-workout-checkin",
     eyebrow: "Example 4",
-    title: "TODO — Missed workout check-in",
+    title: "A check-in when you miss a session",
     context:
-      "TODO — user skipped Tuesday's session; Grit checks in on Wednesday morning without judgment and offers options.",
+      "The user skips Tuesday's session. On Wednesday morning Grit checks in — no guilt-trip — with concrete options to get back on track.",
     whatGritDid: [
-      "TODO — detected the gap server-side at the scheduled review time.",
-      "TODO — sent a lockscreen notification that opens straight into chat.",
-      "TODO — proposed three concrete reschedule options.",
+      "Detected the gap automatically at the scheduled review time.",
+      "Sent a lockscreen notification that opens straight into the chat.",
+      "Proposed three concrete reschedule options instead of just moving on.",
     ],
-    image: null,
+    image: "/app_screenshots/missed-workout.png",
   },
   {
     id: "multi-sport-week",
     eyebrow: "Example 5",
-    title: "TODO — One week of multi-sport training",
+    title: "A real multi-sport week",
     context:
-      "TODO — a real week in the Programs view: runs, dryland, mobility, recovery — color-coded.",
+      "A marathon block, mid-build. The week Grit actually builds isn't all runs — it's runs, supporting strength, mobility, and genuine recovery, balanced so the hard days have room to land.",
     whatGritDid: [
-      "TODO — balanced load across modalities, not just runs.",
-      "TODO — placed mobility after the hardest session.",
-      "TODO — left recovery actually empty (no \"junk\" filler).",
+      "Balanced load across modalities, not just running volume.",
+      "Placed mobility right after the hardest session of the week.",
+      "Left recovery days actually empty — no junk filler to pad the calendar.",
     ],
-    image: null,
+    image: "/app_screenshots/multi-sport-week-light.png",
   },
   {
     id: "hr-spike-set-detection",
     eyebrow: "Example 6",
-    title: "TODO — Strength set detection from HR",
+    title: "Hands-free strength set detection",
     context:
-      "TODO — during a strength session, Grit auto-highlights the next set when HR spikes — no manual tapping.",
+      "During a strength session with a paired heart-rate strap, Grit advances to the next set on its own when it sees your HR spike — no tapping the screen with chalky hands.",
     whatGritDid: [
-      "TODO — read live HR from a paired BLE strap.",
-      "TODO — detected the recovery-to-effort transition and advanced the set.",
-      "TODO — let the user override with one tap if needed.",
+      "Read live HR from a paired Bluetooth strap.",
+      "Detected the recovery-to-effort transition and advanced the set automatically.",
+      "Let the user override with a single tap when needed.",
     ],
-    image: null,
+    image: "/app_screenshots/hr-spike-set-detection-light.png",
   },
 ];
 
@@ -133,9 +135,9 @@ const itemListJsonLd = {
   itemListElement: EXAMPLES.map((ex, i) => ({
     "@type": "ListItem",
     position: i + 1,
-    name: ex.title.replace(/^TODO\s*[—-]\s*/, ""),
+    name: ex.title,
     url: `${PAGE_URL}#${ex.id}`,
-    description: ex.context.replace(/^TODO\s*[—-]\s*/, ""),
+    description: ex.context,
   })),
 };
 
@@ -150,13 +152,11 @@ const breadcrumbJsonLd = {
 
 function ExampleScreenshot({ example }: { example: Example }) {
   if (example.image) {
-    // TODO when shipping real screenshots, swap to next/image with explicit
-    // width/height and meaningful alt text.
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={example.image}
-        alt={example.title}
+        alt={example.imageAlt ?? example.title}
         className="w-full rounded-2xl border border-black/5 shadow-sm bg-paper"
       />
     );
@@ -177,14 +177,12 @@ export default function ExamplesPage() {
         <div className="max-w-3xl mx-auto px-6 py-16">
           <Eyebrow>Examples</Eyebrow>
           <h1 className="mt-3 font-display text-4xl md:text-5xl font-bold text-ink leading-tight">
-            {/* TODO — keyword-rich H1. Working title below. */}
             See the AI fitness coach in action.
           </h1>
           <p className="mt-4 text-ink-soft text-lg">
-            {/* TODO — replace dek. */}
             Real interactions with Grit — program proposals, one-tap
-            adjustments, post-workout reviews, and the multi-sport weeks Grit
-            actually builds.
+            adjustments, post-workout reviews, missed-session check-ins, and the
+            multi-sport weeks Grit actually builds.
           </p>
         </div>
       </header>
@@ -199,19 +197,15 @@ export default function ExamplesPage() {
             <div>
               <Eyebrow>{ex.eyebrow}</Eyebrow>
               <h2 className="mt-2 font-display text-2xl md:text-3xl font-semibold text-ink tracking-tight">
-                <span className="placeholder">{ex.title}</span>
+                {ex.title}
               </h2>
-              <p className="mt-4 text-ink-soft leading-relaxed">
-                <span className="placeholder">{ex.context}</span>
-              </p>
+              <p className="mt-4 text-ink-soft leading-relaxed">{ex.context}</p>
               <h3 className="mt-6 text-xs uppercase tracking-wider text-brand font-semibold">
                 What Grit did
               </h3>
               <ul className="mt-2 list-disc pl-5 text-ink-soft space-y-1.5">
                 {ex.whatGritDid.map((b, i) => (
-                  <li key={i}>
-                    <span className="placeholder">{b}</span>
-                  </li>
+                  <li key={i}>{b}</li>
                 ))}
               </ul>
             </div>

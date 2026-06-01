@@ -1,14 +1,24 @@
 # Gritty Fitness
 
-> Gritty is an AI-powered fitness coaching app that builds and adapts a holistic, multi-sport training plan around each user — running, cycling, swimming, strength, mobility, and recovery. Workouts are imported from Apple Health, Health Connect, and file formats (GPX, TCX, FIT, CSV) or recorded in-app via GPS. After every session the AI coach, "Grit", reviews performance and adjusts upcoming workouts.
+> Gritty is an AI-powered fitness coaching app (iOS + Android) that builds and adapts one holistic, multi-sport training plan around each user — running, cycling, swimming, strength, mobility, and recovery. The AI coach, "Grit", builds the program from a plain-language goal, then reviews every workout (recorded in-app via GPS, or imported from Apple Health, Health Connect, or GPX/TCX/FIT/CSV files) and proposes adjustments the user approves. Free to use with optional Premium (€7.99/month or €69/year).
+
+For the complete factual reference (sports, devices, imports, pricing, data handling), see [llms-full.txt](https://grittyfitness.app/llms-full.txt).
 
 ## Product
 - [Landing page](https://grittyfitness.app/): What Gritty does and how it works
-- [How it works](https://grittyfitness.app/#how): The four-step coaching loop — intake, plan, log, adapt
-- [Features](https://grittyfitness.app/#features): Multi-sport coverage, AI reviews, GPS recording, imports, offline mode
-- [Premium](https://grittyfitness.app/#premium): Free and Premium feature comparison (€7.99/month or €69/year)
-- [FAQ](https://grittyfitness.app/#faq): Common questions about supported sports, devices, data handling, cancellation
+- [How it works](https://grittyfitness.app/how-it-works/): The coaching loop — intake, plan, log, review, adapt — with screenshots
+- [AI running coach](https://grittyfitness.app/ai-running-coach/): How Grit coaches running, with strength and mobility built in
+- [AI strength coach / AI personal trainer](https://grittyfitness.app/ai-strength-coach/): Progressive strength programs that adapt to logged sessions
+- [AI triathlon coach](https://grittyfitness.app/ai-triathlon-coach/): One plan balancing swim, bike, run, and strength
+- [Examples](https://grittyfitness.app/examples/): Real Grit interactions — proposals, edits, reviews, reminders
+- [Premium](https://grittyfitness.app/#premium): Free vs Premium comparison (€7.99/month or €69/year)
+- [FAQ](https://grittyfitness.app/#faq): Supported sports, devices, data handling, cancellation
 - [About](https://grittyfitness.app/about/): The team behind Gritty Fitness
+
+## Learn (articles)
+- [How AI fitness coaching actually works](https://grittyfitness.app/learn/how-ai-fitness-coaching-works/): The review-and-adapt loop explained
+- [Training for two sports at once](https://grittyfitness.app/learn/training-for-two-sports/): Balancing endurance and strength in one plan
+- [Bring Garmin, Apple Health & Strava into one app](https://grittyfitness.app/learn/combine-garmin-apple-health-strava/): Consolidating workout data for a coach that sees everything
 
 ## Legal
 - [Privacy Policy](https://grittyfitness.app/privacy/): GDPR-compliant data handling, EU hosting

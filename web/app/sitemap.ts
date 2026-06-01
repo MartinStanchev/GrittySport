@@ -11,6 +11,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified: now, priority: 1.0, changeFrequency: "monthly" },
     { url: `${base}/how-it-works/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
+    { url: `${base}/ai-running-coach/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
+    { url: `${base}/ai-strength-coach/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
+    { url: `${base}/ai-triathlon-coach/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
     { url: `${base}/examples/`, lastModified: now, priority: 0.8, changeFrequency: "monthly" },
     { url: `${base}/learn/`, lastModified: now, priority: 0.7, changeFrequency: "weekly" },
     { url: `${base}/about/`, lastModified: now, priority: 0.6, changeFrequency: "monthly" },

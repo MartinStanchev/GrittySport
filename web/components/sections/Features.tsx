@@ -24,7 +24,7 @@ const features = [
   {
     icon: "💬",
     title: "Chat with Grit",
-    body: "Ask questions, propose changes, request a deload — Grit listens and adjusts your plan.",
+    body: "Sick, travelling, or ready to push harder? Ask for changes or guidance any time — Grit reworks the plan, you approve.",
   },
   {
     icon: "🎯",
