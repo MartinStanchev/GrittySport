@@ -84,16 +84,46 @@
       <label>Animation <select id="reelMotion">
         <option>float</option><option>kenburns</option><option>tilt</option><option>none</option>
       </select></label>
+      <label>Captions (Story) <select id="reelCaptionPreset">
+        <option value="clean">clean</option><option value="karaoke">karaoke</option><option value="boxed">boxed</option><option value="pop">pop</option>
+      </select></label>
+      <label>Safe zone <select id="reelSafeZone">
+        <option value="none">none</option><option value="tiktok">tiktok</option><option value="reels">reels</option><option value="shorts">shorts</option>
+      </select></label>
       <label style="flex:1;min-width:200px">Headline (Single Hero only)
         <input type="text" id="reelHeadline" placeholder="Headline text" />
       </label>
       <button id="reelBtn" onclick="buildReel()">Build reel</button>
+      <button id="reelPreviewBtn" class="secondary" onclick="previewReel()">Preview</button>
       <button id="reelCancel" class="secondary" onclick="cancelReelEdit()" style="display:none">Cancel edit</button>
       <span id="reelStatus"></span>
     </div>
+    <div class="row" style="margin-top:10px">
+      <label>Music <select id="reelMusic"><option value="">none</option></select></label>
+      <label>Volume <input type="number" id="reelMusicVol" min="0" max="1" step="0.05" value="0.6" style="width:80px"></label>
+      <label>Music start (s) <input type="number" id="reelMusicStart" min="0" step="0.5" value="0" style="width:90px"></label>
+      <label>BPM <input type="number" id="reelBpm" min="40" step="1" placeholder="off" title="Snap each cut to the beat grid" style="width:80px"></label>
+    </div>
     <p id="reelHint" style="color:#ffcf6b;font-size:12px;margin:8px 0 0;display:none"></p>
-    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a post. Duration blank = auto (video plays full length); speed applies to video beats.</p>
+    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a screenshot/clip; insert hook/stat/CTA/before-after cards below. Duration blank = auto (video plays full length); speed applies to video beats.</p>
+    <div class="row" style="margin:0 0 12px">
+      <label>Insert card <select id="cardKind">
+        <option value="hook">Hook</option><option value="stat">Stat</option><option value="cta">CTA / end card</option><option value="split">Before / After</option>
+      </select></label>
+      <button class="secondary" onclick="addCardBeat(document.getElementById('cardKind').value)">+ Add card</button>
+    </div>
     <div id="reelBeats"></div>
+    <div class="row" style="margin-top:14px;align-items:flex-start">
+      <label style="flex:1;min-width:260px">A/B hook lines — one per line, builds one reel each (needs a hook beat)
+        <textarea id="reelHookVariants" placeholder="Missed a workout?&#10;Fell off your plan again?&#10;Skipped leg day?"></textarea>
+      </label>
+      <button class="secondary" onclick="buildVariants()">Build variants</button>
+      <span id="variantStatus" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+    <div id="reelPreviewWrap" style="display:none;margin-top:16px">
+      <iframe id="reelPreviewFrame" src="/preview/" style="width:270px;height:480px;border:1px solid var(--border);border-radius:18px;background:#000"></iframe>
+      <p style="color:var(--muted);font-size:12px;margin:6px 0 0">Live preview · scrub/play with the controls. (Final build uses exact video clip lengths.)</p>
+    </div>
   </section>
 
   <section>
@@ -129,6 +159,10 @@ async function loadMeta() {
   } catch (e) {
     document.getElementById('genScene').innerHTML = `<option value="">scenes unavailable — is Expo web running?</option>`;
   }
+  try {
+    const { audio } = await api('/api/audio');
+    document.getElementById('reelMusic').innerHTML = '<option value="">none</option>' + audio.map(a => `<option value="${a}">${a}</option>`).join('');
+  } catch (e) { /* audio dir optional */ }
 }
 
 let POSTS = [];
@@ -145,16 +179,54 @@ async function loadPosts() {
 }
 
 // --- Reel builder ---
+// Beats are model-bound: inputs mutate `reelBeats` via setBeatField (no re-render
+// on keystroke, so focus is kept); only add/remove/move/kind changes re-render.
 let reelBeats = [];
 let editingReelId = null; // set when editing an existing reel (re-render in place)
 
+const CARD_DEFAULTS = {
+  hook: () => ({ kind: 'hook', kicker: 'Missed a workout?', text: 'Grit texts you back.', seconds: '' }),
+  stat: () => ({ kind: 'stat', value: 7, prefix: '', suffix: '', label: 'sessions adjusted this week', seconds: '' }),
+  cta: () => ({ kind: 'cta', headline: 'Train with Grit.', sub: 'Your AI coach, free to start.', badges: ['appstore', 'googleplay'], qr: '', seconds: '' }),
+  split: () => ({ kind: 'split', leftPostId: '', rightPostId: '', leftLabel: 'Generic plan', rightLabel: 'With Grit', caption: '', seconds: '' }),
+};
+
+const esc = (s) => String(s == null ? '' : s).replace(/"/g, '&quot;');
+
 function addToReel(postId) {
   const post = POSTS.find(p => p.id === postId);
-  reelBeats.push({ postId, caption: post?.caption || '', speed: 1 });
+  reelBeats.push({ kind: 'media', postId, caption: post?.caption || '', speed: 1, seconds: '', tapsStr: '' });
+  renderReelTray();
+  document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
+}
+function addCardBeat(kind) {
+  reelBeats.push(CARD_DEFAULTS[kind]());
   renderReelTray();
   document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
 }
 function removeReelBeat(i) { reelBeats.splice(i, 1); renderReelTray(); }
+function moveReelBeat(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= reelBeats.length) return;
+  [reelBeats[i], reelBeats[j]] = [reelBeats[j], reelBeats[i]];
+  renderReelTray();
+}
+function setBeatField(i, key, value) { reelBeats[i][key] = value; }
+function toggleBeatBadge(i, badge, on) {
+  const set = new Set(reelBeats[i].badges || []);
+  on ? set.add(badge) : set.delete(badge);
+  reelBeats[i].badges = [...set];
+}
+
+// Tap marks as "x,y@sec; x,y@sec" (x/y are % of the screen) <-> array form.
+function parseTaps(str) {
+  return (str || '').split(';').map(s => s.trim()).filter(Boolean).map(seg => {
+    const [xy, sec] = seg.split('@');
+    const [x, y] = (xy || '').split(',');
+    return { xPct: Number(x), yPct: Number(y), atSec: Number(sec) || 0 };
+  }).filter(t => !isNaN(t.xPct) && !isNaN(t.yPct));
+}
+function tapsToStr(taps) { return (taps || []).map(t => `${t.xPct},${t.yPct}@${t.atSec}`).join('; '); }
 
 // Reopen a finished reel in the builder using its saved recipe, then rebuild in place.
 function editReel(id) {
@@ -162,12 +234,23 @@ function editReel(id) {
   if (!post || !post.reel) { alert('This reel was made before edit support — rebuild it to enable editing.'); return; }
   const r = post.reel;
   editingReelId = id;
-  reelBeats = r.beats.map(b => ({ postId: b.postId, src: b.src, caption: b.caption || '', seconds: b.seconds, speed: b.speed }));
+  reelBeats = r.beats.map(b => {
+    const kind = b.kind || 'media';
+    const seconds = b.seconds != null ? b.seconds : '';
+    if (kind === 'media') return { ...b, kind, caption: b.caption || '', speed: b.speed != null ? b.speed : 1, seconds, tapsStr: tapsToStr(b.taps) };
+    return { ...b, kind, seconds };
+  });
   document.getElementById('reelTemplate').value = r.template;
   document.getElementById('reelTheme').value = r.theme;
   document.getElementById('reelTransition').value = r.transition;
   document.getElementById('reelMotion').value = r.motion;
+  document.getElementById('reelCaptionPreset').value = r.captionPreset || 'clean';
+  document.getElementById('reelSafeZone').value = r.safeZone || 'none';
   document.getElementById('reelHeadline').value = r.headline || '';
+  document.getElementById('reelMusic').value = r.music?.file || '';
+  document.getElementById('reelMusicVol').value = r.music?.volume != null ? r.music.volume : 0.6;
+  document.getElementById('reelMusicStart').value = r.music?.startFromSec != null ? r.music.startFromSec : 0;
+  document.getElementById('reelBpm').value = r.bpm != null ? r.bpm : '';
   renderReelTray();
   document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
 }
@@ -177,16 +260,57 @@ function cancelReelEdit() {
   renderReelTray();
 }
 
-// Single Hero only renders the first beat — warn (and block) if multiple are queued.
+// Single Hero renders only the first beat, and only a media one — warn + block otherwise.
 function updateReelHint() {
   const hero = document.getElementById('reelTemplate').value === 'hero';
   const tooMany = hero && reelBeats.length > 1;
+  const hasCard = hero && reelBeats.some(b => (b.kind || 'media') !== 'media');
   const hint = document.getElementById('reelHint');
-  hint.style.display = tooMany ? 'block' : 'none';
+  hint.style.display = (tooMany || hasCard) ? 'block' : 'none';
   hint.textContent = tooMany
     ? `Single Hero shows only the first scene — switch to Story to stitch all ${reelBeats.length} beats.`
-    : '';
-  document.getElementById('reelBtn').disabled = tooMany;
+    : hasCard ? 'Single Hero only supports a screenshot/clip beat — switch to Story for hook/stat/CTA/before-after cards.' : '';
+  document.getElementById('reelBtn').disabled = tooMany || hasCard;
+}
+
+function imagePostOptions(selected) {
+  const imgs = POSTS.filter(p => p.mediaType === 'image' && !p.format.endsWith('-reel'));
+  if (!imgs.length) return '<option value="">— no stills yet · generate a “still” post above —</option>';
+  return ['<option value="">— pick image —</option>']
+    .concat(imgs.map(p => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${p.sceneId} · ${p.id}</option>`))
+    .join('');
+}
+
+// Kind-specific editable fields for one beat row.
+function beatFields(b, i) {
+  const dur = `<label style="color:var(--muted)">dur (s)<input type="number" min="0.5" step="0.5" placeholder="auto" value="${esc(b.seconds)}" oninput="setBeatField(${i},'seconds',this.value)" style="width:80px"></label>`;
+  switch (b.kind) {
+    case 'hook': return `
+      <input type="text" value="${esc(b.kicker)}" placeholder="Kicker (small)…" oninput="setBeatField(${i},'kicker',this.value)" style="width:240px">
+      <input type="text" value="${esc(b.text)}" placeholder="Hook line (big)…" oninput="setBeatField(${i},'text',this.value)" style="flex:1;min-width:240px">${dur}`;
+    case 'stat': return `
+      <input type="text" value="${esc(b.prefix)}" placeholder="+" oninput="setBeatField(${i},'prefix',this.value)" style="width:48px">
+      <input type="number" value="${esc(b.value)}" placeholder="7" oninput="setBeatField(${i},'value',this.value)" style="width:90px">
+      <input type="text" value="${esc(b.suffix)}" placeholder="%" oninput="setBeatField(${i},'suffix',this.value)" style="width:48px">
+      <input type="text" value="${esc(b.label)}" placeholder="Label…" oninput="setBeatField(${i},'label',this.value)" style="flex:1;min-width:200px">${dur}`;
+    case 'cta': return `
+      <input type="text" value="${esc(b.headline)}" placeholder="Headline…" oninput="setBeatField(${i},'headline',this.value)" style="flex:1;min-width:200px">
+      <input type="text" value="${esc(b.sub)}" placeholder="Subtext…" oninput="setBeatField(${i},'sub',this.value)" style="flex:1;min-width:180px">
+      <label style="flex-direction:row;align-items:center;gap:5px;color:var(--text)"><input type="checkbox" ${(b.badges||[]).includes('appstore')?'checked':''} onchange="toggleBeatBadge(${i},'appstore',this.checked)"> App Store</label>
+      <label style="flex-direction:row;align-items:center;gap:5px;color:var(--text)"><input type="checkbox" ${(b.badges||[]).includes('googleplay')?'checked':''} onchange="toggleBeatBadge(${i},'googleplay',this.checked)"> Google Play</label>
+      <input type="text" value="${esc(b.qr)}" placeholder="QR url (optional)" oninput="setBeatField(${i},'qr',this.value)" style="width:200px">${dur}`;
+    case 'split': return `
+      <label style="color:var(--muted)">before<select onchange="setBeatField(${i},'leftPostId',this.value)">${imagePostOptions(b.leftPostId)}</select></label>
+      <input type="text" value="${esc(b.leftLabel)}" placeholder="Before label" oninput="setBeatField(${i},'leftLabel',this.value)" style="width:140px">
+      <label style="color:var(--muted)">after<select onchange="setBeatField(${i},'rightPostId',this.value)">${imagePostOptions(b.rightPostId)}</select></label>
+      <input type="text" value="${esc(b.rightLabel)}" placeholder="After label" oninput="setBeatField(${i},'rightLabel',this.value)" style="width:140px">
+      <input type="text" value="${esc(b.caption)}" placeholder="Caption…" oninput="setBeatField(${i},'caption',this.value)" style="flex:1;min-width:160px">${dur}`;
+    default: return `
+      <input type="text" value="${esc(b.caption)}" placeholder="Caption for this beat…" oninput="setBeatField(${i},'caption',this.value)" style="flex:1;min-width:200px">
+      <label style="color:var(--muted)">speed<input type="number" min="0.25" step="0.25" value="${b.speed != null ? b.speed : 1}" oninput="setBeatField(${i},'speed',this.value)" style="width:80px"></label>
+      <input type="text" value="${esc(b.tapsStr)}" placeholder="taps x,y@s; …" title="Tap points as % of the screen: 50,80@1.2; 50,40@2.5" oninput="setBeatField(${i},'tapsStr',this.value)" style="width:170px">${dur}
+      <span class="meta" style="flex:1">${b.postId || b.src || ''}</span>`;
+  }
 }
 
 function renderReelTray() {
@@ -199,46 +323,76 @@ function renderReelTray() {
   document.getElementById('reelBeats').innerHTML = reelBeats.map((b, i) => `
     <div class="row" style="align-items:center;margin-bottom:8px">
       <span class="badge">${i + 1}</span>
-      <input type="text" data-beat-cap="${i}" value="${(b.caption || '').replace(/"/g, '&quot;')}" placeholder="Caption for this beat…" style="flex:1;min-width:200px">
-      <label style="color:var(--muted)">dur (s)
-        <input type="number" data-beat-dur="${i}" min="0.5" step="0.5" placeholder="auto" value="${b.seconds != null ? b.seconds : ''}" style="width:80px">
-      </label>
-      <label style="color:var(--muted)">speed
-        <input type="number" data-beat-speed="${i}" min="0.25" step="0.25" value="${b.speed != null ? b.speed : 1}" style="width:80px">
-      </label>
-      <span class="meta" style="flex:1">${b.postId || b.src}</span>
+      <span class="badge" style="color:var(--primary)">${b.kind || 'media'}</span>
+      ${beatFields(b, i)}
+      <button class="secondary" onclick="moveReelBeat(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button class="secondary" onclick="moveReelBeat(${i},1)" ${i === reelBeats.length - 1 ? 'disabled' : ''}>↓</button>
       <button class="danger" onclick="removeReelBeat(${i})">Remove</button>
     </div>`).join('');
 }
+
+// Convert a model beat into the API payload (coerce numbers, parse taps).
+function beatPayload(b) {
+  const kind = b.kind || 'media';
+  const seconds = b.seconds === '' || b.seconds == null ? undefined : Number(b.seconds);
+  switch (kind) {
+    case 'hook':   return { kind, kicker: b.kicker, text: b.text, seconds };
+    case 'stat':   return { kind, value: Number(b.value) || 0, prefix: b.prefix, suffix: b.suffix, label: b.label, seconds };
+    case 'cta':    return { kind, headline: b.headline, sub: b.sub, badges: b.badges || [], qr: b.qr, seconds };
+    case 'split':  return { kind, leftPostId: b.leftPostId, rightPostId: b.rightPostId, leftLabel: b.leftLabel, rightLabel: b.rightLabel, caption: b.caption, seconds };
+    default:       return { kind: 'media', postId: b.postId, src: b.src, caption: b.caption, speed: Number(b.speed) || 1, taps: parseTaps(b.tapsStr), seconds };
+  }
+}
+
+// Beats that frame an asset need a source; surface a clear message before render.
+function validateReelBeats(status) {
+  for (let i = 0; i < reelBeats.length; i++) {
+    const b = reelBeats[i];
+    const kind = b.kind || 'media';
+    if (kind === 'media' && !b.postId && !b.src) { status.textContent = `✗ beat ${i + 1}: add it from a post via “+ Reel”`; return false; }
+    if (kind === 'split' && ((!b.leftPostId && !b.leftSrc) || (!b.rightPostId && !b.rightSrc))) { status.textContent = `✗ beat ${i + 1} (before/after): pick both a before and after image`; return false; }
+  }
+  return true;
+}
+
+function reelMusic() {
+  const file = document.getElementById('reelMusic').value;
+  if (!file) return null;
+  return { file, volume: Number(document.getElementById('reelMusicVol').value), startFromSec: Number(document.getElementById('reelMusicStart').value) || 0 };
+}
+
+// The shared reel spec used by build / preview / variants (everything but `id`).
+function reelBuildPayload() {
+  const bpm = document.getElementById('reelBpm').value;
+  return {
+    template: document.getElementById('reelTemplate').value,
+    theme: document.getElementById('reelTheme').value,
+    transition: document.getElementById('reelTransition').value,
+    motion: document.getElementById('reelMotion').value,
+    captionPreset: document.getElementById('reelCaptionPreset').value,
+    safeZone: document.getElementById('reelSafeZone').value,
+    headline: document.getElementById('reelHeadline').value,
+    music: reelMusic(),
+    bpm: bpm ? Number(bpm) : undefined,
+    beats: reelBeats.map(beatPayload),
+  };
+}
+
 async function buildReel() {
   const btn = document.getElementById('reelBtn');
   const status = document.getElementById('reelStatus');
-  const beats = reelBeats.map((b, i) => {
-    const dur = document.querySelector(`[data-beat-dur="${i}"]`).value;
-    return {
-      postId: b.postId,
-      src: b.src,
-      caption: document.querySelector(`[data-beat-cap="${i}"]`).value,
-      seconds: dur ? Number(dur) : undefined,
-      speed: Number(document.querySelector(`[data-beat-speed="${i}"]`).value) || 1,
-    };
-  });
-  btn.disabled = true; status.textContent = (editingReelId ? 're-rendering reel' : 'rendering reel') + '… (can take ~1 min)';
+  if (!validateReelBeats(status)) return;
+  btn.disabled = true;
+  status.textContent = `${editingReelId ? 're-rendering' : 'rendering'} reel… (can take ~1 min)`;
   try {
     await api('/api/reel', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: editingReelId || undefined,
-        template: document.getElementById('reelTemplate').value,
-        theme: document.getElementById('reelTheme').value,
-        transition: document.getElementById('reelTransition').value,
-        motion: document.getElementById('reelMotion').value,
-        headline: document.getElementById('reelHeadline').value,
-        beats,
-      }),
+      body: JSON.stringify({ id: editingReelId || undefined, ...reelBuildPayload() }),
     });
     status.textContent = editingReelId ? '✓ updated' : '✓ built';
-    editingReelId = null; reelBeats = []; renderReelTray();
+    editingReelId = null;
+    reelBeats = [];
+    renderReelTray();
     loadPosts();
   } catch (e) {
     status.textContent = '✗ ' + e.message;
@@ -247,6 +401,55 @@ async function buildReel() {
     updateReelHint();
     setTimeout(() => { status.textContent = ''; }, 5000);
   }
+}
+
+// --- Live preview (Remotion Player in the iframe) ---
+let previewReady = false;
+let pendingPreviewSpec = null;
+window.addEventListener('message', (e) => {
+  if (e.data?.type === 'preview-ready') {
+    previewReady = true;
+    if (pendingPreviewSpec) { sendPreview(pendingPreviewSpec); pendingPreviewSpec = null; }
+  }
+});
+function sendPreview(spec) {
+  document.getElementById('reelPreviewFrame').contentWindow.postMessage({ type: 'preview', payload: spec }, '*');
+}
+async function previewReel() {
+  const status = document.getElementById('reelStatus');
+  if (!validateReelBeats(status)) return;
+  status.textContent = 'resolving preview…';
+  try {
+    const spec = await api('/api/reel/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reelBuildPayload()),
+    });
+    document.getElementById('reelPreviewWrap').style.display = '';
+    if (previewReady) sendPreview(spec); else pendingPreviewSpec = spec;
+    status.textContent = '✓ preview updated';
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+  }
+  setTimeout(() => { status.textContent = ''; }, 4000);
+}
+
+// --- A/B hook variants: one reel per alternate hook line ---
+async function buildVariants() {
+  const status = document.getElementById('variantStatus');
+  if (!validateReelBeats(document.getElementById('reelStatus'))) return;
+  const lines = document.getElementById('reelHookVariants').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!lines.length) { status.textContent = 'add at least one hook line'; setTimeout(() => { status.textContent = ''; }, 4000); return; }
+  status.textContent = `building ${lines.length} variant(s)… (~1 min each)`;
+  try {
+    const { posts } = await api('/api/reel/variants', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...reelBuildPayload(), hookVariants: lines }),
+    });
+    status.textContent = `✓ built ${posts.length} variant(s)`;
+    document.getElementById('reelHookVariants').value = '';
+    loadPosts();
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+  }
+  setTimeout(() => { status.textContent = ''; }, 6000);
 }
 
 // Asset URL with a cache-busting version (re-rendered reels keep the same URL).

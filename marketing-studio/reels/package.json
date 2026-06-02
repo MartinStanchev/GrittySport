@@ -5,10 +5,13 @@
   "description": "Remotion compositor: frame Gritty scene assets in an iPhone, animate, stitch into reels.",
   "scripts": {
     "studio": "remotion studio",
-    "render": "remotion render"
+    "render": "remotion render",
+    "build:preview": "node preview/build.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.471",
+    "@remotion/google-fonts": "^4.0.471",
+    "@remotion/player": "^4.0.471",
     "@remotion/renderer": "^4.0.471",
     "@remotion/transitions": "^4.0.471",
     "react": "^19.2.7",
@@ -17,6 +20,7 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.16",
+    "esbuild": "^0.28.0",
     "typescript": "^6.0.3"
   }
 }

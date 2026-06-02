@@ -1,6 +1,7 @@
 import { Composition } from 'remotion';
 import { SingleHero, type SingleHeroProps } from './SingleHero';
 import { StoryReel, type StoryReelProps } from './StoryReel';
+import { storyDurationInFrames } from './metadata';
 
 const FPS = 30;
 
@@ -21,6 +22,8 @@ export const RemotionRoot: React.FC = () => {
             theme: 'dark',
             durationInFrames: 240,
             motion: 'float',
+            safeZone: 'none',
+            showSafeZones: false,
           } satisfies SingleHeroProps
         }
         calculateMetadata={({ props }) => ({ durationInFrames: props.durationInFrames })}
@@ -39,16 +42,20 @@ export const RemotionRoot: React.FC = () => {
             transitionFrames: 16,
             transition: 'slide',
             motion: 'float',
+            captionPreset: 'pop',
+            safeZone: 'none',
+            showSafeZones: false,
             beats: [
-              { media: { src: 'sample-lockscreen.png', mediaType: 'image' }, caption: 'Grit notices when you miss.', durationInFrames: 90 },
-              { media: { src: 'sample-replay.mp4', mediaType: 'video' }, caption: 'And starts the conversation.', durationInFrames: 240 },
-              { media: { src: 'sample-week.png', mediaType: 'image' }, caption: 'Your whole week, adjusted.', durationInFrames: 120 },
+              { kind: 'hook', kicker: 'Missed a workout?', text: 'Grit texts you back.', durationInFrames: 75 },
+              { kind: 'media', media: { src: 'sample-lockscreen.png', mediaType: 'image' }, caption: 'It notices when you miss.', durationInFrames: 90 },
+              { kind: 'media', media: { src: 'sample-replay.mp4', mediaType: 'video' }, caption: 'And starts the conversation.', durationInFrames: 240 },
+              { kind: 'stat', value: 7, label: 'sessions adjusted this week', prefix: '', suffix: '', durationInFrames: 84 },
+              { kind: 'cta', headline: 'Train with Grit.', sub: 'Your AI coach, free to start.', badges: ['appstore', 'googleplay'], durationInFrames: 120 },
             ],
           } satisfies StoryReelProps
         }
         calculateMetadata={({ props }) => ({
-          durationInFrames:
-            props.beats.reduce((sum, b) => sum + b.durationInFrames, 0) - (props.beats.length - 1) * props.transitionFrames,
+          durationInFrames: storyDurationInFrames(props.beats, props.transitionFrames, props.transition),
         })}
       />
     </>

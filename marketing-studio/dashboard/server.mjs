@@ -5,11 +5,24 @@ import { fileURLToPath } from 'node:url';
 import { config } from '../config.mjs';
 import { listPosts, readPost, updatePost, deletePost, postDir, POST_STATUSES } from '../lib/queue.mjs';
 import { generatePost, FORMAT_NAMES } from '../generate.mjs';
-import { buildReel, REEL_TEMPLATES } from '../reel.mjs';
+import { buildReel, buildReelVariants, resolveReelPreview, REEL_TEMPLATES } from '../reel.mjs';
 import { fetchSceneList } from '../lib/scenes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const CONTENT_TYPES = { '.png': 'image/png', '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8' };
+const reelsPublic = path.join(here, '..', 'reels', 'public');
+const previewDir = path.join(here, '..', 'reels', 'preview');
+const CONTENT_TYPES = {
+  '.png': 'image/png', '.mp4': 'video/mp4', '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.map': 'application/json',
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+};
+const AUDIO_EXTS = new Set(['.mp3', '.m4a', '.aac', '.wav', '.ogg']);
+
+function listAudio() {
+  const dir = path.join(reelsPublic, 'audio');
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((f) => AUDIO_EXTS.has(path.extname(f).toLowerCase())).sort();
+}
 
 let sceneCache = null; // lazily fetched scene registry
 
@@ -72,6 +85,16 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { scenes: sceneCache });
     }
 
+    if (req.method === 'GET' && pathname === '/api/audio') {
+      return sendJson(res, 200, { audio: listAudio() });
+    }
+
+    const audioMatch = pathname.match(/^\/api\/audio\/(.+)$/);
+    if (req.method === 'GET' && audioMatch) {
+      const file = path.basename(decodeURIComponent(audioMatch[1])); // basename blocks path traversal
+      return serveFile(req, res, path.join(reelsPublic, 'audio', file));
+    }
+
     if (req.method === 'POST' && pathname === '/api/generate') {
       const body = await readBody(req);
       const post = await generatePost(body);
@@ -82,6 +105,28 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const post = await buildReel(body);
       return sendJson(res, 201, { post });
+    }
+
+    // Resolve (no render) for the live Player preview.
+    if (req.method === 'POST' && pathname === '/api/reel/preview') {
+      const body = await readBody(req);
+      return sendJson(res, 200, await resolveReelPreview(body));
+    }
+
+    // A/B build: one reel per alternate hook line.
+    if (req.method === 'POST' && pathname === '/api/reel/variants') {
+      const body = await readBody(req);
+      return sendJson(res, 201, { posts: await buildReelVariants(body) });
+    }
+
+    // Live-preview Player bundle (built by `npm run build:preview` in reels/).
+    if (req.method === 'GET' && (pathname === '/preview' || pathname === '/preview/')) {
+      return serveFile(req, res, path.join(previewDir, 'index.html'));
+    }
+    const previewMatch = pathname.match(/^\/preview\/(.+)$/);
+    if (req.method === 'GET' && previewMatch) {
+      const rel = path.normalize(previewMatch[1]).replace(/^(\.\.[/\\])+/, '');
+      return serveFile(req, res, path.join(previewDir, rel));
     }
 
     const assetMatch = pathname.match(/^\/api\/posts\/([^/]+)\/asset$/);
