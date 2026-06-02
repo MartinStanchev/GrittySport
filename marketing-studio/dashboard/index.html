@@ -223,7 +223,7 @@ function renderCard(p) {
           <select data-field="status">${statusOpts}</select>
         </label>
         <div class="card-actions">
-          <button class="secondary" onclick="addToReel('${p.id}')">+ Reel</button>
+          ${p.format.endsWith('-reel') ? '' : `<button class="secondary" onclick="addToReel('${p.id}')">+ Reel</button>`}
           <button class="secondary" onclick="savePost('${p.id}')">Save</button>
           <a class="dl" href="/api/posts/${encodeURIComponent(p.id)}/asset" download="${p.id}.${p.asset.split('.').pop()}"><button class="secondary">Download</button></a>
           <button class="danger" onclick="removePost('${p.id}')">Delete</button>

@@ -191,6 +191,10 @@ Verified: scroll beat renders fully contained (no crop); chat-replay at 2× = 4.
 8.2s); a reel with wipe transition + tilt motion + per-beat speed/duration rendered via
 `POST /api/reel`; reel-builder UI shows all controls; `reels tsc` clean.
 
+**Reel-in-reel guard (follow-up):** a finished `*-reel` is already framed, so using one
+as a beat produced a phone-in-phone (+ doubled caption). The dashboard now hides "+ Reel"
+on `*-reel` cards, and `reel.mjs` rejects a reel-format beat server-side.
+
 ## Deferred
 
 - Publishing automation (X / Reddit / IG / TikTok). Manual posting for now; wire in

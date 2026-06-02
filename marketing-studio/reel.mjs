@@ -22,6 +22,11 @@ function mediaTypeFor(file, explicit) {
 function resolveBeatSource(beat) {
   if (beat.postId) {
     const post = readPost(beat.postId);
+    // A reel is a finished, already-framed output — framing it again gives a
+    // phone-in-phone. Beats must be raw scene assets.
+    if (post.format?.endsWith('-reel')) {
+      throw new Error(`"${beat.postId}" is already a reel; reels can't be used as beats (would nest phone frames)`);
+    }
     return { srcPath: path.join(postDir(beat.postId), post.asset), mediaType: post.mediaType };
   }
   if (beat.src) return { srcPath: beat.src, mediaType: mediaTypeFor(beat.src, beat.mediaType) };
