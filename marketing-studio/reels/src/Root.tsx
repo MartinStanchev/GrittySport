@@ -20,6 +20,7 @@ export const RemotionRoot: React.FC = () => {
             headline: 'Accountability that texts you back.',
             theme: 'dark',
             durationInFrames: 240,
+            motion: 'float',
           } satisfies SingleHeroProps
         }
         calculateMetadata={({ props }) => ({ durationInFrames: props.durationInFrames })}
@@ -36,6 +37,8 @@ export const RemotionRoot: React.FC = () => {
           {
             theme: 'dark',
             transitionFrames: 16,
+            transition: 'slide',
+            motion: 'float',
             beats: [
               { media: { src: 'sample-lockscreen.png', mediaType: 'image' }, caption: 'Grit notices when you miss.', durationInFrames: 90 },
               { media: { src: 'sample-replay.mp4', mediaType: 'video' }, caption: 'And starts the conversation.', durationInFrames: 240 },

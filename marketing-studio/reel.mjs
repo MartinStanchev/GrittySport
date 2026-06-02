@@ -8,7 +8,7 @@ import { renderReel } from './reels/render.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FPS = 30;
 const TRANSITION_FRAMES = 16;
-const DEFAULT_IMAGE_SECONDS = { hero: 8, story: 3.5 };
+const DEFAULT_IMAGE_SECONDS = { hero: 8, story: 4.5 };
 
 export const REEL_TEMPLATES = { hero: 'SingleHero', story: 'StoryReel' };
 
@@ -29,7 +29,7 @@ function resolveBeatSource(beat) {
 }
 
 // Build a reel (hero or story) from queued posts/assets and add it to the queue.
-export async function buildReel({ template = 'story', beats = [], headline = '', theme = 'dark' } = {}) {
+export async function buildReel({ template = 'story', beats = [], headline = '', theme = 'dark', transition = 'slide', motion = 'float' } = {}) {
   const compositionId = REEL_TEMPLATES[template];
   if (!compositionId) throw new Error(`Unknown template "${template}" (${Object.keys(REEL_TEMPLATES).join(' | ')})`);
   if (!beats.length) throw new Error('a reel needs at least one beat');
@@ -39,27 +39,35 @@ export async function buildReel({ template = 'story', beats = [], headline = '',
   fs.mkdirSync(stagedDir, { recursive: true });
 
   try {
-    // Stage each beat's asset into the Remotion public dir + compute its duration.
+    // Stage each beat's asset into the Remotion public dir + compute its timing.
     const staged = [];
     for (let i = 0; i < beats.length; i++) {
       const { srcPath, mediaType } = resolveBeatSource(beats[i]);
       const ext = path.extname(srcPath) || (mediaType === 'video' ? '.mp4' : '.png');
       const fileName = `beat-${i}${ext}`;
       fs.copyFileSync(srcPath, path.join(stagedDir, fileName));
+
+      const speed = mediaType === 'video' ? Number(beats[i].speed) || 1 : 1;
+      // Video beats default to playing the full clip at the chosen speed; stills
+      // get a readable default. An explicit `seconds` overrides either.
       const seconds =
-        beats[i].seconds ??
-        (mediaType === 'video' ? await probeDurationSec(srcPath) : DEFAULT_IMAGE_SECONDS[template] ?? 4);
+        beats[i].seconds != null
+          ? Number(beats[i].seconds)
+          : mediaType === 'video'
+            ? (await probeDurationSec(srcPath)) / speed
+            : DEFAULT_IMAGE_SECONDS[template] ?? 4;
+
       staged.push({
-        media: { src: `staged/${id}/${fileName}`, mediaType },
+        media: { src: `staged/${id}/${fileName}`, mediaType, ...(mediaType === 'video' ? { playbackRate: speed } : {}) },
         caption: beats[i].caption ?? '',
-        durationInFrames: Math.round(seconds * FPS),
+        durationInFrames: Math.max(1, Math.round(seconds * FPS)),
       });
     }
 
     const inputProps =
       template === 'hero'
-        ? { media: staged[0].media, headline, theme, durationInFrames: staged[0].durationInFrames }
-        : { theme, transitionFrames: TRANSITION_FRAMES, beats: staged };
+        ? { media: staged[0].media, headline, theme, durationInFrames: staged[0].durationInFrames, motion }
+        : { theme, transitionFrames: TRANSITION_FRAMES, transition, motion, beats: staged };
 
     const outPath = path.join(postDir(id), 'asset.mp4');
     fs.mkdirSync(postDir(id), { recursive: true });
@@ -86,12 +94,14 @@ export async function buildReel({ template = 'story', beats = [], headline = '',
 // CLI: node reel.mjs --template story --theme dark --headline "..." \
 //        --beat <postId>:<caption> --beat <postId>:<caption> ...
 function parseArgs(argv) {
-  const args = { template: 'story', theme: 'dark', headline: '', beats: [] };
+  const args = { template: 'story', theme: 'dark', headline: '', transition: 'slide', motion: 'float', beats: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--template') args.template = argv[++i];
     else if (a === '--theme') args.theme = argv[++i];
     else if (a === '--headline') args.headline = argv[++i];
+    else if (a === '--transition') args.transition = argv[++i];
+    else if (a === '--motion') args.motion = argv[++i];
     else if (a === '--beat') {
       const raw = argv[++i];
       const idx = raw.indexOf(':');

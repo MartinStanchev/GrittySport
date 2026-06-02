@@ -167,6 +167,30 @@ Build). `reels` `tsc --noEmit` clean.
 
 Note: Remotion is free for individuals / teams ≤3; a company license applies above that.
 
+## Phase 5: reel controls + clipping fix (from testing feedback)
+
+- **Clipping fix:** `ScreenMedia` now uses `objectFit: contain` (was `cover`). Scroll
+  videos are 9:16 (1080×1920) — wider than the phone screen (≈0.461) — so `cover`
+  side-cropped them (lost the day labels). `contain` fits any aspect fully (matching
+  stills/chat-replays still fill edge-to-edge; scroll gets subtle top/bottom letterbox
+  that reads as screen bezel).
+- **Per-beat timing:** `reel.mjs` accepts per-beat `seconds` (override) + `speed`
+  (video `playbackRate`); video beats default to full-clip/speed, stills to a readable
+  default (story 4.5s). Compositions take `media.playbackRate`. Fixes "scenes too short
+  / don't show".
+- **Transition + animation:** `StoryReel` takes `transition` (slide/fade/wipe/flip/none
+  → `@remotion/transitions`) and `motion` (float/kenburns/tilt/none) applied per beat;
+  `SingleHero` takes `motion`. New `reels/src/presets.ts` maps both.
+- **Generation speed:** `chat-replay` gets a `--speed` multiplier (scales typing/message
+  holds); `scroll` keeps `--duration`. `generate.mjs` threads `seconds`/`speed` per
+  format.
+- **Dashboard:** reel builder gains Transition + Animation selects and per-beat
+  duration/speed inputs; generate panel gains a contextual Duration(s)/Speed(×) field.
+
+Verified: scroll beat renders fully contained (no crop); chat-replay at 2× = 4.2s (vs
+8.2s); a reel with wipe transition + tilt motion + per-beat speed/duration rendered via
+`POST /api/reel`; reel-builder UI shows all controls; `reels tsc` clean.
+
 ## Deferred
 
 - Publishing automation (X / Reddit / IG / TikTok). Manual posting for now; wire in

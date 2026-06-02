@@ -53,10 +53,14 @@
         <select id="genScene"><option value="">loading scenes…</option></select>
       </label>
       <label>Format
-        <select id="genFormat"></select>
+        <select id="genFormat" onchange="updateGenTune()"></select>
       </label>
       <label>Theme
         <select id="genTheme"><option value="light">light</option><option value="dark">dark</option></select>
+      </label>
+      <label id="genTuneWrap" style="display:none">
+        <span id="genTuneLabel">Duration (s)</span>
+        <input type="number" id="genTune" min="0.5" step="0.5" style="width:90px">
       </label>
       <button id="genBtn" onclick="generate()">Generate</button>
       <span id="genStatus"></span>
@@ -74,13 +78,19 @@
     <div class="row">
       <label>Template <select id="reelTemplate"></select></label>
       <label>Theme <select id="reelTheme"><option value="dark">dark</option><option value="light">light</option></select></label>
-      <label style="flex:1;min-width:220px">Headline (Single Hero only)
+      <label>Transition <select id="reelTransition">
+        <option>slide</option><option>fade</option><option>wipe</option><option>flip</option><option>none</option>
+      </select></label>
+      <label>Animation <select id="reelMotion">
+        <option>float</option><option>kenburns</option><option>tilt</option><option>none</option>
+      </select></label>
+      <label style="flex:1;min-width:200px">Headline (Single Hero only)
         <input type="text" id="reelHeadline" placeholder="Headline text" />
       </label>
       <button id="reelBtn" onclick="buildReel()">Build reel</button>
       <span id="reelStatus"></span>
     </div>
-    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — add posts from the queue with the “+ Reel” button:</p>
+    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a post. Duration blank = auto (video plays full length); speed applies to video beats.</p>
     <div id="reelBeats"></div>
   </section>
 
@@ -125,6 +135,7 @@ async function loadPosts() {
   POSTS = posts;
   STATUSES = statuses;
   document.getElementById('genFormat').innerHTML = formats.map(f => `<option value="${f}">${f}</option>`).join('');
+  updateGenTune();
   document.getElementById('reelTemplate').innerHTML = (reelTemplates || []).map(t => `<option value="${t}">${t}</option>`).join('');
   const grid = document.getElementById('grid');
   document.getElementById('emptyMsg').style.display = posts.length ? 'none' : 'block';
@@ -145,15 +156,29 @@ function renderReelTray() {
   document.getElementById('reelBeats').innerHTML = reelBeats.map((b, i) => `
     <div class="row" style="align-items:center;margin-bottom:8px">
       <span class="badge">${i + 1}</span>
-      <input type="text" data-beat="${i}" value="${(b.caption || '').replace(/"/g, '&quot;')}" placeholder="Caption for this beat…" style="flex:1;min-width:240px">
-      <span class="meta" style="flex:2">${b.postId}</span>
+      <input type="text" data-beat-cap="${i}" value="${(b.caption || '').replace(/"/g, '&quot;')}" placeholder="Caption for this beat…" style="flex:1;min-width:200px">
+      <label style="color:var(--muted)">dur (s)
+        <input type="number" data-beat-dur="${i}" min="0.5" step="0.5" placeholder="auto" style="width:80px">
+      </label>
+      <label style="color:var(--muted)">speed
+        <input type="number" data-beat-speed="${i}" min="0.25" step="0.25" value="1" style="width:80px">
+      </label>
+      <span class="meta" style="flex:1">${b.postId}</span>
       <button class="danger" onclick="removeReelBeat(${i})">Remove</button>
     </div>`).join('');
 }
 async function buildReel() {
   const btn = document.getElementById('reelBtn');
   const status = document.getElementById('reelStatus');
-  const beats = reelBeats.map((b, i) => ({ postId: b.postId, caption: document.querySelector(`[data-beat="${i}"]`).value }));
+  const beats = reelBeats.map((b, i) => {
+    const dur = document.querySelector(`[data-beat-dur="${i}"]`).value;
+    return {
+      postId: b.postId,
+      caption: document.querySelector(`[data-beat-cap="${i}"]`).value,
+      seconds: dur ? Number(dur) : undefined,
+      speed: Number(document.querySelector(`[data-beat-speed="${i}"]`).value) || 1,
+    };
+  });
   btn.disabled = true; status.textContent = 'rendering reel… (can take ~1 min)';
   try {
     await api('/api/reel', {
@@ -161,6 +186,8 @@ async function buildReel() {
       body: JSON.stringify({
         template: document.getElementById('reelTemplate').value,
         theme: document.getElementById('reelTheme').value,
+        transition: document.getElementById('reelTransition').value,
+        motion: document.getElementById('reelMotion').value,
         headline: document.getElementById('reelHeadline').value,
         beats,
       }),
@@ -229,23 +256,38 @@ async function removePost(id) {
   loadPosts();
 }
 
+// Scroll → "Duration (s)", chat-replay → "Speed (×)", still → hidden.
+function updateGenTune() {
+  const fmt = document.getElementById('genFormat').value;
+  const wrap = document.getElementById('genTuneWrap');
+  const label = document.getElementById('genTuneLabel');
+  const input = document.getElementById('genTune');
+  if (fmt === 'scroll') { wrap.style.display = ''; label.textContent = 'Duration (s)'; input.placeholder = '8'; }
+  else if (fmt === 'chat-replay') { wrap.style.display = ''; label.textContent = 'Speed (×)'; input.placeholder = '1'; }
+  else { wrap.style.display = 'none'; input.value = ''; }
+}
+
 async function generate() {
   const btn = document.getElementById('genBtn');
   const status = document.getElementById('genStatus');
   const sceneId = document.getElementById('genScene').value;
   if (!sceneId) { status.textContent = 'pick a scene'; return; }
   const platforms = PLATFORMS.filter(p => document.getElementById('gen-pf-' + p)?.checked);
+  const format = document.getElementById('genFormat').value;
+  const tune = document.getElementById('genTune').value;
+  const body = {
+    sceneId, format,
+    theme: document.getElementById('genTheme').value,
+    caption: document.getElementById('genCaption').value,
+    platforms,
+  };
+  if (tune && format === 'scroll') body.seconds = Number(tune);
+  if (tune && format === 'chat-replay') body.speed = Number(tune);
   btn.disabled = true; status.textContent = 'rendering… (can take ~10–40s)';
   try {
     await api('/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sceneId,
-        format: document.getElementById('genFormat').value,
-        theme: document.getElementById('genTheme').value,
-        caption: document.getElementById('genCaption').value,
-        platforms,
-      }),
+      body: JSON.stringify(body),
     });
     status.textContent = '✓ created';
     document.getElementById('genCaption').value = '';

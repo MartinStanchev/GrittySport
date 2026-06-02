@@ -13,19 +13,21 @@ const USER_HOLD = 1.0; // a revealed user message
 const END_HOLD = 1.4; // extra dwell on the final frame
 
 // Build the frame storyboard from message roles: reveal each message in turn,
-// showing the typing indicator before assistant/system (Grit) messages.
-function buildStoryboard(roles) {
+// showing the typing indicator before assistant/system (Grit) messages. `speed`
+// scales the pacing (2 = twice as fast).
+function buildStoryboard(roles, speed = 1) {
+  const s = speed > 0 ? speed : 1;
   const frames = [];
   for (let i = 0; i < roles.length; i++) {
     const isGrit = roles[i] !== 'user';
-    if (isGrit) frames.push({ count: i, typing: true, durationSec: TYPING_HOLD });
-    frames.push({ count: i + 1, typing: false, durationSec: isGrit ? GRIT_HOLD : USER_HOLD });
+    if (isGrit) frames.push({ count: i, typing: true, durationSec: TYPING_HOLD / s });
+    frames.push({ count: i + 1, typing: false, durationSec: (isGrit ? GRIT_HOLD : USER_HOLD) / s });
   }
-  if (frames.length) frames[frames.length - 1].durationSec += END_HOLD;
+  if (frames.length) frames[frames.length - 1].durationSec += END_HOLD / s;
   return frames;
 }
 
-export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, outPath } = {}) {
+export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, outPath, speed = 1 } = {}) {
   const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marketing-replay-'));
   try {
     const frames = await withScenePage(
@@ -33,7 +35,7 @@ export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, out
       async ({ page, meta }) => {
         if (meta.kind !== 'chat') throw new Error(`Scene "${sceneId}" is a ${meta.kind} scene; chat-replay needs a chat scene.`);
         const roles = await page.evaluate(() => window.__marketingReplay.roles);
-        const storyboard = buildStoryboard(roles);
+        const storyboard = buildStoryboard(roles, speed);
 
         const captured = [];
         for (let i = 0; i < storyboard.length; i++) {
@@ -60,9 +62,9 @@ export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, out
 }
 
 if (isMain(import.meta.url)) {
-  const args = parseSceneArgs(process.argv.slice(2));
+  const args = parseSceneArgs(process.argv.slice(2), { '--speed': { key: 'speed', type: Number } });
   if (!args.sceneId) {
-    console.error('Usage: node video/chat-replay.mjs <chatSceneId> [--theme light|dark] [--out file.mp4] [--url http://localhost:8081]');
+    console.error('Usage: node video/chat-replay.mjs <chatSceneId> [--theme light|dark] [--speed 1.5] [--out file.mp4] [--url http://localhost:8081]');
     process.exit(1);
   }
   captureChatReplay(args)

@@ -2,25 +2,26 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import { PhoneFrame } from './PhoneFrame';
 import { ScreenMedia, type Media } from './ScreenMedia';
 import { background, textColor, PALETTE, FONT } from './theme';
+import { motionTransform, type MotionType } from './presets';
 
 export type SingleHeroProps = {
   media: Media;
   headline: string;
   theme: 'light' | 'dark';
   durationInFrames: number;
+  motion: MotionType;
 };
 
-// One scene in a gently floating / tilting phone on a branded gradient, with a
-// headline and the GRITTY wordmark.
-export const SingleHero: React.FC<SingleHeroProps> = ({ media, headline, theme }) => {
+// One scene in a phone on a branded gradient, with a headline and the GRITTY
+// wordmark. The phone springs in, then the chosen motion preset animates it.
+export const SingleHero: React.FC<SingleHeroProps> = ({ media, headline, theme, durationInFrames, motion }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const enter = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 30 });
-  const float = Math.sin(frame / 22) * 10;
-  const tilt = Math.sin(frame / 30) * 1.2;
-  const phoneY = interpolate(enter, [0, 1], [80, 0]) + float;
-  const phoneScale = interpolate(enter, [0, 1], [0.92, 1]);
+  const enterY = interpolate(enter, [0, 1], [80, 0]);
+  const enterScale = interpolate(enter, [0, 1], [0.92, 1]);
+  const motionT = motionTransform(motion, frame, durationInFrames);
   const headlineOpacity = interpolate(frame, [12, 32], [0, 1], { extrapolateRight: 'clamp' });
 
   return (
@@ -39,7 +40,7 @@ export const SingleHero: React.FC<SingleHeroProps> = ({ media, headline, theme }
       <div style={{ position: 'absolute', top: 70, fontSize: 30, fontWeight: 800, color: PALETTE.accent, fontFamily: FONT, letterSpacing: 3 }}>
         GRITTY
       </div>
-      <div style={{ transform: `translateY(${phoneY}px) scale(${phoneScale}) rotate(${tilt}deg)` }}>
+      <div style={{ transform: `translateY(${enterY}px) scale(${enterScale}) ${motionT}` }}>
         <PhoneFrame screenHeight={1340}>
           <ScreenMedia media={media} />
         </PhoneFrame>

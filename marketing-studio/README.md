@@ -46,17 +46,22 @@ scenes with the `marketing-scene` skill.
 Uses `ffmpeg-static` (bundled full H.264 build — no system ffmpeg needed).
 
 **Chat replay** — a chat scene plays back message-by-message with the real
-"Thinking..." typing indicator, like watching the conversation happen:
+"Thinking..." typing indicator, like watching the conversation happen. `--speed`
+scales the pacing (2 = twice as fast):
 ```
-node video/chat-replay.mjs <chatSceneId> [--theme light|dark] [--out file.mp4]
+node video/chat-replay.mjs <chatSceneId> [--theme light|dark] [--speed 1.5] [--out file.mp4]
 # → content/_video/<scene>-<theme>-replay.mp4  (1080-wide, phone aspect, 30fps H.264)
 ```
 
-**Scroll** — pan a vertical 1080×1920 window down the full content of a (tall) scene:
+**Scroll** — pan a vertical 1080×1920 window down the full content of a (tall) scene;
+`--duration` sets how long the pan takes:
 ```
 node video/scroll.mjs <sceneId> [--theme light|dark] [--duration 8] [--out file.mp4]
 # → content/_video/<scene>-<theme>-scroll.mp4  (1080×1920 9:16, 30fps H.264)
 ```
+
+(In the dashboard generate panel these surface as a **Duration (s)** field for scroll
+and a **Speed (×)** field for chat-replay.)
 
 Chat-replay pacing lives in `video/chat-replay.mjs` (typing / message / end holds).
 
@@ -93,9 +98,15 @@ Two templates:
 - **Single Hero** — one scene in a floating/tilting phone + a headline.
 - **Story Reel** — multiple beats stitched with transitions (e.g. notification → chat → week).
 
-From the dashboard: hit **“+ Reel”** on queued posts to add them as beats, pick a
-template + theme (+ headline for Hero), write a caption per beat, and **Build reel**.
-The finished MP4 lands back in the queue as a `*-reel` post.
+From the dashboard: hit **“+ Reel”** on queued posts to add them as beats, then choose:
+- **Template** (Story / Hero), **Theme**, **Transition** (slide / fade / wipe / flip / none),
+  **Animation** (float / kenburns / tilt / none), and a Hero **Headline**.
+- Per beat: a **caption**, a **duration** (blank = auto — video beats play their full
+  length), and a **speed** (playback rate for video beats).
+
+**Build reel** → the finished MP4 lands back in the queue as a `*-reel` post. Any scene
+aspect (incl. 9:16 scroll videos) is fit inside the phone with `contain`, so nothing is
+cropped by the frame.
 
 CLI equivalent:
 ```

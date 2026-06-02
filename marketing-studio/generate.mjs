@@ -16,7 +16,7 @@ const FORMATS = {
 export const FORMAT_NAMES = Object.keys(FORMATS);
 
 // Render an asset for a scene and create a reviewable post in the queue.
-export async function generatePost({ sceneId, format = 'still', theme = 'light', caption = '', platforms = [], baseUrl } = {}) {
+export async function generatePost({ sceneId, format = 'still', theme = 'light', caption = '', platforms = [], baseUrl, seconds, speed } = {}) {
   if (!sceneId) throw new Error('sceneId is required');
   const spec = FORMATS[format];
   if (!spec) throw new Error(`Unknown format "${format}" (${FORMAT_NAMES.join(' | ')})`);
@@ -25,7 +25,10 @@ export async function generatePost({ sceneId, format = 'still', theme = 'light',
   const assetName = `asset.${spec.ext}`;
   const outPath = path.join(postDir(id), assetName);
 
-  const { out } = await spec.fn({ sceneId, theme, baseUrl, outPath });
+  // scroll → duration (s); chat-replay → speed (×). Undefined falls back to the
+  // capture fn's own default.
+  const tuning = format === 'scroll' ? { durationSec: seconds } : format === 'chat-replay' ? { speed } : {};
+  const { out } = await spec.fn({ sceneId, theme, baseUrl, outPath, ...tuning });
 
   const post = {
     id,
@@ -53,9 +56,11 @@ if (isMain(import.meta.url)) {
     '--format': { key: 'format' },
     '--caption': { key: 'caption' },
     '--platforms': { key: 'platforms', type: (s) => s.split(',').map((p) => p.trim()).filter(Boolean) },
+    '--duration': { key: 'seconds', type: Number },
+    '--speed': { key: 'speed', type: Number },
   });
   if (!args.sceneId) {
-    console.error('Usage: node generate.mjs <sceneId> --format still|chat-replay|scroll [--theme light|dark] [--caption "..."] [--platforms instagram,tiktok] [--url http://localhost:8081]');
+    console.error('Usage: node generate.mjs <sceneId> --format still|chat-replay|scroll [--theme light|dark] [--caption "..."] [--platforms instagram,tiktok] [--duration 8] [--speed 1.5] [--url http://localhost:8081]');
     process.exit(1);
   }
   generatePost(args)
