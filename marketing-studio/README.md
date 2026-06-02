@@ -108,6 +108,13 @@ From the dashboard: hit **“+ Reel”** on queued posts to add them as beats, t
 aspect (incl. 9:16 scroll videos) is fit inside the phone with `contain`, so nothing is
 cropped by the frame.
 
+**Editing a reel:** each reel stores its full recipe, so reel cards have an **Edit**
+button that reopens the builder pre-filled (template, theme, transition, animation,
+headline, per-beat caption/duration/speed). Tweak and hit **Update reel** to re-render
+in place — the post keeps its id, caption, platforms, and status. (Reels made before
+edit support have no saved recipe; rebuild them once to enable it. For a live,
+frame-accurate preview while iterating, use Remotion Studio below.)
+
 CLI equivalent:
 ```
 node reel.mjs --template story --theme dark \

@@ -74,9 +74,9 @@
   </section>
 
   <section class="panel" id="reelPanel" style="display:none">
-    <h2>Build a reel</h2>
+    <h2>Build a reel <span id="reelMode" style="color:var(--primary);text-transform:none;letter-spacing:0;font-weight:600"></span></h2>
     <div class="row">
-      <label>Template <select id="reelTemplate"></select></label>
+      <label>Template <select id="reelTemplate" onchange="updateReelHint()"></select></label>
       <label>Theme <select id="reelTheme"><option value="dark">dark</option><option value="light">light</option></select></label>
       <label>Transition <select id="reelTransition">
         <option>slide</option><option>fade</option><option>wipe</option><option>flip</option><option>none</option>
@@ -88,8 +88,10 @@
         <input type="text" id="reelHeadline" placeholder="Headline text" />
       </label>
       <button id="reelBtn" onclick="buildReel()">Build reel</button>
+      <button id="reelCancel" class="secondary" onclick="cancelReelEdit()" style="display:none">Cancel edit</button>
       <span id="reelStatus"></span>
     </div>
+    <p id="reelHint" style="color:#ffcf6b;font-size:12px;margin:8px 0 0;display:none"></p>
     <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a post. Duration blank = auto (video plays full length); speed applies to video beats.</p>
     <div id="reelBeats"></div>
   </section>
@@ -144,26 +146,67 @@ async function loadPosts() {
 
 // --- Reel builder ---
 let reelBeats = [];
+let editingReelId = null; // set when editing an existing reel (re-render in place)
+
 function addToReel(postId) {
   const post = POSTS.find(p => p.id === postId);
-  reelBeats.push({ postId, caption: post?.caption || '' });
+  reelBeats.push({ postId, caption: post?.caption || '', speed: 1 });
   renderReelTray();
   document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
 }
 function removeReelBeat(i) { reelBeats.splice(i, 1); renderReelTray(); }
+
+// Reopen a finished reel in the builder using its saved recipe, then rebuild in place.
+function editReel(id) {
+  const post = POSTS.find(p => p.id === id);
+  if (!post || !post.reel) { alert('This reel was made before edit support — rebuild it to enable editing.'); return; }
+  const r = post.reel;
+  editingReelId = id;
+  reelBeats = r.beats.map(b => ({ postId: b.postId, src: b.src, caption: b.caption || '', seconds: b.seconds, speed: b.speed }));
+  document.getElementById('reelTemplate').value = r.template;
+  document.getElementById('reelTheme').value = r.theme;
+  document.getElementById('reelTransition').value = r.transition;
+  document.getElementById('reelMotion').value = r.motion;
+  document.getElementById('reelHeadline').value = r.headline || '';
+  renderReelTray();
+  document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
+}
+function cancelReelEdit() {
+  editingReelId = null;
+  reelBeats = [];
+  renderReelTray();
+}
+
+// Single Hero only renders the first beat — warn (and block) if multiple are queued.
+function updateReelHint() {
+  const hero = document.getElementById('reelTemplate').value === 'hero';
+  const tooMany = hero && reelBeats.length > 1;
+  const hint = document.getElementById('reelHint');
+  hint.style.display = tooMany ? 'block' : 'none';
+  hint.textContent = tooMany
+    ? `Single Hero shows only the first scene — switch to Story to stitch all ${reelBeats.length} beats.`
+    : '';
+  document.getElementById('reelBtn').disabled = tooMany;
+}
+
 function renderReelTray() {
-  document.getElementById('reelPanel').style.display = reelBeats.length ? 'block' : 'none';
+  const editing = !!editingReelId;
+  document.getElementById('reelPanel').style.display = (reelBeats.length || editing) ? 'block' : 'none';
+  document.getElementById('reelMode').textContent = editing ? `— editing ${editingReelId}` : '';
+  document.getElementById('reelBtn').textContent = editing ? 'Update reel' : 'Build reel';
+  document.getElementById('reelCancel').style.display = editing ? '' : 'none';
+  updateReelHint();
   document.getElementById('reelBeats').innerHTML = reelBeats.map((b, i) => `
     <div class="row" style="align-items:center;margin-bottom:8px">
       <span class="badge">${i + 1}</span>
       <input type="text" data-beat-cap="${i}" value="${(b.caption || '').replace(/"/g, '&quot;')}" placeholder="Caption for this beat…" style="flex:1;min-width:200px">
       <label style="color:var(--muted)">dur (s)
-        <input type="number" data-beat-dur="${i}" min="0.5" step="0.5" placeholder="auto" style="width:80px">
+        <input type="number" data-beat-dur="${i}" min="0.5" step="0.5" placeholder="auto" value="${b.seconds != null ? b.seconds : ''}" style="width:80px">
       </label>
       <label style="color:var(--muted)">speed
-        <input type="number" data-beat-speed="${i}" min="0.25" step="0.25" value="1" style="width:80px">
+        <input type="number" data-beat-speed="${i}" min="0.25" step="0.25" value="${b.speed != null ? b.speed : 1}" style="width:80px">
       </label>
-      <span class="meta" style="flex:1">${b.postId}</span>
+      <span class="meta" style="flex:1">${b.postId || b.src}</span>
       <button class="danger" onclick="removeReelBeat(${i})">Remove</button>
     </div>`).join('');
 }
@@ -174,16 +217,18 @@ async function buildReel() {
     const dur = document.querySelector(`[data-beat-dur="${i}"]`).value;
     return {
       postId: b.postId,
+      src: b.src,
       caption: document.querySelector(`[data-beat-cap="${i}"]`).value,
       seconds: dur ? Number(dur) : undefined,
       speed: Number(document.querySelector(`[data-beat-speed="${i}"]`).value) || 1,
     };
   });
-  btn.disabled = true; status.textContent = 'rendering reel… (can take ~1 min)';
+  btn.disabled = true; status.textContent = (editingReelId ? 're-rendering reel' : 'rendering reel') + '… (can take ~1 min)';
   try {
     await api('/api/reel', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        id: editingReelId || undefined,
         template: document.getElementById('reelTemplate').value,
         theme: document.getElementById('reelTheme').value,
         transition: document.getElementById('reelTransition').value,
@@ -192,21 +237,28 @@ async function buildReel() {
         beats,
       }),
     });
-    status.textContent = '✓ built';
-    reelBeats = []; renderReelTray();
+    status.textContent = editingReelId ? '✓ updated' : '✓ built';
+    editingReelId = null; reelBeats = []; renderReelTray();
     loadPosts();
   } catch (e) {
     status.textContent = '✗ ' + e.message;
   } finally {
     btn.disabled = false;
+    updateReelHint();
     setTimeout(() => { status.textContent = ''; }, 5000);
   }
 }
 
+// Asset URL with a cache-busting version (re-rendered reels keep the same URL).
+function assetUrl(p) {
+  return `/api/posts/${encodeURIComponent(p.id)}/asset?v=${encodeURIComponent(p.updatedAt || p.createdAt || '')}`;
+}
+
 function renderCard(p) {
   const media = p.mediaType === 'video'
-    ? `<video src="/api/posts/${encodeURIComponent(p.id)}/asset" controls preload="metadata"></video>`
-    : `<img src="/api/posts/${encodeURIComponent(p.id)}/asset" alt="${p.sceneId}">`;
+    ? `<video src="${assetUrl(p)}" controls preload="metadata"></video>`
+    : `<img src="${assetUrl(p)}" alt="${p.sceneId}">`;
+  const isReel = p.format.endsWith('-reel');
   const statusOpts = STATUSES.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
   return `<div class="card" data-id="${p.id}">
     <div class="media">${media}</div>
@@ -223,9 +275,11 @@ function renderCard(p) {
           <select data-field="status">${statusOpts}</select>
         </label>
         <div class="card-actions">
-          ${p.format.endsWith('-reel') ? '' : `<button class="secondary" onclick="addToReel('${p.id}')">+ Reel</button>`}
+          ${isReel
+            ? `<button class="secondary" onclick="editReel('${p.id}')">Edit</button>`
+            : `<button class="secondary" onclick="addToReel('${p.id}')">+ Reel</button>`}
           <button class="secondary" onclick="savePost('${p.id}')">Save</button>
-          <a class="dl" href="/api/posts/${encodeURIComponent(p.id)}/asset" download="${p.id}.${p.asset.split('.').pop()}"><button class="secondary">Download</button></a>
+          <a class="dl" href="${assetUrl(p)}" download="${p.id}.${p.asset.split('.').pop()}"><button class="secondary">Download</button></a>
           <button class="danger" onclick="removePost('${p.id}')">Delete</button>
         </div>
       </div>

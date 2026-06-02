@@ -42,8 +42,13 @@ export function ChatReplayStage({ messages }: { messages: ChatMessage[] }) {
   }, [messages]);
 
   // Keep the newest content in view as messages reveal, like the real chat.
+  // `onContentSizeChange` (below) is the reliable trigger on react-native-web —
+  // it fires after the new message / typing row has actually laid out, whereas a
+  // bare rAF here can run before the content height updates. We keep this effect
+  // as a belt-and-suspenders re-pin when only the typing flag toggles.
+  const scrollToEnd = () => listRef.current?.scrollToEnd({ animated: false });
   useEffect(() => {
-    requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
+    requestAnimationFrame(scrollToEnd);
   }, [visibleCount, typing]);
 
   return (
@@ -53,6 +58,7 @@ export function ChatReplayStage({ messages }: { messages: ChatMessage[] }) {
         ref={listRef}
         data={messages.slice(0, visibleCount)}
         keyExtractor={(m) => m.id}
+        onContentSizeChange={scrollToEnd}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <ChatMessageItem

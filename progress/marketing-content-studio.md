@@ -195,6 +195,48 @@ Verified: scroll beat renders fully contained (no crop); chat-replay at 2× = 4.
 as a beat produced a phone-in-phone (+ doubled caption). The dashboard now hides "+ Reel"
 on `*-reel` cards, and `reel.mjs` rejects a reel-format beat server-side.
 
+## Phase 6: chat-replay auto-scroll + editable reels (from testing feedback)
+
+- **Chat-replay auto-scroll:** the newest message wasn't pinned to the bottom of the
+  phone screen as the conversation grew. Two-part fix: (1) `ChatReplayStage` now scrolls
+  on `onContentSizeChange` (fires after the revealed row lays out — more reliable than a
+  bare rAF) for the live playground; (2) **authoritatively**, `video/chat-replay.mjs`
+  forces every overflowing scroll container to `scrollTop = scrollHeight` (new
+  `pinChatToBottom` page fn) right before each screenshot. RN's `scrollToEnd` lands a few
+  px short on react-native-web; the explicit pin is exact and timing-proof, so every
+  captured frame shows the latest message flush above the input bar. Verified by
+  extracting mid- and end-of-conversation frames from a freshly generated replay — newest
+  message fully visible in both. **Note:** the fix is in the capture path, so existing
+  chat-replay videos (and reels built from them) must be **re-generated** to pick it up.
+- **Editable reels:** `buildReel` now persists the full **recipe** (`reel: {template,
+  theme, transition, motion, headline, beats[{postId|src, caption, seconds, speed}]}`)
+  in `post.json`, and accepts an optional `id` to **re-render in place** (same folder/
+  id, preserving the post's caption / platforms / status / notes). `POST /api/reel`
+  needs no new route — it just forwards `id`. The dashboard reel cards swap "+ Reel" for
+  an **Edit** button that reopens the builder pre-filled from the recipe (template,
+  theme, transition, animation, headline, and per-beat caption/duration/speed); the
+  panel shows "— editing &lt;id&gt;", the button becomes **Update reel**, and a **Cancel
+  edit** button bails. Re-rendered assets keep the same URL, so the card `<video>`/
+  `<img>`/download links are cache-busted with `?v=<updatedAt|createdAt>`.
+- Reels made before this phase have no recipe; their Edit button explains they must be
+  rebuilt once to enable editing. (A live frame-accurate preview is still Remotion
+  Studio: `cd reels && npm run studio`.)
+- **Hero-with-multiple-beats trap (follow-up):** a 3-video reel came out 2s showing only
+  the first beat. Root cause: `SingleHero` is a one-scene template (renders only the
+  first beat) yet `hero` was the dropdown's *default*, so adding 3 beats + clicking Build
+  silently dropped beats 2–3 (the 2s came from those beats also being at speed 2×). Not a
+  pipeline regression — Story stitched the same 3 videos to 14.2s correctly. Fixed three
+  ways: (1) `REEL_TEMPLATES` reordered so **`story` is the default**; (2) `buildReel`
+  hard-rejects `hero` with >1 beat (clear error, no wasted render); (3) the dashboard
+  shows an inline warning and disables **Build** when Hero is selected with multiple beats.
+
+Verified end-to-end against the running dashboard: created a hero reel (recipe
+persisted, `createdAt == updatedAt`), PATCHed it to `status: ready` + `platforms:
+[tiktok]` + a hand-edited caption, then edited it (motion float→tilt, new headline) —
+same id/folder (no duplicate), recipe updated, and caption/status/platforms all
+survived; `updatedAt > createdAt`. `node --check` clean on `reel.mjs`/`server.mjs`,
+dashboard inline JS parses, ESLint + `tsc` clean on `ChatReplayStage.tsx`.
+
 ## Deferred
 
 - Publishing automation (X / Reddit / IG / TikTok). Manual posting for now; wire in

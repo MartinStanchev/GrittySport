@@ -27,6 +27,17 @@ function buildStoryboard(roles, speed = 1) {
   return frames;
 }
 
+// Runs in the page: scroll every overflowing container to its bottom so the most
+// recent chat message sits flush at the bottom of the phone screen.
+function pinChatToBottom() {
+  document.querySelectorAll('*').forEach((el) => {
+    const s = getComputedStyle(el);
+    if ((s.overflowY === 'auto' || s.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+      el.scrollTop = el.scrollHeight;
+    }
+  });
+}
+
 export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, outPath, speed = 1 } = {}) {
   const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marketing-replay-'));
   try {
@@ -44,6 +55,11 @@ export async function captureChatReplay({ sceneId, theme = 'light', baseUrl, out
           // Let React re-render + scroll settle before the shot.
           await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
           await page.waitForTimeout(80);
+          // Pin the chat list to the absolute bottom so the newest message is always
+          // fully in view (like the real chat). RN's scrollToEnd lands a few px short
+          // on react-native-web; forcing scrollTop here is exact and timing-proof.
+          await page.evaluate(pinChatToBottom);
+          await page.evaluate(() => new Promise((r) => requestAnimationFrame(r)));
           const framePath = path.join(framesDir, `frame-${String(i).padStart(4, '0')}.png`);
           await page.screenshot({ path: framePath });
           captured.push({ path: framePath, durationSec });
