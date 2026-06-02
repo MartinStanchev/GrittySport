@@ -11,6 +11,12 @@ export interface MarketingRenderParams {
   replay: boolean;
 }
 
+// True when the URL requests the scene-registry probe (?marketingScenes).
+export function isMarketingSceneListRequest(): boolean {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).has('marketingScenes');
+}
+
 export function getMarketingRenderParams(): MarketingRenderParams | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);

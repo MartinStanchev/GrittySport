@@ -11,6 +11,9 @@ export const config = {
   deviceScaleFactor: Number(process.env.STUDIO_SCALE || 3),
   stillsDir: path.join(here, 'content', '_stills'),
   videoDir: path.join(here, 'content', '_video'),
+  // Queue of reviewable posts: content/posts/<id>/{post.json, asset.*}.
+  postsDir: path.join(here, 'content', 'posts'),
+  dashboardPort: Number(process.env.STUDIO_DASHBOARD_PORT || 4321),
   // The first web bundle can take a while; later captures are fast.
   navTimeoutMs: 180000,
   readyTimeoutMs: 60000,

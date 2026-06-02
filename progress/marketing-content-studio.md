@@ -91,8 +91,43 @@ Verified end-to-end against the running Expo web server:
   through the proposal card.
 - `eslint` clean on changed frontend files; `node --check` clean on all studio files.
 
-## Next phases
+## Phase 3: content queue + local review dashboard
 
-- Content queue (`content/<id>/post.json` + asset + caption + platforms + status).
-- Local review dashboard (preview, edit caption, set status, download for manual posting).
-- Publishing automation deferred until platform API access is approved.
+Filesystem-backed queue + a local web dashboard that is the single control surface
+(generate → review → export). No DB, no extra runtime deps (Node built-in `http`).
+
+Frontend (scene-registry probe):
+- `src/marketing/MarketingSceneList.tsx` (new): visiting `?marketingScenes` publishes
+  the scene registry on `window.__marketingScenes` and renders nothing. Wired in
+  `App.tsx` via `isMarketingSceneListRequest()` (`renderParams.ts`). Lets the
+  dashboard populate its scene picker without duplicating the list.
+
+Studio:
+- `lib/queue.mjs`: post CRUD over `content/posts/<id>/` (`post.json` + `asset.*`).
+  Only caption/platforms/status/notes are user-editable; `makePostId` = sortable
+  `YYYYMMDDHHMM-<scene>-<format>`.
+- `lib/scenes.mjs`: `fetchSceneList()` reads the probe via Playwright.
+- `generate.mjs`: format → capture fn (still/chat-replay/scroll), renders straight
+  into the post folder, writes `post.json` (stills also store width/height). CLI +
+  exported `generatePost()`.
+- `dashboard/server.mjs`: Node `http` API — `GET /api/posts`, `GET /api/scenes`
+  (cached), `POST /api/generate`, `PATCH/DELETE /api/posts/:id`, and
+  `GET /api/posts/:id/asset` with HTTP range support so video seeks work.
+- `dashboard/index.html`: single-file vanilla-JS UI — create panel (scene/format/
+  theme/caption/platforms + Generate) and a queue grid (inline image/video preview,
+  editable caption, platform checkboxes, status select, download, delete).
+- `package.json` scripts: `still`, `scroll`, `chat-replay`, `generate`, `dashboard`.
+
+Gotcha found + fixed during testing: `expo start --web` was launched with `CI=1`,
+which **disables Metro's file watcher**, so newly-added files (the scene-list probe)
+weren't bundled. Restart without `CI=1` (the `dev-server` script does). Documented.
+
+Verified end-to-end: generated a still + a chat-replay post via the generator;
+dashboard listed both, played the replay inline, previewed the lockscreen still,
+PATCH moved a post to `ready` (green badge), assets served with correct
+content-types, scene picker populated with all 9 scenes.
+
+## Deferred
+
+- Publishing automation (X / Reddit / IG / TikTok). Manual posting for now; wire in
+  here once platform API access is approved.

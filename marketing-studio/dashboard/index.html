@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gritty Marketing Studio</title>
+<style>
+  :root { --bg:#0e0e12; --surface:#1a1a22; --surface2:#23232e; --border:#2e2e3a; --text:#ececf1; --muted:#9a9aab; --primary:#7c5cff; --ok:#3ddc84; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:12px; }
+  header h1 { font-size:18px; margin:0; }
+  header .sub { color:var(--muted); font-size:13px; }
+  main { padding:24px; max-width:1200px; margin:0 auto; }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px; margin-bottom:28px; }
+  .panel h2 { font-size:14px; margin:0 0 14px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  label { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); }
+  select, input[type=text], textarea { background:var(--surface2); border:1px solid var(--border); color:var(--text); border-radius:9px; padding:8px 10px; font-size:14px; font-family:inherit; }
+  textarea { width:100%; resize:vertical; min-height:60px; }
+  button { background:var(--primary); color:#fff; border:none; border-radius:9px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; }
+  button.secondary { background:var(--surface2); border:1px solid var(--border); color:var(--text); font-weight:500; }
+  button.danger { background:transparent; border:1px solid #5a2030; color:#ff7a90; font-weight:500; }
+  button:disabled { opacity:.5; cursor:default; }
+  .platforms { display:flex; gap:14px; flex-wrap:wrap; }
+  .platforms label { flex-direction:row; align-items:center; gap:6px; color:var(--text); font-size:13px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:20px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .media { background:#000; display:flex; align-items:center; justify-content:center; max-height:420px; overflow:hidden; }
+  .media img, .media video { width:100%; height:auto; max-height:420px; object-fit:contain; display:block; }
+  .card-body { padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .badges { display:flex; gap:6px; flex-wrap:wrap; font-size:11px; }
+  .badge { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:2px 8px; color:var(--muted); }
+  .badge.status-ready { color:var(--ok); border-color:#234; }
+  .badge.status-posted { color:#8ab; }
+  .card-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .meta { font-size:11px; color:var(--muted); word-break:break-all; }
+  #genStatus { font-size:13px; color:var(--muted); margin-left:8px; }
+  .empty { color:var(--muted); text-align:center; padding:40px; }
+  a.dl { text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 Marketing Studio</h1>
+  <span class="sub">render · review · export — post manually until publishing is wired up</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Create a post</h2>
+    <div class="row">
+      <label>Scene
+        <select id="genScene"><option value="">loading scenes…</option></select>
+      </label>
+      <label>Format
+        <select id="genFormat"></select>
+      </label>
+      <label>Theme
+        <select id="genTheme"><option value="light">light</option><option value="dark">dark</option></select>
+      </label>
+      <button id="genBtn" onclick="generate()">Generate</button>
+      <span id="genStatus"></span>
+    </div>
+    <div style="margin-top:12px">
+      <label style="width:100%">Caption (optional)
+        <textarea id="genCaption" placeholder="Write the post caption…"></textarea>
+      </label>
+    </div>
+    <div class="platforms" id="genPlatforms" style="margin-top:10px"></div>
+  </section>
+
+  <section>
+    <h2 style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Queue</h2>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="emptyMsg" style="display:none">No posts yet. Generate one above.</div>
+  </section>
+</main>
+
+<script>
+const PLATFORMS = ['instagram', 'tiktok', 'x', 'reddit'];
+let STATUSES = ['draft', 'ready', 'posted'];
+
+function platformChecks(prefix, selected) {
+  return PLATFORMS.map(p =>
+    `<label><input type="checkbox" data-platform="${p}" ${selected.includes(p) ? 'checked' : ''} ${prefix === 'gen' ? 'id="gen-pf-' + p + '"' : ''}> ${p}</label>`
+  ).join('');
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+async function loadMeta() {
+  document.getElementById('genPlatforms').innerHTML = platformChecks('gen', []);
+  try {
+    const { scenes } = await api('/api/scenes');
+    const sel = document.getElementById('genScene');
+    sel.innerHTML = scenes.map(s => `<option value="${s.id}" data-kind="${s.kind}">${s.title} (${s.kind})</option>`).join('');
+  } catch (e) {
+    document.getElementById('genScene').innerHTML = `<option value="">scenes unavailable — is Expo web running?</option>`;
+  }
+}
+
+async function loadPosts() {
+  const { posts, statuses, formats } = await api('/api/posts');
+  STATUSES = statuses;
+  document.getElementById('genFormat').innerHTML = formats.map(f => `<option value="${f}">${f}</option>`).join('');
+  const grid = document.getElementById('grid');
+  document.getElementById('emptyMsg').style.display = posts.length ? 'none' : 'block';
+  grid.innerHTML = posts.map(renderCard).join('');
+}
+
+function renderCard(p) {
+  const media = p.mediaType === 'video'
+    ? `<video src="/api/posts/${encodeURIComponent(p.id)}/asset" controls preload="metadata"></video>`
+    : `<img src="/api/posts/${encodeURIComponent(p.id)}/asset" alt="${p.sceneId}">`;
+  const statusOpts = STATUSES.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
+  return `<div class="card" data-id="${p.id}">
+    <div class="media">${media}</div>
+    <div class="card-body">
+      <div class="badges">
+        <span class="badge">${p.format}</span>
+        <span class="badge">${p.theme}</span>
+        <span class="badge status-${p.status}">${p.status}</span>
+      </div>
+      <textarea data-field="caption" placeholder="Caption…">${p.caption || ''}</textarea>
+      <div class="platforms">${platformChecks('card', p.platforms || [])}</div>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <label style="flex-direction:row;align-items:center;gap:6px;color:var(--text)">Status
+          <select data-field="status">${statusOpts}</select>
+        </label>
+        <div class="card-actions">
+          <button class="secondary" onclick="savePost('${p.id}')">Save</button>
+          <a class="dl" href="/api/posts/${encodeURIComponent(p.id)}/asset" download="${p.id}.${p.asset.split('.').pop()}"><button class="secondary">Download</button></a>
+          <button class="danger" onclick="removePost('${p.id}')">Delete</button>
+        </div>
+      </div>
+      <div class="meta">${p.sceneId} · ${new Date(p.createdAt).toLocaleString()}</div>
+    </div>
+  </div>`;
+}
+
+function cardData(id) {
+  const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  return {
+    caption: card.querySelector('[data-field=caption]').value,
+    status: card.querySelector('[data-field=status]').value,
+    platforms: [...card.querySelectorAll('[data-platform]')].filter(c => c.checked).map(c => c.dataset.platform),
+  };
+}
+
+async function savePost(id) {
+  await api('/api/posts/' + encodeURIComponent(id), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cardData(id)),
+  });
+  loadPosts();
+}
+
+async function removePost(id) {
+  if (!confirm('Delete this post and its asset?')) return;
+  await api('/api/posts/' + encodeURIComponent(id), { method: 'DELETE' });
+  loadPosts();
+}
+
+async function generate() {
+  const btn = document.getElementById('genBtn');
+  const status = document.getElementById('genStatus');
+  const sceneId = document.getElementById('genScene').value;
+  if (!sceneId) { status.textContent = 'pick a scene'; return; }
+  const platforms = PLATFORMS.filter(p => document.getElementById('gen-pf-' + p)?.checked);
+  btn.disabled = true; status.textContent = 'rendering… (can take ~10–40s)';
+  try {
+    await api('/api/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sceneId,
+        format: document.getElementById('genFormat').value,
+        theme: document.getElementById('genTheme').value,
+        caption: document.getElementById('genCaption').value,
+        platforms,
+      }),
+    });
+    status.textContent = '✓ created';
+    document.getElementById('genCaption').value = '';
+    loadPosts();
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { status.textContent = ''; }, 4000);
+  }
+}
+
+loadMeta();
+loadPosts();
+</script>
+</body>
+</html>

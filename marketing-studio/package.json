@@ -6,7 +6,11 @@
   "description": "Local marketing content studio: render Gritty Fitness scenes to images/video, queue, review, and export for manual posting.",
   "scripts": {
     "still": "node capture/still.mjs",
-    "dev-server": "cd ../frontend && npx expo start --web"
+    "scroll": "node video/scroll.mjs",
+    "chat-replay": "node video/chat-replay.mjs",
+    "generate": "node generate.mjs",
+    "dashboard": "node dashboard/server.mjs",
+    "dev-server": "cd ../frontend && npx expo start --web --port 8081"
   },
   "dependencies": {
     "ffmpeg-static": "^5.3.0",

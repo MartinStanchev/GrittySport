@@ -60,6 +60,29 @@ node video/scroll.mjs <sceneId> [--theme light|dark] [--duration 8] [--out file.
 
 Chat-replay pacing lives in `video/chat-replay.mjs` (typing / message / end holds).
 
+## Queue + review dashboard
+
+Generated posts live in `content/posts/<id>/` (a `post.json` + the asset). The
+dashboard is the main control surface: generate, preview, edit caption, pick
+platforms, set status (draft → ready → posted), download, delete.
+
+```
+npm run dashboard          # → http://localhost:4321
+```
+
+Keep the Expo web server running too — the dashboard's scene picker and the
+"Generate" button drive it. From the dashboard you can render a new post in the
+browser, or use the CLI:
+
+```
+node generate.mjs <sceneId> --format still|chat-replay|scroll \
+  [--theme light|dark] [--caption "..."] [--platforms instagram,tiktok]
+```
+
+Publishing is intentionally manual for now: download the asset, copy the caption,
+post it yourself. Auto-publishing slots in here later once platform API access
+is approved.
+
 ## Notes
 
 - Inline code (markdown `` `code` ``) renders with a layout quirk on react-native-web;
@@ -70,6 +93,6 @@ Chat-replay pacing lives in `video/chat-replay.mjs` (typing / message / end hold
 
 - [x] Still capture → PNG
 - [x] Video templates (chat replay message-by-message, screenshot scroll) → MP4 via ffmpeg
-- [ ] Content queue (`content/<id>/post.json` + asset + caption + target platforms + status)
-- [ ] Local review dashboard (preview, edit caption, set status, download)
+- [x] Content queue (`content/posts/<id>/post.json` + asset + caption + target platforms + status)
+- [x] Local review dashboard (generate, preview, edit caption, set status, download)
 - [ ] Publishing (deferred — manual posting until platform API access is approved)

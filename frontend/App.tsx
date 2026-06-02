@@ -16,7 +16,8 @@ import ConsentScreen from './src/screens/auth/ConsentScreen';
 import ProfileSetupScreen from './src/screens/auth/ProfileSetupScreen';
 import MarketingPlaygroundScreen from './src/screens/MarketingPlaygroundScreen';
 import { MarketingRender } from './src/marketing/MarketingRender';
-import { getMarketingRenderParams } from './src/marketing/renderParams';
+import { MarketingSceneList } from './src/marketing/MarketingSceneList';
+import { getMarketingRenderParams, isMarketingSceneListRequest } from './src/marketing/renderParams';
 import { ActiveWorkoutBanner } from './src/components/ActiveWorkoutBanner';
 import { OfflineBanner } from './src/components/OfflineBanner';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -110,6 +111,16 @@ export default function App() {
         <View style={styles.loading}>
           <ActivityIndicator size="large" />
         </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Marketing scene-registry probe (web + dev only): publishes the scene list
+  // for the studio dashboard, then renders nothing.
+  if (__DEV__ && isMarketingSceneListRequest()) {
+    return (
+      <SafeAreaProvider>
+        <MarketingSceneList />
       </SafeAreaProvider>
     );
   }
