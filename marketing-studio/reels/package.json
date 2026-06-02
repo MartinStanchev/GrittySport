@@ -1,0 +1,22 @@
+{
+  "name": "gritty-reels",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remotion compositor: frame Gritty scene assets in an iPhone, animate, stitch into reels.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.471",
+    "@remotion/renderer": "^4.0.471",
+    "@remotion/transitions": "^4.0.471",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "remotion": "^4.0.471"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16",
+    "typescript": "^6.0.3"
+  }
+}
