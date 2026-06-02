@@ -127,6 +127,46 @@ dashboard listed both, played the replay inline, previewed the lockscreen still,
 PATCH moved a post to `ready` (green badge), assets served with correct
 content-types, scene picker populated with all 9 scenes.
 
+## Phase 4: Remotion reel compositor (iPhone frame + transitions + stitching)
+
+Turns bare screen captures into polished vertical reels. New `marketing-studio/reels/`
+Remotion project (React DOM, separate package + node_modules; pinned 4.0.471).
+
+- `reels/src/PhoneFrame.tsx`: titanium bezel + rounded screen + side buttons. Dynamic
+  Island is **off by default** — captures already include their own status bar / chat
+  header, so an overlaid island covered content.
+- `reels/src/ScreenMedia.tsx`: fills the screen with `<Img>`/`<OffthreadVideo>`; src is
+  an http URL or a path relative to `public/` (staged there per render).
+- `reels/src/SingleHero.tsx`: one scene in a floating/tilting phone on a branded
+  gradient + headline + GRITTY wordmark.
+- `reels/src/StoryReel.tsx`: `TransitionSeries` of beats (slide transitions) with
+  per-beat captions.
+- `reels/src/Root.tsx`: registers both, `calculateMetadata` derives duration from
+  props (Hero: prop; Story: Σ beats − transitions). Sample assets in `public/` for
+  Remotion Studio preview.
+- `reels/render.mjs`: programmatic render (`@remotion/bundler` + `@remotion/renderer`)
+  → MP4. Bundles per call so freshly-staged assets are picked up.
+
+Studio orchestration + dashboard:
+- `reel.mjs`: `buildReel({template, beats, headline, theme})` — resolves each beat from
+  a queued post (or path), copies it into `reels/public/staged/<id>/`, times beats
+  (video = probed duration via new `probeDurationSec` in `lib/ffmpeg.mjs`; images get a
+  default), builds inputProps, renders into a new queue post, cleans up staged. CLI +
+  exported.
+- `dashboard/server.mjs`: `POST /api/reel`; `/api/posts` now also returns
+  `reelTemplates`.
+- `dashboard/index.html`: "+ Reel" on each card adds it as a beat; a "Build a reel"
+  panel (template/theme/headline + per-beat captions) calls the endpoint; the finished
+  `*-reel` MP4 appears in the queue.
+
+De-risked first: confirmed Remotion renders 1080×1920 H.264 in this WSL env (no Chrome
+issue; it fetches its own Headless Shell). Verified end-to-end: a 3-beat **story reel**
+(14.2s) and a **hero reel** rendered both via CLI and via the dashboard `POST /api/reel`,
+landing in the queue with `sourcePosts` tracked; reel-builder UI wired (+Reel → panel →
+Build). `reels` `tsc --noEmit` clean.
+
+Note: Remotion is free for individuals / teams ≤3; a company license applies above that.
+
 ## Deferred
 
 - Publishing automation (X / Reddit / IG / TikTok). Manual posting for now; wire in

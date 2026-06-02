@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config } from '../config.mjs';
 import { listPosts, readPost, updatePost, deletePost, postDir, POST_STATUSES } from '../lib/queue.mjs';
 import { generatePost, FORMAT_NAMES } from '../generate.mjs';
+import { buildReel, REEL_TEMPLATES } from '../reel.mjs';
 import { fetchSceneList } from '../lib/scenes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -58,7 +59,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && pathname === '/api/posts') {
-      return sendJson(res, 200, { posts: listPosts(), statuses: POST_STATUSES, formats: FORMAT_NAMES });
+      return sendJson(res, 200, {
+        posts: listPosts(),
+        statuses: POST_STATUSES,
+        formats: FORMAT_NAMES,
+        reelTemplates: Object.keys(REEL_TEMPLATES),
+      });
     }
 
     if (req.method === 'GET' && pathname === '/api/scenes') {
@@ -69,6 +75,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pathname === '/api/generate') {
       const body = await readBody(req);
       const post = await generatePost(body);
+      return sendJson(res, 201, { post });
+    }
+
+    if (req.method === 'POST' && pathname === '/api/reel') {
+      const body = await readBody(req);
+      const post = await buildReel(body);
       return sendJson(res, 201, { post });
     }
 

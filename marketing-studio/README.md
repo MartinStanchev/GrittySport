@@ -83,6 +83,35 @@ Publishing is intentionally manual for now: download the asset, copy the caption
 post it yourself. Auto-publishing slots in here later once platform API access
 is approved.
 
+## Reels (iPhone frame + transitions)
+
+The `reels/` sub-project (Remotion) composes the rendered scene assets into polished
+vertical videos: each scene sits in an iPhone frame on a branded gradient, with
+animation and (for multi-beat reels) sliding transitions + per-beat captions.
+
+Two templates:
+- **Single Hero** — one scene in a floating/tilting phone + a headline.
+- **Story Reel** — multiple beats stitched with transitions (e.g. notification → chat → week).
+
+From the dashboard: hit **“+ Reel”** on queued posts to add them as beats, pick a
+template + theme (+ headline for Hero), write a caption per beat, and **Build reel**.
+The finished MP4 lands back in the queue as a `*-reel` post.
+
+CLI equivalent:
+```
+node reel.mjs --template story --theme dark \
+  --beat <postId>:"Grit notices when you miss." \
+  --beat <postId>:"And starts the conversation." \
+  --beat <postId>:"Your whole week, adjusted."
+```
+
+Preview/iterate on the templates live with Remotion Studio:
+```
+cd reels && npm run studio
+```
+(One-time: `cd reels && npm install`. Remotion is free for individuals/small teams;
+a company license applies above ~3 people.)
+
 ## Notes
 
 - Inline code (markdown `` `code` ``) renders with a layout quirk on react-native-web;
@@ -95,4 +124,5 @@ is approved.
 - [x] Video templates (chat replay message-by-message, screenshot scroll) → MP4 via ffmpeg
 - [x] Content queue (`content/posts/<id>/post.json` + asset + caption + target platforms + status)
 - [x] Local review dashboard (generate, preview, edit caption, set status, download)
+- [x] Reels compositor (Remotion): iPhone frame, animation, transitions, multi-scene stitching
 - [ ] Publishing (deferred — manual posting until platform API access is approved)

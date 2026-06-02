@@ -24,6 +24,23 @@ export function readPngSize(file) {
   return { width: b.readUInt32BE(16), height: b.readUInt32BE(20) };
 }
 
+// Probe a media file's duration in seconds (parses ffmpeg's stderr banner).
+export function probeDurationSec(file) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, ['-hide_banner', '-i', file]);
+    let stderr = '';
+    proc.stderr.on('data', (d) => {
+      stderr += d;
+    });
+    proc.on('error', reject);
+    proc.on('close', () => {
+      const m = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (!m) return reject(new Error(`could not read duration of ${file}`));
+      resolve(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]));
+    });
+  });
+}
+
 // Pan a tall still image down through a 1080x1920 window → MP4. The image is
 // scaled to the target width first; it must end up taller than the frame.
 export async function encodeScroll({ input, outPath, durationSec = 8 }) {

@@ -69,6 +69,21 @@
     <div class="platforms" id="genPlatforms" style="margin-top:10px"></div>
   </section>
 
+  <section class="panel" id="reelPanel" style="display:none">
+    <h2>Build a reel</h2>
+    <div class="row">
+      <label>Template <select id="reelTemplate"></select></label>
+      <label>Theme <select id="reelTheme"><option value="dark">dark</option><option value="light">light</option></select></label>
+      <label style="flex:1;min-width:220px">Headline (Single Hero only)
+        <input type="text" id="reelHeadline" placeholder="Headline text" />
+      </label>
+      <button id="reelBtn" onclick="buildReel()">Build reel</button>
+      <span id="reelStatus"></span>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — add posts from the queue with the “+ Reel” button:</p>
+    <div id="reelBeats"></div>
+  </section>
+
   <section>
     <h2 style="font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;">Queue</h2>
     <div class="grid" id="grid"></div>
@@ -104,13 +119,61 @@ async function loadMeta() {
   }
 }
 
+let POSTS = [];
 async function loadPosts() {
-  const { posts, statuses, formats } = await api('/api/posts');
+  const { posts, statuses, formats, reelTemplates } = await api('/api/posts');
+  POSTS = posts;
   STATUSES = statuses;
   document.getElementById('genFormat').innerHTML = formats.map(f => `<option value="${f}">${f}</option>`).join('');
+  document.getElementById('reelTemplate').innerHTML = (reelTemplates || []).map(t => `<option value="${t}">${t}</option>`).join('');
   const grid = document.getElementById('grid');
   document.getElementById('emptyMsg').style.display = posts.length ? 'none' : 'block';
   grid.innerHTML = posts.map(renderCard).join('');
+}
+
+// --- Reel builder ---
+let reelBeats = [];
+function addToReel(postId) {
+  const post = POSTS.find(p => p.id === postId);
+  reelBeats.push({ postId, caption: post?.caption || '' });
+  renderReelTray();
+  document.getElementById('reelPanel').scrollIntoView({ behavior: 'smooth' });
+}
+function removeReelBeat(i) { reelBeats.splice(i, 1); renderReelTray(); }
+function renderReelTray() {
+  document.getElementById('reelPanel').style.display = reelBeats.length ? 'block' : 'none';
+  document.getElementById('reelBeats').innerHTML = reelBeats.map((b, i) => `
+    <div class="row" style="align-items:center;margin-bottom:8px">
+      <span class="badge">${i + 1}</span>
+      <input type="text" data-beat="${i}" value="${(b.caption || '').replace(/"/g, '&quot;')}" placeholder="Caption for this beat…" style="flex:1;min-width:240px">
+      <span class="meta" style="flex:2">${b.postId}</span>
+      <button class="danger" onclick="removeReelBeat(${i})">Remove</button>
+    </div>`).join('');
+}
+async function buildReel() {
+  const btn = document.getElementById('reelBtn');
+  const status = document.getElementById('reelStatus');
+  const beats = reelBeats.map((b, i) => ({ postId: b.postId, caption: document.querySelector(`[data-beat="${i}"]`).value }));
+  btn.disabled = true; status.textContent = 'rendering reel… (can take ~1 min)';
+  try {
+    await api('/api/reel', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template: document.getElementById('reelTemplate').value,
+        theme: document.getElementById('reelTheme').value,
+        headline: document.getElementById('reelHeadline').value,
+        beats,
+      }),
+    });
+    status.textContent = '✓ built';
+    reelBeats = []; renderReelTray();
+    loadPosts();
+  } catch (e) {
+    status.textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { status.textContent = ''; }, 5000);
+  }
 }
 
 function renderCard(p) {
@@ -133,6 +196,7 @@ function renderCard(p) {
           <select data-field="status">${statusOpts}</select>
         </label>
         <div class="card-actions">
+          <button class="secondary" onclick="addToReel('${p.id}')">+ Reel</button>
           <button class="secondary" onclick="savePost('${p.id}')">Save</button>
           <a class="dl" href="/api/posts/${encodeURIComponent(p.id)}/asset" download="${p.id}.${p.asset.split('.').pop()}"><button class="secondary">Download</button></a>
           <button class="danger" onclick="removePost('${p.id}')">Delete</button>
