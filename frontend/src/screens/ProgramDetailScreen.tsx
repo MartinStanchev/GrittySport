@@ -32,6 +32,9 @@ import { getProgram, deleteProgram } from '../services/api';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import type { ThemeColors } from '../constants/colors';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
+import { AdherenceBar } from '../components/AdherenceBar';
+import { computeAdherence } from '../utils/adherence';
+import { addDays, sameDay, startOfDay } from '../utils/dates';
 import { useProgram } from '../contexts/ProgramContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -47,21 +50,6 @@ type FlatWeek = {
 };
 
 type ActivityStatus = 'completed' | 'today' | 'upcoming' | 'missed';
-
-const startOfDay = (d: Date): Date => {
-  const next = new Date(d);
-  next.setHours(0, 0, 0, 0);
-  return next;
-};
-
-const sameDay = (a: Date, b: Date): boolean =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-
-const addDays = (d: Date, days: number): Date => {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
-  return next;
-};
 
 const alpha = (hex: string, opacity: number): string => {
   const a = Math.max(0, Math.min(255, Math.round(opacity * 255))).toString(16).padStart(2, '0');
@@ -204,6 +192,11 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
     return map;
   }, [flatWeeks]);
 
+  const adherence = useMemo(
+    () => computeAdherence(flatWeeks.flatMap((w) => w.activities), today),
+    [flatWeeks, today],
+  );
+
   useEffect(() => {
     if (flatWeeks.length === 0 || hasAutoSelectedWeek.current) return;
 
@@ -312,6 +305,8 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
         today={today}
         colors={colors}
       />
+
+      <AdherenceBar counts={adherence} title="Plan adherence" />
 
       {program.criteria.length > 0 && (
         <SettingsSection

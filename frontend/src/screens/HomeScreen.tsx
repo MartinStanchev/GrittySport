@@ -23,7 +23,7 @@ import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
-import { getChatHistory, getWorkouts } from '../services/api';
+import { getChatHistory, getProgram, getWorkouts } from '../services/api';
 import type { ChatMessageResponse, ChatSegmentResponse } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
@@ -38,6 +38,9 @@ import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
 import { LastWorkoutCard } from '../components/LastWorkoutCard';
 import { StreakDots } from '../components/StreakDots';
 import { QuickStartSection } from '../components/QuickStartSection';
+import { AdherenceBar } from '../components/AdherenceBar';
+import { computeAdherence, type AdherenceCounts } from '../utils/adherence';
+import { addDays, mondayOf } from '../utils/dates';
 import { useAuth } from '../contexts/AuthContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
@@ -253,14 +256,7 @@ function useWeeklyCompletedDays(): Set<number> {
 
   useFetchOnFocus(
     useCallback(async () => {
-      const now = new Date();
-      // Monday of current week
-      const dayOfWeek = now.getDay(); // 0=Sun
-      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + mondayOffset);
-      monday.setHours(0, 0, 0, 0);
-
+      const monday = mondayOf(new Date());
       const startDate = monday.toISOString().split('T')[0];
       const workouts = await getWorkouts({ start_date: startDate, limit: 50 });
       const completed = new Set<number>();
@@ -276,6 +272,37 @@ function useWeeklyCompletedDays(): Set<number> {
   );
 
   return days;
+}
+
+// Fetches the active program and tallies completion for the current week so the
+// home screen can show a glanceable done/skipped bar alongside weekly effort.
+function useCurrentWeekAdherence(programId: string | null): AdherenceCounts | null {
+  const [counts, setCounts] = useState<AdherenceCounts | null>(null);
+
+  useFetchOnFocus(
+    useCallback(async () => {
+      if (!programId) {
+        setCounts(null);
+        return;
+      }
+      const program = await getProgram(programId);
+      const now = new Date();
+      const monday = mondayOf(now);
+      const nextMonday = addDays(monday, 7);
+
+      const weekActivities = program.phases
+        .flatMap((ph) => ph.weeks)
+        .flatMap((w) => w.activities)
+        .filter((a) => {
+          const d = new Date(a.date + 'T00:00:00');
+          return d >= monday && d < nextMonday;
+        });
+
+      setCounts(computeAdherence(weekActivities, now));
+    }, [programId]),
+  );
+
+  return counts;
 }
 
 function getGreeting(): string {
@@ -309,6 +336,7 @@ export default function HomeScreen() {
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
 
   const completedDays = useWeeklyCompletedDays();
+  const weekAdherence = useCurrentWeekAdherence(activeProgram?.id ?? null);
 
   const todayActivities = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -609,6 +637,9 @@ export default function HomeScreen() {
 
         {/* Weekly Effort */}
         <WeeklyEffortCounter />
+
+        {/* This-week plan adherence */}
+        {weekAdherence && <AdherenceBar counts={weekAdherence} title="This week" icon="calendar-outline" />}
 
         {/* Last Workout */}
         <LastWorkoutCard onPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })} />

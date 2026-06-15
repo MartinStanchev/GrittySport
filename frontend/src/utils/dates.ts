@@ -1,3 +1,29 @@
+/** Return a copy of `d` with the time set to local midnight. */
+export function startOfDay(d: Date): Date {
+  const next = new Date(d);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+/** Return a copy of `d` offset by `days` (may be negative). */
+export function addDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+/** True when `a` and `b` fall on the same calendar day. */
+export function sameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/** Local midnight of the Monday that starts the week containing `d`. */
+export function mondayOf(d: Date): Date {
+  const dayOfWeek = d.getDay(); // 0=Sun
+  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  return startOfDay(addDays(d, offset));
+}
+
 /**
  * Format a duration between two ISO timestamps as a human-readable string.
  * Returns "Xh Ym", "Xm Ys", or "Xs".
