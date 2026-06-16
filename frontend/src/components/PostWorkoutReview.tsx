@@ -130,16 +130,20 @@ export function PostWorkoutReview({
     }
   }
 
-  async function handleLink() {
+  async function handleLink(review: boolean) {
     if (!selectedActivityId) return;
     setLinking(true);
     try {
       await linkWorkoutToActivity(workoutId, selectedActivityId);
     } catch {
-      // Non-critical — proceed with review anyway
+      // Non-critical — proceed regardless
     }
     setLinking(false);
-    triggerAndPoll();
+    if (review) {
+      triggerAndPoll();
+    } else {
+      onSkipReview?.();
+    }
   }
 
   // Poll for review once in polling phase
@@ -224,25 +228,29 @@ export function PostWorkoutReview({
           <View style={styles.linkActions}>
             <Pressable
               style={[styles.linkBtn, { backgroundColor: colors.primary }, (!selectedActivityId || linking) && styles.linkBtnDisabled]}
-              onPress={handleLink}
+              onPress={() => handleLink(true)}
               disabled={!selectedActivityId || linking}
             >
               <Text style={styles.linkBtnText}>
                 {linking ? 'Linking...' : 'Link & Review'}
               </Text>
             </Pressable>
-            <Pressable style={styles.skipBtn} onPress={triggerAndPoll}>
-              <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
-                Skip linking — review without linking
-              </Text>
-            </Pressable>
             {onSkipReview && (
-              <Pressable style={styles.skipBtn} onPress={onSkipReview}>
+              <Pressable
+                style={[styles.skipBtn, (!selectedActivityId || linking) && styles.linkBtnDisabled]}
+                onPress={() => handleLink(false)}
+                disabled={!selectedActivityId || linking}
+              >
                 <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
-                  Skip Grit&apos;s review
+                  Link without review
                 </Text>
               </Pressable>
             )}
+            <Pressable style={styles.skipBtn} onPress={triggerAndPoll}>
+              <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
+                Review without linking
+              </Text>
+            </Pressable>
           </View>
         </View>
       )}
@@ -262,13 +270,6 @@ export function PostWorkoutReview({
             >
               <Text style={styles.linkBtnText}>Get review</Text>
             </Pressable>
-            {onSkipReview && (
-              <Pressable style={styles.skipBtn} onPress={onSkipReview}>
-                <Text style={[styles.skipBtnText, { color: colors.textSecondary }]}>
-                  Skip Grit&apos;s review
-                </Text>
-              </Pressable>
-            )}
           </View>
         </View>
       )}

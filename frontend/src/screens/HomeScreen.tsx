@@ -24,7 +24,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
 import { getChatHistory } from '../services/api';
-import { getProgramCached, getRecentWorkoutsCached } from '../services/cachedReads';
+import { getRecentWorkoutsCached } from '../services/cachedReads';
 import type { ChatMessageResponse, ChatSegmentResponse } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
@@ -39,9 +39,7 @@ import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
 import { LastWorkoutCard } from '../components/LastWorkoutCard';
 import { StreakDots } from '../components/StreakDots';
 import { QuickStartSection } from '../components/QuickStartSection';
-import { AdherenceBar } from '../components/AdherenceBar';
-import { computeAdherence, type AdherenceCounts } from '../utils/adherence';
-import { addDays, mondayOf } from '../utils/dates';
+import { mondayOf } from '../utils/dates';
 import { useAuth } from '../contexts/AuthContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import type { ThemeColors } from '../constants/colors';
@@ -275,37 +273,6 @@ function useWeeklyCompletedDays(): Set<number> {
   return days;
 }
 
-// Fetches the active program and tallies completion for the current week so the
-// home screen can show a glanceable done/skipped bar alongside weekly effort.
-function useCurrentWeekAdherence(programId: string | null): AdherenceCounts | null {
-  const [counts, setCounts] = useState<AdherenceCounts | null>(null);
-
-  useFetchOnFocus(
-    useCallback(async () => {
-      if (!programId) {
-        setCounts(null);
-        return;
-      }
-      const program = await getProgramCached(programId);
-      const now = new Date();
-      const monday = mondayOf(now);
-      const nextMonday = addDays(monday, 7);
-
-      const weekActivities = program.phases
-        .flatMap((ph) => ph.weeks)
-        .flatMap((w) => w.activities)
-        .filter((a) => {
-          const d = new Date(a.date + 'T00:00:00');
-          return d >= monday && d < nextMonday;
-        });
-
-      setCounts(computeAdherence(weekActivities, now));
-    }, [programId]),
-  );
-
-  return counts;
-}
-
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return 'Good morning';
@@ -322,12 +289,11 @@ export default function HomeScreen() {
   const {
     activeProgram, upcomingActivities, notifyProgramDataChanged,
     openChatRequest, clearOpenChatRequest, refreshUpcoming,
-    setChatUnreadCount,
+    setChatUnreadCount, chatRefreshSignal,
   } = useProgram();
 
   const [chatOpen, setChatOpen] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [respondedProposals, setRespondedProposals] = useState<Set<string>>(new Set());
   const [reviewingProposal, setReviewingProposal] = useState<{ data: ProgramProposalData; messageId: string } | null>(null);
   const [reviewingEditProposal, setReviewingEditProposal] = useState<{ data: ProgramEditData; messageId: string } | null>(null);
@@ -337,7 +303,6 @@ export default function HomeScreen() {
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
 
   const completedDays = useWeeklyCompletedDays();
-  const weekAdherence = useCurrentWeekAdherence(activeProgram?.id ?? null);
 
   const todayActivities = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -373,7 +338,7 @@ export default function HomeScreen() {
 
   const {
     messages, isGritTyping, sendMessage, respondToProposal,
-    loadHistory, prependHistory, isConnected, quickReplies,
+    replaceHistory, incrementUnread, prependHistory, isConnected, quickReplies,
     unreadCount, markRead, markClosed,
     isRateLimited, usageRemaining, usageLimit,
     hasMore, isLoadingMore, setIsLoadingMore,
@@ -402,6 +367,26 @@ export default function HomeScreen() {
     [uniqueMessages],
   );
 
+  // Pull fresh chat history from the server. Grit's server-generated messages
+  // (reviews, check-ins, reminders) are persisted but not pushed over the chat
+  // WebSocket, so we re-fetch at the natural focus points instead. The apply-time
+  // guard prevents clobbering an in-flight send/stream whose messages aren't
+  // persisted yet.
+  const isGritTypingRef = useRef(isGritTyping);
+  isGritTypingRef.current = isGritTyping;
+
+  const refreshChatHistory = useCallback(
+    (bumpUnread = false) =>
+      getChatHistory(25)
+        .then((resp) => {
+          if (isGritTypingRef.current) return;
+          replaceHistory(mapHistoryMessages(resp.messages, resp.segments), resp.has_more);
+          if (bumpUnread) incrementUnread();
+        })
+        .catch(() => {}),
+    [replaceHistory, incrementUnread],
+  );
+
   const openChat = useCallback(() => {
     markRead();
     setChatOpen(true);
@@ -421,18 +406,24 @@ export default function HomeScreen() {
     }, 500);
   }, [sendMessage]);
 
+  // Re-fetch history whenever the chat is open and the Home tab (re)gains focus.
+  // Because the callback depends on `chatOpen`, react-navigation re-runs it on
+  // open, reopen, and on returning from another tab — the primary fallback for
+  // when push notifications are disabled (no foreground listener to lean on).
+  useFocusEffect(
+    useCallback(() => {
+      if (chatOpen) refreshChatHistory();
+    }, [chatOpen, refreshChatHistory]),
+  );
+
+  // A server-initiated chat message arrived via foreground push. Re-fetch so it
+  // appears live, and bump the unread badge when the chat isn't open.
+  const prevChatRefreshSignal = useRef(chatRefreshSignal);
   useEffect(() => {
-    if (chatOpen && !historyLoaded) {
-      getChatHistory(25)
-        .then((resp) => {
-          if (resp.messages.length > 0) {
-            loadHistory(mapHistoryMessages(resp.messages, resp.segments), resp.has_more);
-          }
-          setHistoryLoaded(true);
-        })
-        .catch(() => setHistoryLoaded(true));
-    }
-  }, [chatOpen, historyLoaded, loadHistory]);
+    if (chatRefreshSignal === prevChatRefreshSignal.current) return;
+    prevChatRefreshSignal.current = chatRefreshSignal;
+    refreshChatHistory(!chatOpen);
+  }, [chatRefreshSignal, chatOpen, refreshChatHistory]);
 
   const loadOlderMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return;
@@ -581,10 +572,10 @@ export default function HomeScreen() {
       if (openChatRequest) {
         clearOpenChatRequest();
         markRead();
-        setHistoryLoaded(false); // force refresh so review + reply appear
         setChatOpen(true);
+        refreshChatHistory(); // pull review + reply even if the chat was already open
       }
-    }, [openChatRequest, clearOpenChatRequest, markRead]),
+    }, [openChatRequest, clearOpenChatRequest, markRead, refreshChatHistory]),
   );
 
   const inputBottomPadding = keyboardHeight > 0 ? 4 : Math.max(insets.bottom, 8);
@@ -640,9 +631,6 @@ export default function HomeScreen() {
 
         {/* Weekly Effort */}
         <WeeklyEffortCounter />
-
-        {/* This-week plan adherence */}
-        {weekAdherence && <AdherenceBar counts={weekAdherence} title="This week" icon="calendar-outline" />}
 
         {/* Last Workout */}
         <LastWorkoutCard onPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })} />

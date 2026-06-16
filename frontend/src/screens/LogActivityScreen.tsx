@@ -18,6 +18,8 @@ import { Fonts } from '../constants/fonts';
 import { getActivityIcon, IMPORT_ACTIVITY_TYPES } from '../constants/activityIcons';
 import { saveWorkoutWithFallback } from '../services/syncService';
 import { useProgram } from '../contexts/ProgramContext';
+import { useToast } from '../contexts/ToastContext';
+import { goHomeAndReset } from '../utils/navigation';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
@@ -280,6 +282,7 @@ type Props = NativeStackScreenProps<any, 'LogActivity'>;
 export default function LogActivityScreen({ navigation }: Props) {
   const { colors } = useTheme();
   const { notifyProgramDataChanged, requestOpenChat } = useProgram();
+  const { showToast } = useToast();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [dateOffset, setDateOffset] = useState(0); // 0 = today, -1 = yesterday, etc.
   const [hours, setHours] = useState('');
@@ -294,15 +297,21 @@ export default function LogActivityScreen({ navigation }: Props) {
   const [saving, setSaving] = useState(false);
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
 
+  function finishAndGoHome() {
+    showToast('Activity saved');
+    goHomeAndReset(navigation);
+  }
+
   useEffect(() => {
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+        <Pressable onPress={finishAndGoHome} hitSlop={8}>
           <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedWorkoutId, navigation, colors]);
 
   const date = offsetDate(dateOffset);
@@ -344,7 +353,7 @@ export default function LogActivityScreen({ navigation }: Props) {
         setSavedWorkoutId(saved.id);
       } else {
         Alert.alert('Saved offline', 'This activity will sync and get Grit\'s review once you\'re back online.');
-        navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+        goHomeAndReset(navigation);
       }
     } catch {
       Alert.alert('Error', 'Failed to save activity. Please try again.');
@@ -520,9 +529,9 @@ export default function LogActivityScreen({ navigation }: Props) {
             activityType={selectedType!}
             onContinueInChat={() => {
               requestOpenChat();
-              navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+              goHomeAndReset(navigation);
             }}
-            onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
+            onSkipReview={finishAndGoHome}
           />
         ) : (
           <Pressable

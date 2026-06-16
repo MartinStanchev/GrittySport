@@ -39,6 +39,8 @@ import {
 } from '../services/gpsUtils';
 import { saveWorkoutWithFallback } from '../services/syncService';
 import { useProgram } from '../contexts/ProgramContext';
+import { useToast } from '../contexts/ToastContext';
+import { goHomeAndReset } from '../utils/navigation';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { Fonts } from '../constants/fonts';
 import {
@@ -249,6 +251,7 @@ function WorkoutPreview({
 }) {
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { showToast } = useToast();
   const maxHR = user?.max_heart_rate ?? 185;
   const [activityType, setActivityType] = useState(
     preselectedType ?? detectActivityType(workout),
@@ -257,15 +260,21 @@ function WorkoutPreview({
   const [saving, setSaving] = useState(false);
   const [savedWorkoutId, setSavedWorkoutId] = useState<string | null>(null);
 
+  function finishAndGoHome() {
+    showToast('Workout saved');
+    goHomeAndReset(navigation);
+  }
+
   useEffect(() => {
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+        <Pressable onPress={finishAndGoHome} hitSlop={8}>
           <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedWorkoutId, navigation, colors]);
 
   const isRun = isRunSport(activityType);
@@ -322,7 +331,7 @@ function WorkoutPreview({
         setSavedWorkoutId(saved.id);
       } else {
         Alert.alert('Saved offline', 'This workout will sync when you\'re back online.');
-        navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+        goHomeAndReset(navigation);
       }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save workout');
@@ -515,9 +524,9 @@ function WorkoutPreview({
             scheduledActivityId={scheduledActivityId}
             onContinueInChat={() => {
               requestOpenChat();
-              navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+              goHomeAndReset(navigation);
             }}
-            onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
+            onSkipReview={finishAndGoHome}
           />
         ) : (
           <>

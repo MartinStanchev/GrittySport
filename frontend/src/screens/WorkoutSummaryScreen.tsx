@@ -20,6 +20,8 @@ import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useProgram } from '../contexts/ProgramContext';
+import { useToast } from '../contexts/ToastContext';
+import { goHomeAndReset } from '../utils/navigation';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import { saveWorkoutWithFallback } from '../services/syncService';
@@ -51,7 +53,13 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const { activeGPSWorkout, clearGPSWorkout } = useWorkout();
   const { user } = useAuth();
   const { notifyProgramDataChanged, requestOpenChat } = useProgram();
+  const { showToast } = useToast();
   const maxHR = user?.max_heart_rate ?? 185;
+
+  function finishAndGoHome() {
+    showToast('Workout saved');
+    goHomeAndReset(navigation);
+  }
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
@@ -70,11 +78,12 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
     if (!savedWorkoutId) return;
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })} hitSlop={8}>
+        <Pressable onPress={finishAndGoHome} hitSlop={8}>
           <Text style={{ color: colors.primary, fontSize: 16, fontFamily: Fonts.bodySemiBold }}>Done</Text>
         </Pressable>
       ),
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedWorkoutId, navigation, colors]);
 
   const gpsPayload = useMemo(() => {
@@ -182,7 +191,9 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       // Offline save — queued for sync; clear and navigate to history.
       setSavedOffline(true);
       clearGPSWorkout();
-      navigation.navigate('History');
+      const parent = navigation.getParent();
+      navigation.popToTop();
+      parent?.navigate('History');
     }
   }
 
@@ -424,9 +435,9 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
               scheduledActivityId={workout.scheduledActivityId}
               onContinueInChat={() => {
                 requestOpenChat();
-                navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+                goHomeAndReset(navigation);
               }}
-              onSkipReview={() => navigation.getParent()?.navigate('Home', { screen: 'HomeMain' })}
+              onSkipReview={finishAndGoHome}
             />
           ) : (
             <>

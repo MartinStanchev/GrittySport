@@ -45,3 +45,10 @@ are keeping up with their training plan.
 - `tsc --noEmit` — clean for changed files.
 - `eslint` — clean (0 errors/warnings) on all touched files.
 - `jest src/__tests__/adherence.test.ts` — 6/6 pass.
+
+## Follow-up: removed "This week" AdherenceBar from Home
+The `<AdherenceBar title="This week">` overlapped with the existing `StreakDots`
+("This Week" day-with-ticks) on Home, so it was removed. Dropped the
+`useCurrentWeekAdherence` hook and now-unused `getProgramCached`/`addDays`/
+`AdherenceBar`/`computeAdherence` imports from `HomeScreen.tsx`. `AdherenceBar`
+stays in use on Program Detail (program-wide "Plan adherence").

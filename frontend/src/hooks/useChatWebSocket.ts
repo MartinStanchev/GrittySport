@@ -65,7 +65,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
   const mountedRef = useRef(true);
   const streamingContentRef = useRef('');
   const optionsRef = useRef(options);
-  const historyLoadedRef = useRef(false);
   optionsRef.current = options;
 
   // Track whether we've given up on auth — stops reconnect loop when logged out
@@ -355,12 +354,14 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     [],
   );
 
-  const loadHistory = useCallback((historyMessages: ChatMessage[], more: boolean) => {
-    if (!historyLoadedRef.current) {
-      setMessages(historyMessages);
-      setHasMore(more);
-      historyLoadedRef.current = true;
-    }
+  /** Replace the whole message list with a fresh server fetch. */
+  const replaceHistory = useCallback((historyMessages: ChatMessage[], more: boolean) => {
+    setMessages(historyMessages);
+    setHasMore(more);
+  }, []);
+
+  const incrementUnread = useCallback(() => {
+    setUnreadCount((n) => n + 1);
   }, []);
 
   const prependHistory = useCallback((olderMessages: ChatMessage[], more: boolean) => {
@@ -387,7 +388,6 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
       setMessages([]);
       setHasMore(false);
       setQuickReplies([]);
-      historyLoadedRef.current = false;
       // Force WebSocket reconnect so backend reloads from the now-empty DB
       // (the backend caches recent messages in memory for the WS lifetime)
       reconnectDelayRef.current = 500;
@@ -415,7 +415,8 @@ export function useChatWebSocket(options: UseChatWebSocketOptions = {}) {
     isLoadingMore,
     sendMessage,
     respondToProposal,
-    loadHistory,
+    replaceHistory,
+    incrementUnread,
     prependHistory,
     markRead,
     markClosed,

@@ -9,6 +9,16 @@ import { useProgram } from '../contexts/ProgramContext';
 // Notification types whose tap should open the chat modal on Home.
 const CHAT_OPEN_TYPES = new Set(['post_workout_review', 'missed_workout', 'pre_workout_checkin']);
 
+// Notification types that correspond to a server-persisted chat message from Grit.
+// When one of these arrives while the app is foregrounded we refresh the chat so
+// the new message (and unread badge) appears without needing to tap or restart.
+const CHAT_MESSAGE_TYPES = new Set([
+  'post_workout_review',
+  'missed_workout',
+  'pre_workout_checkin',
+  'reminder',
+]);
+
 // Configure how foreground notifications appear
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -50,7 +60,8 @@ async function registerForPushNotifications(): Promise<string | null> {
  */
 export function useNotifications(isAuthenticated: boolean) {
   const responseListenerRef = useRef<Notifications.Subscription | null>(null);
-  const { requestOpenChat } = useProgram();
+  const receivedListenerRef = useRef<Notifications.Subscription | null>(null);
+  const { requestOpenChat, notifyChatRefresh } = useProgram();
 
   useEffect(() => {
     if (!isAuthenticated || Platform.OS === 'web') return;
@@ -67,6 +78,16 @@ export function useNotifications(isAuthenticated: boolean) {
       })
       .catch((err) => console.warn('[Notifications] Registration error:', err));
 
+    // Handle notifications that arrive while the app is foregrounded. Grit's
+    // server-generated chat messages aren't pushed over the chat WebSocket, so
+    // pull them in and bump the unread badge instead of silently dropping them.
+    receivedListenerRef.current = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as Record<string, string> | undefined;
+      if (data?.type && CHAT_MESSAGE_TYPES.has(data.type)) {
+        notifyChatRefresh();
+      }
+    });
+
     // Handle notification taps (background → foreground).
     // Chat-driven types open the chat modal on Home; reminders just land on Home.
     responseListenerRef.current = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -80,8 +101,10 @@ export function useNotifications(isAuthenticated: boolean) {
     });
 
     return () => {
+      receivedListenerRef.current?.remove();
+      receivedListenerRef.current = null;
       responseListenerRef.current?.remove();
       responseListenerRef.current = null;
     };
-  }, [isAuthenticated, requestOpenChat]);
+  }, [isAuthenticated, requestOpenChat, notifyChatRefresh]);
 }

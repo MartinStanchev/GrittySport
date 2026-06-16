@@ -10,9 +10,11 @@ interface ProgramContextType {
   isLoading: boolean;
   openChatRequest: boolean;
   programDataVersion: number;
+  chatRefreshSignal: number;
   chatUnreadCount: number;
   refreshUpcoming: () => Promise<void>;
   notifyProgramDataChanged: () => Promise<void>;
+  notifyChatRefresh: () => void;
   requestOpenChat: () => void;
   clearOpenChatRequest: () => void;
   setChatUnreadCount: (count: number) => void;
@@ -27,6 +29,7 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [openChatRequest, setOpenChatRequest] = useState(false);
   const [programDataVersion, setProgramDataVersion] = useState(0);
+  const [chatRefreshSignal, setChatRefreshSignal] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   const refreshProgram = useCallback(async () => {
@@ -67,6 +70,14 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
     await Promise.all([refreshProgram(), refreshUpcoming()]);
   }, [refreshProgram, refreshUpcoming]);
 
+  // Signals the open chat to re-fetch its history. Used when a server-initiated
+  // chat message (review, check-in, reminder) arrives via push while the app is
+  // foregrounded — those messages are persisted server-side but not pushed over
+  // the chat WebSocket, so the client must pull them.
+  const notifyChatRefresh = useCallback(() => {
+    setChatRefreshSignal((v) => v + 1);
+  }, []);
+
   const requestOpenChat = useCallback(() => {
     setOpenChatRequest(true);
   }, []);
@@ -97,9 +108,11 @@ export function ProgramProvider({ children }: { children: ReactNode }) {
         isLoading,
         openChatRequest,
         programDataVersion,
+        chatRefreshSignal,
         chatUnreadCount,
         refreshUpcoming,
         notifyProgramDataChanged,
+        notifyChatRefresh,
         requestOpenChat,
         clearOpenChatRequest,
         setChatUnreadCount,

@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ProgramProvider } from './src/contexts/ProgramContext';
 import { WorkoutProvider } from './src/contexts/WorkoutContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { ToastProvider } from './src/contexts/ToastContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import ConsentScreen from './src/screens/auth/ConsentScreen';
@@ -41,12 +42,14 @@ function RootNavigator() {
   return (
     <ProgramProvider>
       <WorkoutProvider>
-        <NotificationsBridge />
-        <View style={styles.appContainer}>
-          <OfflineBanner />
-          <ActiveWorkoutBanner />
-          <BottomTabNavigator />
-        </View>
+        <ToastProvider>
+          <NotificationsBridge />
+          <View style={styles.appContainer}>
+            <OfflineBanner />
+            <ActiveWorkoutBanner />
+            <BottomTabNavigator />
+          </View>
+        </ToastProvider>
       </WorkoutProvider>
     </ProgramProvider>
   );
