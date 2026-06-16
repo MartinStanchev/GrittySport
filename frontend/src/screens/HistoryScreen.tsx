@@ -7,8 +7,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
-import { getWorkouts, deleteWorkout } from '../services/api';
+import { getWorkouts, deleteWorkout, isNetworkError } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
+import { getCachedRecentWorkouts } from '../services/cachedReads';
 import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
 import { pickWorkoutFile } from '../services/workoutFileParser';
@@ -159,12 +160,27 @@ export default function HistoryScreen({ navigation }: Props) {
     append?: boolean;
   }) => {
     const dateRange = getDateRange(opts.datePreset);
-    const data = await getWorkouts({
-      limit: PAGE_SIZE,
-      offset: opts.offset,
-      activity_type: opts.activityType || undefined,
-      ...dateRange,
-    });
+    let data: WorkoutResponse[];
+    try {
+      data = await getWorkouts({
+        limit: PAGE_SIZE,
+        offset: opts.offset,
+        activity_type: opts.activityType || undefined,
+        ...dateRange,
+      });
+    } catch (e) {
+      // Offline: fall back to the cached recent snapshot for the first, unfiltered
+      // page so history isn't blank. Filtered/paginated queries stay empty offline.
+      const isDefaultPage =
+        opts.offset === 0 && !opts.activityType && opts.datePreset === 'all';
+      if (isNetworkError(e) && isDefaultPage) {
+        setWorkouts(await getCachedRecentWorkouts());
+        setHasMore(false);
+        offsetRef.current = 0;
+        return;
+      }
+      throw e;
+    }
     if (opts.append) {
       setWorkouts((prev) => [...prev, ...data]);
     } else {

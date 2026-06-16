@@ -1,0 +1,13 @@
+{
+  "id": "202606020941-example-edit-proposal-chat-replay",
+  "createdAt": "2026-06-02T09:41:38.312Z",
+  "sceneId": "example-edit-proposal",
+  "format": "chat-replay",
+  "theme": "light",
+  "asset": "asset.mp4",
+  "mediaType": "video",
+  "caption": "",
+  "platforms": [],
+  "status": "draft",
+  "notes": ""
+}

@@ -1,0 +1,13 @@
+{
+  "id": "202606020941-example-post-workout-review-chat-replay",
+  "createdAt": "2026-06-02T09:41:21.244Z",
+  "sceneId": "example-post-workout-review",
+  "format": "chat-replay",
+  "theme": "light",
+  "asset": "asset.mp4",
+  "mediaType": "video",
+  "caption": "",
+  "platforms": [],
+  "status": "draft",
+  "notes": ""
+}

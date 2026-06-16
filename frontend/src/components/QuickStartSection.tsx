@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
-import { getWorkouts } from '../services/api';
+import { getRecentWorkoutsCached } from '../services/cachedReads';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 
 interface QuickStartSectionProps {
@@ -25,7 +25,7 @@ export function QuickStartSection({
 
   useFetchOnFocus(
     useCallback(async () => {
-      const workouts = await getWorkouts({ limit: 1 });
+      const workouts = await getRecentWorkoutsCached();
       setLastType(workouts.length > 0 ? workouts[0].activity_type : null);
     }, []),
   );

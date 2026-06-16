@@ -28,7 +28,8 @@ import {
   dayAbbrev,
   WEEK_DAYS_MON_SUN,
 } from '../constants/activityIcons';
-import { getProgram, deleteProgram } from '../services/api';
+import { deleteProgram } from '../services/api';
+import { getProgramCached } from '../services/cachedReads';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import type { ThemeColors } from '../constants/colors';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
@@ -99,7 +100,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
 
   const fetchProgram = useCallback(async () => {
     try {
-      const data = await getProgram(programId);
+      const data = await getProgramCached(programId);
       setProgram(data);
       navigation.setOptions({ title: data.name });
     } catch (e) {

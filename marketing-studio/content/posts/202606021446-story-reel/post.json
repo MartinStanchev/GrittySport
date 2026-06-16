@@ -1,0 +1,72 @@
+{
+  "id": "202606021446-story-reel",
+  "createdAt": "2026-06-02T14:47:27.149Z",
+  "updatedAt": "2026-06-02T14:47:27.149Z",
+  "format": "story-reel",
+  "mediaType": "video",
+  "asset": "asset.mp4",
+  "caption": "Train with Grit.",
+  "platforms": [],
+  "status": "draft",
+  "notes": "",
+  "theme": "light",
+  "sourcePosts": [
+    "202606021205-example-program-proposal-chat-replay",
+    "202606020941-example-post-workout-review-chat-replay",
+    "202606020941-example-edit-proposal-chat-replay"
+  ],
+  "reel": {
+    "template": "story",
+    "theme": "light",
+    "transition": "wipe",
+    "motion": "none",
+    "captionPreset": "clean",
+    "safeZone": "tiktok",
+    "headline": "",
+    "beats": [
+      {
+        "kind": "cta",
+        "headline": "Train with Grit.",
+        "sub": "Your AI coach, free to start.",
+        "badges": [
+          "appstore",
+          "googleplay"
+        ],
+        "qr": ""
+      },
+      {
+        "kind": "media",
+        "postId": "202606021205-example-program-proposal-chat-replay",
+        "caption": "Create a program",
+        "speed": 1,
+        "taps": []
+      },
+      {
+        "kind": "hook",
+        "kicker": "Finished a workout?",
+        "text": "Grit sees it"
+      },
+      {
+        "kind": "media",
+        "postId": "202606020941-example-post-workout-review-chat-replay",
+        "caption": "",
+        "speed": 1,
+        "taps": []
+      },
+      {
+        "kind": "media",
+        "postId": "202606020941-example-edit-proposal-chat-replay",
+        "caption": "Need an adjustment?",
+        "speed": 1,
+        "taps": []
+      },
+      {
+        "kind": "stat",
+        "value": 7,
+        "prefix": "",
+        "suffix": "",
+        "label": "sessions adjusted this week"
+      }
+    ]
+  }
+}

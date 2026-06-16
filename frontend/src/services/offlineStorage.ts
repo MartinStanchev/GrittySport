@@ -1,7 +1,7 @@
 // TypeScript fallback — Metro prefers offlineStorage.native.ts or offlineStorage.web.ts at runtime.
 import type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
-export { CacheKeys } from './offlineStorageTypes';
+export { CacheKeys, programDetailKey } from './offlineStorageTypes';
 export type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
 export async function savePendingWorkout(_workout: LocalPendingWorkout): Promise<void> {}

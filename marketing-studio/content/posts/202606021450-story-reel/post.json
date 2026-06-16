@@ -1,0 +1,44 @@
+{
+  "id": "202606021450-story-reel",
+  "createdAt": "2026-06-02T14:50:57.578Z",
+  "updatedAt": "2026-06-02T14:50:57.578Z",
+  "format": "story-reel",
+  "mediaType": "video",
+  "asset": "asset.mp4",
+  "caption": "",
+  "platforms": [],
+  "status": "draft",
+  "notes": "",
+  "theme": "dark",
+  "sourcePosts": [
+    "202606021205-example-program-proposal-chat-replay",
+    "202606021450-example-missed-workout-lockscreen-still",
+    "202606021449-example-missed-workout-checkin-still"
+  ],
+  "reel": {
+    "template": "story",
+    "theme": "dark",
+    "transition": "slide",
+    "motion": "float",
+    "captionPreset": "clean",
+    "safeZone": "none",
+    "headline": "",
+    "beats": [
+      {
+        "kind": "media",
+        "postId": "202606021205-example-program-proposal-chat-replay",
+        "caption": "",
+        "speed": 1,
+        "taps": []
+      },
+      {
+        "kind": "split",
+        "leftPostId": "202606021450-example-missed-workout-lockscreen-still",
+        "rightPostId": "202606021449-example-missed-workout-checkin-still",
+        "leftLabel": "Generic plan",
+        "rightLabel": "With Grit",
+        "caption": ""
+      }
+    ]
+  }
+}

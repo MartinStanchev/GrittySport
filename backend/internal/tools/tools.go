@@ -844,14 +844,14 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 	})
 
 	reg.Register(&Tool{
-		Name:        "forget_user_preference",
+		Name:        "forget_memory",
 		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
-		Description: "Remove a previously saved user preference. Use when the user says 'forget that...', 'stop doing...', 'I no longer prefer...'. Provide the exact preference content as shown in User Preferences.",
+		Description: "Forget something Grit remembers about the user — either a saved preference (from User Preferences) or an auto-extracted fact (from User Facts). Use when the user says 'forget that...', 'that's not true anymore', 'stop doing...', 'I no longer...'. Provide the exact content text. For a User Facts entry, omit the leading [type] label and pass only the fact text.",
 		Parameters: &genai.Schema{
 			Type:     genai.TypeObject,
 			Required: []string{"content"},
 			Properties: map[string]*genai.Schema{
-				"content": {Type: genai.TypeString, Description: "The exact preference content to remove (as shown in User Preferences)"},
+				"content": {Type: genai.TypeString, Description: "The exact content to forget, as shown under User Preferences or User Facts (without any leading [type] label)"},
 			},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
@@ -860,19 +860,19 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, fmt.Errorf("content is required")
 			}
 
-			removed, err := memorySvc.RemoveExplicitPreference(ctx, userID, content)
+			removed, err := memorySvc.RemoveMemory(ctx, userID, content)
 			if err != nil {
 				return nil, err
 			}
 			if removed == 0 {
 				return map[string]string{
 					"status":  "not_found",
-					"message": "No matching preference found. Check the exact wording in User Preferences.",
+					"message": "No matching memory found. Check the exact wording in User Preferences or User Facts.",
 				}, nil
 			}
 			return map[string]string{
 				"status":  "removed",
-				"message": "Preference removed.",
+				"message": "Forgotten.",
 			}, nil
 		},
 	})

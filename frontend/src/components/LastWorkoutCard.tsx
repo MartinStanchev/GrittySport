@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
-import { getWorkouts, type WorkoutResponse } from '../services/api';
+import { type WorkoutResponse } from '../services/api';
+import { getRecentWorkoutsCached } from '../services/cachedReads';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { formatDuration, formatRelativeDate } from '../utils/dates';
 
@@ -18,7 +19,7 @@ export function LastWorkoutCard({ onPress }: LastWorkoutCardProps) {
 
   useFetchOnFocus(
     useCallback(async () => {
-      const workouts = await getWorkouts({ limit: 1 });
+      const workouts = await getRecentWorkoutsCached();
       setWorkout(workouts.length > 0 ? workouts[0] : null);
     }, []),
   );

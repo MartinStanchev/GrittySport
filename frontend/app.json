@@ -39,6 +39,8 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "BLUETOOTH_SCAN",
         "BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH",
@@ -63,7 +65,10 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Gritty Fitness uses background location to continue tracking your workout."
+          "locationAlwaysAndWhenInUsePermission": "Gritty Fitness uses background location to continue tracking your workout.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

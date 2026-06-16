@@ -1,0 +1,30 @@
+{
+  "id": "202606021145-hero-reel",
+  "createdAt": "2026-06-02T11:45:27.204Z",
+  "updatedAt": "2026-06-02T11:45:27.204Z",
+  "format": "hero-reel",
+  "mediaType": "video",
+  "asset": "asset.mp4",
+  "caption": "",
+  "platforms": [],
+  "status": "draft",
+  "notes": "",
+  "theme": "light",
+  "sourcePosts": [
+    "202606021144-example-program-proposal-chat-replay"
+  ],
+  "reel": {
+    "template": "hero",
+    "theme": "light",
+    "transition": "slide",
+    "motion": "float",
+    "headline": "",
+    "beats": [
+      {
+        "postId": "202606021144-example-program-proposal-chat-replay",
+        "caption": "",
+        "speed": 1
+      }
+    ]
+  }
+}

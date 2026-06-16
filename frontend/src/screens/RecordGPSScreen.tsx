@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  AppState,
   PanResponder,
   Platform,
   Pressable,
@@ -24,12 +25,6 @@ import type { ActiveGPSWorkout } from '../contexts/WorkoutContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import {
-  haversineMetres,
-  rollingPaceSecPerKm,
-  currentSpeedKph,
-  avgPaceSecPerKm,
-  avgSpeedKph,
-  computeElevationGain,
   triggerLap,
   formatPaceSecPerKm,
   formatSpeedKph,
@@ -37,10 +32,12 @@ import {
   isRunSport,
   getHRZoneColor,
 } from '../services/gpsUtils';
+import { applyGPSPoint } from '../services/gpsReducer';
+import { locationTracking } from '../services/locationTrackingService';
 import { bleService } from '../services/bleService';
 import { cadenceService } from '../services/cadenceService';
 import HRSensorModal from '../components/HRSensorModal';
-import type { GPSPoint, CadenceReading } from '../types/gps';
+import type { CadenceReading } from '../types/gps';
 import {
   formatLiveWorkoutType,
   getGPSQualityState,
@@ -59,11 +56,7 @@ export type RecordGPSParams = {
 
 type Props = NativeStackScreenProps<any, 'RecordGPS'>;
 
-const MAX_ACCURACY_METRES = 50;
-const AUTO_PAUSE_SPEED_THRESHOLD = 0.5;
 const COLLAPSED_PANEL_PEEK = 232;
-const AUTO_PAUSE_POINT_COUNT = 3;
-const AUTO_LAP_DISTANCE_M = 1000;
 
 export default function RecordGPSScreen({ route, navigation }: Props) {
   const params = route.params as RecordGPSParams | undefined;
@@ -79,8 +72,6 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const isRun = isRunSport(activityType);
 
   const mapRef = useRef<any>(null);
-  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
-  const slowPointCountRef = useRef(0);
   const hrReadingsRef = useRef<{ bpm: number; timestamp: number }[]>([]);
   const hrSumRef = useRef(0);
   const cadenceReadingsRef = useRef<CadenceReading[]>([]);
@@ -130,8 +121,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     }
 
     return () => {
-      locationSubRef.current?.remove();
-      locationSubRef.current = null;
+      void locationTracking.stop();
       cadenceService.stop();
       if (followTimerRef.current) clearTimeout(followTimerRef.current);
     };
@@ -173,92 +163,30 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     return () => clearInterval(interval);
   }, [pausedDurationSec, recordingState, startedAtMs]);
 
-  const handleAutoPause = useCallback((timestamp: number) => {
-    updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: timestamp });
-    slowPointCountRef.current = 0;
-  }, [updateGPSWorkout]);
+  // Drains everything the background location task buffered and folds it through the
+  // pure GPS reducer. Runs both live (one reading at a time) and on foreground resume,
+  // when a lock-screen gap has buffered a whole batch. `gpsWorkoutRef` is written
+  // synchronously so rapid back-to-back drains fold onto the latest state, not the last
+  // rendered one.
+  const drainLocations = useCallback(() => {
+    const readings = locationTracking.drain();
+    const base = gpsWorkoutRef.current;
+    if (!base || readings.length === 0) return;
 
-  const handleNewPoint = useCallback((location: Location.LocationObject) => {
-    const gpsWorkout = gpsWorkoutRef.current;
-    if (!gpsWorkout || gpsWorkout.recordingState !== 'recording') return;
+    const next = readings.reduce(applyGPSPoint, base);
+    if (next === base) return;
 
-    const { latitude, longitude, altitude, accuracy } = location.coords;
-    if (accuracy && accuracy > MAX_ACCURACY_METRES) return;
+    gpsWorkoutRef.current = next;
+    updateGPSWorkout(next);
 
-    const newPoint: GPSPoint = {
-      lat: latitude,
-      lng: longitude,
-      altitude: altitude ?? null,
-      accuracy: accuracy ?? 0,
-      speed: location.coords.speed ?? null,
-      timestamp: location.timestamp,
-      distance_from_prev: 0,
-    };
-
-    const points = gpsWorkout.points;
-    if (points.length > 0) {
-      newPoint.distance_from_prev = haversineMetres(points[points.length - 1], newPoint);
-    }
-
-    const allPoints = [...points, newPoint];
-    const newDistanceM = gpsWorkout.totalDistanceM + newPoint.distance_from_prev;
-
-    const prevPoint = points.length > 0 ? points[points.length - 1] : null;
-    const timeDeltaSec = prevPoint ? (newPoint.timestamp - prevPoint.timestamp) / 1000 : 0;
-    const computedSpeedMs =
-      prevPoint && timeDeltaSec > 0.5
-        ? haversineMetres(prevPoint, newPoint) / timeDeltaSec
-        : null;
-
-    if (computedSpeedMs !== null && computedSpeedMs < AUTO_PAUSE_SPEED_THRESHOLD) {
-      slowPointCountRef.current += 1;
-      if (slowPointCountRef.current >= AUTO_PAUSE_POINT_COUNT) {
-        handleAutoPause(newPoint.timestamp);
-        return;
-      }
-    } else {
-      slowPointCountRef.current = 0;
-    }
-
-    const distanceSinceLastLap = newDistanceM - gpsWorkout.lapStartDistanceM;
-    let newLaps = gpsWorkout.laps;
-    let newLapStartIndex = gpsWorkout.lapStartIndex;
-    let newLapStartDistanceM = gpsWorkout.lapStartDistanceM;
-
-    if (distanceSinceLastLap >= AUTO_LAP_DISTANCE_M) {
-      const lap = triggerLap(allPoints, newLapStartIndex, newLaps, gpsWorkout.hrReadings);
-      newLaps = [...newLaps, lap];
-      newLapStartIndex = allPoints.length - 1;
-      newLapStartDistanceM = newDistanceM;
-    }
-
-    const pace = rollingPaceSecPerKm(allPoints);
-    const spd = currentSpeedKph(allPoints);
-    const totalSec = (newPoint.timestamp - gpsWorkout.startedAt.getTime()) / 1000 - gpsWorkout.autoPausedDurationSec;
-    const avgPace = avgPaceSecPerKm(newDistanceM, totalSec);
-    const avgSpd = avgSpeedKph(newDistanceM, totalSec);
-    const elevGain = allPoints.length % 10 === 0 ? computeElevationGain(allPoints) : gpsWorkout.elevationGainM;
-
-    updateGPSWorkout({
-      points: allPoints,
-      totalDistanceM: newDistanceM,
-      currentPaceSecPerKm: pace,
-      avgPaceSecPerKm: avgPace,
-      currentSpeedKph: spd,
-      avgSpeedKph: avgSpd,
-      elevationGainM: elevGain,
-      laps: newLaps,
-      lapStartIndex: newLapStartIndex,
-      lapStartDistanceM: newLapStartDistanceM,
-    });
-
-    if (!userMovedMapRef.current) {
+    const lastPoint = next.points[next.points.length - 1];
+    if (lastPoint && !userMovedMapRef.current) {
       mapRef.current?.animateToRegion(
-        { latitude, longitude, latitudeDelta: 0.005, longitudeDelta: 0.005 },
+        { latitude: lastPoint.lat, longitude: lastPoint.lng, latitudeDelta: 0.005, longitudeDelta: 0.005 },
         300,
       );
     }
-  }, [handleAutoPause, updateGPSWorkout]);
+  }, [updateGPSWorkout]);
 
   const handleMapPanDrag = useCallback(() => {
     userMovedMapRef.current = true;
@@ -270,28 +198,29 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     }, 5000);
   }, []);
 
-  const startLocationWatcher = useCallback(async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Required', 'Location access is needed to track your workout.');
-      return;
-    }
-
-    locationSubRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        distanceInterval: 5,
-        timeInterval: 1000,
-      },
-      handleNewPoint,
-    );
-  }, [handleNewPoint]);
+  // The background task buffers readings at module scope; this screen drains them live
+  // and again whenever it returns to the foreground after a lock-screen gap.
+  useEffect(() => {
+    locationTracking.setListener(drainLocations);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drainLocations();
+    });
+    return () => {
+      locationTracking.setListener(null);
+      sub.remove();
+    };
+  }, [drainLocations]);
 
   const handleStart = useCallback(async () => {
     const displayType = formatLiveWorkoutType(activityType);
+    const result = await locationTracking.start();
+    if (!result.ok) {
+      Alert.alert('Permission Required', result.reason ?? 'Location access is needed to track your workout.');
+      return;
+    }
+
     startGPSWorkout({ activityType, activityDisplayType: displayType, scheduledActivityId, startedAt: new Date() });
     updateGPSWorkout({ recordingState: 'recording' });
-    await startLocationWatcher();
 
     if (showCadence) {
       cadenceService.start((spm) => {
@@ -303,7 +232,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         updateGPSWorkout({ cadenceReadings: cadenceReadingsRef.current, currentCadence: spm, avgCadence: avg });
       });
     }
-  }, [activityType, scheduledActivityId, showCadence, startGPSWorkout, startLocationWatcher, updateGPSWorkout]);
+  }, [activityType, scheduledActivityId, showCadence, startGPSWorkout, updateGPSWorkout]);
 
   const handlePause = useCallback(() => {
     updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: Date.now() });
@@ -318,8 +247,8 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       recordingState: 'recording',
       autoPausedDurationSec: gpsWorkout.autoPausedDurationSec + additionalPause,
       lastAutoPauseStart: null,
+      slowPointCount: 0,
     });
-    slowPointCountRef.current = 0;
   }, [updateGPSWorkout]);
 
   const handleStop = useCallback(() => {
@@ -329,8 +258,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         text: 'Finish',
         style: 'destructive',
         onPress: () => {
-          locationSubRef.current?.remove();
-          locationSubRef.current = null;
+          void locationTracking.stop();
           cadenceService.stop();
           const now = new Date();
           let autoPaused = gpsWorkoutRef.current?.autoPausedDurationSec ?? 0;
@@ -372,8 +300,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         text: 'Discard',
         style: 'destructive',
         onPress: () => {
-          locationSubRef.current?.remove();
-          locationSubRef.current = null;
+          void locationTracking.stop();
           bleService.disconnect();
           cadenceService.stop();
           clearGPSWorkout();

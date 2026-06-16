@@ -21,7 +21,8 @@ import { useAuth } from '../contexts/AuthContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { formatTime } from '../constants/workoutUtils';
-import { getActivity, saveWorkout } from '../services/api';
+import { getActivity } from '../services/api';
+import { saveWorkoutWithFallback } from '../services/syncService';
 import { formatActivityType, isGPSActivity } from '../constants/activityIcons';
 import {
   useWorkout,
@@ -1011,7 +1012,7 @@ export default function RecordManualScreen() {
       const heartRatePayload = activeWorkout.hrReadings.length > 0
         ? { readings: activeWorkout.hrReadings, device_name: activeWorkout.hrDeviceName }
         : undefined;
-      await saveWorkout({
+      const saved = await saveWorkoutWithFallback({
         scheduled_activity_id: activeWorkout.scheduledActivityId,
         activity_type: activeWorkout.activityType,
         recorded_data: buildRecordedData(),
@@ -1022,6 +1023,9 @@ export default function RecordManualScreen() {
         notes: activeWorkout.workoutNotes || undefined,
       });
       notifyProgramDataChanged();
+      if (!saved) {
+        Alert.alert('Saved offline', 'This workout will sync when you\'re back online.');
+      }
       navigation.getParent()?.navigate('Home');
       clearWorkout();
     } catch {

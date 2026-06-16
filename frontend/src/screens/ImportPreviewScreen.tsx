@@ -37,7 +37,7 @@ import {
   avgSpeedKph,
   cadenceUnit,
 } from '../services/gpsUtils';
-import { saveWorkout } from '../services/api';
+import { saveWorkoutWithFallback } from '../services/syncService';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { Fonts } from '../constants/fonts';
@@ -313,12 +313,17 @@ function WorkoutPreview({
     setSaving(true);
     try {
       const payload = buildFileSavePayload(workout, activityType, notes, scheduledActivityId);
-      const saved = await saveWorkout(payload);
-      if (externalId) {
-        await markWorkoutImported(externalId, saved.id);
-      }
+      const saved = await saveWorkoutWithFallback(payload);
       notifyProgramDataChanged();
-      setSavedWorkoutId(saved.id);
+      if (saved) {
+        if (externalId) {
+          await markWorkoutImported(externalId, saved.id);
+        }
+        setSavedWorkoutId(saved.id);
+      } else {
+        Alert.alert('Saved offline', 'This workout will sync when you\'re back online.');
+        navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+      }
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save workout');
     } finally {

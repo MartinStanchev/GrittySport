@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
-export { CacheKeys } from './offlineStorageTypes';
+export { CacheKeys, programDetailKey } from './offlineStorageTypes';
 export type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
 const DB_NAME = 'gritty.db';

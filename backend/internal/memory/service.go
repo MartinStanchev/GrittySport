@@ -409,16 +409,17 @@ func (s *Service) SaveExplicitPreference(ctx context.Context, userID, content st
 	return nil
 }
 
-// RemoveExplicitPreference deactivates an explicit preference matching the given content (case-insensitive).
-// Returns the number of preferences deactivated.
-func (s *Service) RemoveExplicitPreference(ctx context.Context, userID, content string) (int64, error) {
+// RemoveMemory deactivates any active fact matching the given content (case-insensitive),
+// regardless of fact type — covering both explicit preferences and auto-extracted facts.
+// Returns the number of rows deactivated.
+func (s *Service) RemoveMemory(ctx context.Context, userID, content string) (int64, error) {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE chat_facts SET active = false, updated_at = NOW()
-		 WHERE user_id = $1 AND fact_type = 'explicit_preference' AND LOWER(content) = LOWER($2) AND active = true`,
+		 WHERE user_id = $1 AND LOWER(content) = LOWER($2) AND active = true`,
 		userID, content,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("remove explicit preference: %w", err)
+		return 0, fmt.Errorf("remove memory: %w", err)
 	}
 	return tag.RowsAffected(), nil
 }

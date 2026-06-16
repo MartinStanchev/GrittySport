@@ -19,6 +19,13 @@ export const CacheKeys = {
   userProfile: 'user_profile',
   activeProgram: 'active_program',
   upcomingActivities: 'upcoming_activities',
+  recentWorkouts: 'recent_workouts',
 } as const;
 
-export type CacheKey = (typeof CacheKeys)[keyof typeof CacheKeys];
+// Cache keys are plain strings so dynamic, id-scoped keys (e.g. a per-program
+// detail snapshot via programDetailKey) work alongside the fixed CacheKeys above.
+export type CacheKey = string;
+
+export function programDetailKey(programId: string): CacheKey {
+  return `program_detail:${programId}`;
+}

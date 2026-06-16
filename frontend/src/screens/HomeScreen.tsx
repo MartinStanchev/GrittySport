@@ -23,7 +23,8 @@ import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
 import { useProgram } from '../contexts/ProgramContext';
-import { getChatHistory, getProgram, getWorkouts } from '../services/api';
+import { getChatHistory } from '../services/api';
+import { getProgramCached, getRecentWorkoutsCached } from '../services/cachedReads';
 import type { ChatMessageResponse, ChatSegmentResponse } from '../services/api';
 import { ProgramProposalCard } from '../components/ProgramProposalCard';
 import type { ProgramProposalData } from '../components/ProgramProposalCard';
@@ -257,11 +258,11 @@ function useWeeklyCompletedDays(): Set<number> {
   useFetchOnFocus(
     useCallback(async () => {
       const monday = mondayOf(new Date());
-      const startDate = monday.toISOString().split('T')[0];
-      const workouts = await getWorkouts({ start_date: startDate, limit: 50 });
+      const workouts = await getRecentWorkoutsCached();
       const completed = new Set<number>();
       for (const w of workouts) {
         const d = new Date(w.started_at);
+        if (d < monday) continue; // cached list is broad; keep this week only
         const jsDay = d.getDay(); // 0=Sun
         // Convert to Mon=0 .. Sun=6
         const monIdx = jsDay === 0 ? 6 : jsDay - 1;
@@ -285,7 +286,7 @@ function useCurrentWeekAdherence(programId: string | null): AdherenceCounts | nu
         setCounts(null);
         return;
       }
-      const program = await getProgram(programId);
+      const program = await getProgramCached(programId);
       const now = new Date();
       const monday = mondayOf(now);
       const nextMonday = addDays(monday, 7);
@@ -348,10 +349,12 @@ export default function HomeScreen() {
   useFetchOnFocus(
     useCallback(async () => {
       const today = new Date().toISOString().split('T')[0];
-      const workouts = await getWorkouts({ start_date: today, limit: 50 });
+      const workouts = await getRecentWorkoutsCached();
       const ids = new Set<string>();
       for (const w of workouts) {
-        if (w.scheduled_activity_id) ids.add(w.scheduled_activity_id);
+        if (w.scheduled_activity_id && w.started_at.split('T')[0] === today) {
+          ids.add(w.scheduled_activity_id);
+        }
       }
       // Only update state if the set actually changed to avoid no-op re-renders
       setCompletedActivityIds((prev) => {

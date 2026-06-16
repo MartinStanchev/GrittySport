@@ -2,7 +2,7 @@
 // but cache_kv is backed by localStorage so offline reads still work in the browser.
 import type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
-export { CacheKeys } from './offlineStorageTypes';
+export { CacheKeys, programDetailKey } from './offlineStorageTypes';
 export type { CacheKey, LocalPendingWorkout } from './offlineStorageTypes';
 
 export async function savePendingWorkout(_workout: LocalPendingWorkout): Promise<void> {}

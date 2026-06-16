@@ -1,0 +1,42 @@
+{
+  "id": "202606021025-hero-reel",
+  "createdAt": "2026-06-02T10:25:21.038Z",
+  "updatedAt": "2026-06-02T11:43:43.409Z",
+  "format": "story-reel",
+  "mediaType": "video",
+  "asset": "asset.mp4",
+  "caption": "",
+  "platforms": [],
+  "status": "draft",
+  "notes": "",
+  "theme": "light",
+  "sourcePosts": [
+    "202606020941-example-edit-proposal-chat-replay",
+    "202606020941-example-post-workout-review-chat-replay",
+    "202606020940-example-program-proposal-chat-replay"
+  ],
+  "reel": {
+    "template": "story",
+    "theme": "light",
+    "transition": "slide",
+    "motion": "float",
+    "headline": "",
+    "beats": [
+      {
+        "postId": "202606020941-example-edit-proposal-chat-replay",
+        "caption": "",
+        "speed": 2
+      },
+      {
+        "postId": "202606020941-example-post-workout-review-chat-replay",
+        "caption": "",
+        "speed": 1.5
+      },
+      {
+        "postId": "202606020940-example-program-proposal-chat-replay",
+        "caption": "",
+        "speed": 1
+      }
+    ]
+  }
+}

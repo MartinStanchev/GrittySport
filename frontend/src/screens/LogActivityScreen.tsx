@@ -16,7 +16,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon, IMPORT_ACTIVITY_TYPES } from '../constants/activityIcons';
-import { saveWorkout } from '../services/api';
+import { saveWorkoutWithFallback } from '../services/syncService';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
@@ -331,7 +331,7 @@ export default function LogActivityScreen({ navigation }: Props) {
       const finishedAt = new Date(startedAt.getTime() + durationSec * 1000);
       const recordedData = buildRecordedData(selectedType, dist, durationSec, laps, exercises, mobilityExercises);
 
-      const saved = await saveWorkout({
+      const saved = await saveWorkoutWithFallback({
         activity_type: selectedType,
         recorded_data: recordedData,
         source: 'manual',
@@ -340,7 +340,12 @@ export default function LogActivityScreen({ navigation }: Props) {
         notes: notes.trim() || undefined,
       });
       notifyProgramDataChanged();
-      setSavedWorkoutId(saved.id);
+      if (saved) {
+        setSavedWorkoutId(saved.id);
+      } else {
+        Alert.alert('Saved offline', 'This activity will sync and get Grit\'s review once you\'re back online.');
+        navigation.getParent()?.navigate('Home', { screen: 'HomeMain' });
+      }
     } catch {
       Alert.alert('Error', 'Failed to save activity. Please try again.');
     } finally {

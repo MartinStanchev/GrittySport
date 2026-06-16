@@ -13,19 +13,16 @@ import {
 } from 'react-native';
 
 import MapView, { Polyline, UrlTile } from '../components/NativeMap';
-import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
-import { saveWorkout } from '../services/api';
 import { useProgram } from '../contexts/ProgramContext';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
-import type { WorkoutResponse } from '../services/api';
-import { savePendingWorkout } from '../services/offlineStorage';
+import { saveWorkoutWithFallback } from '../services/syncService';
 import {
   buildFinalGPSPayload,
   formatPaceSecPerKm,
@@ -173,17 +170,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       notes: notes.trim() || undefined,
     };
 
-    const netState = await NetInfo.fetch();
-    let savedWorkout: WorkoutResponse | null = null;
-    if (netState.isConnected) {
-      try {
-        savedWorkout = await saveWorkout(workoutPayload);
-      } catch {
-        await saveOffline(workoutPayload);
-      }
-    } else {
-      await saveOffline(workoutPayload);
-    }
+    const savedWorkout = await saveWorkoutWithFallback(workoutPayload);
 
     setSaving(false);
     notifyProgramDataChanged();
@@ -192,27 +179,11 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       hasSaved.current = true;
       setSavedWorkoutId(savedWorkout.id);
     } else {
-      // Offline save — clear and navigate to history
+      // Offline save — queued for sync; clear and navigate to history.
+      setSavedOffline(true);
       clearGPSWorkout();
       navigation.navigate('History');
     }
-  }
-
-  async function saveOffline(payload: Record<string, any>) {
-    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    await savePendingWorkout({
-      id,
-      activity_type: payload.activity_type,
-      recorded_data: JSON.stringify(payload.recorded_data),
-      gps_route: payload.gps_route ? JSON.stringify(payload.gps_route) : undefined,
-      heart_rate_data: payload.heart_rate_data ? JSON.stringify(payload.heart_rate_data) : undefined,
-      source: payload.source,
-      started_at: payload.started_at,
-      finished_at: payload.finished_at,
-      scheduled_activity_id: payload.scheduled_activity_id,
-      notes: payload.notes,
-    });
-    setSavedOffline(true);
   }
 
   function handleDiscard() {

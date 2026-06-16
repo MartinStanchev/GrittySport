@@ -94,6 +94,8 @@ export interface ActiveGPSWorkout {
   // Pause tracking
   autoPausedDurationSec: number;
   lastAutoPauseStart: number | null;
+  // Consecutive below-threshold points, drives auto-pause (folded by the GPS reducer)
+  slowPointCount: number;
   // BLE
   hrDeviceName?: string;
   // Notes (filled in summary screen)
@@ -111,7 +113,7 @@ type GPSWorkoutInitFields =
   | 'currentSpeedKph' | 'avgSpeedKph'
   | 'currentHR' | 'avgHR'
   | 'cadenceReadings' | 'currentCadence' | 'avgCadence'
-  | 'autoPausedDurationSec' | 'lastAutoPauseStart'
+  | 'autoPausedDurationSec' | 'lastAutoPauseStart' | 'slowPointCount'
   | 'workoutNotes';
 
 export type StartGPSWorkoutOpts = Omit<ActiveGPSWorkout, GPSWorkoutInitFields>;
@@ -194,6 +196,7 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       avgCadence: null,
       autoPausedDurationSec: 0,
       lastAutoPauseStart: null,
+      slowPointCount: 0,
       workoutNotes: '',
     });
   }, []);
