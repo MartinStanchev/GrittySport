@@ -68,11 +68,12 @@ export default function YearPickerSheet({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={onCancel}>
+      <View style={styles.overlay}>
         <Pressable
-          style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => {}}
-        >
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]}
+          onPress={onCancel}
+        />
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
             <Pressable onPress={onCancel} hitSlop={10}>
               <Text style={[styles.headerAction, { color: colors.textSecondary }]}>Cancel</Text>
@@ -102,6 +103,7 @@ export default function YearPickerSheet({
               initialScrollIndex={initialIndex}
               contentContainerStyle={{ paddingVertical: VERTICAL_PADDING }}
               onMomentumScrollEnd={handleScrollEnd}
+              onScrollEndDrag={handleScrollEnd}
               style={{ height: PICKER_HEIGHT }}
               renderItem={({ item, index }) => {
                 const distance = Math.abs(index - draftIndex);
@@ -122,8 +124,8 @@ export default function YearPickerSheet({
               }}
             />
           </View>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
