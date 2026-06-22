@@ -1,6 +1,6 @@
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { background } from '../theme';
-import { textColor, accentFor } from '../brandKit';
+import { textColor, accentFor, PALETTE } from '../brandKit';
 import { FONTS } from '../fonts';
 import { usableCenterOffset, type SafeZone } from '../safeZones';
 import type { CtaBeatData } from './types';
@@ -47,10 +47,33 @@ export const CtaBeat: React.FC<{ beat: CtaBeatData; theme: 'light' | 'dark'; saf
         <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 34, letterSpacing: 4, color: accentFor(theme), marginBottom: 30 }}>GRITTY</div>
         <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 78, lineHeight: 1.06, letterSpacing: -1.5, color: textColor(theme) }}>{beat.headline}</div>
         {beat.sub ? <div style={{ fontFamily: FONTS.body, fontWeight: 400, fontSize: 38, lineHeight: 1.25, color: textColor(theme), opacity: 0.8, marginTop: 22 }}>{beat.sub}</div> : null}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center', marginTop: 48, opacity: badgesOpacity }}>
-          {badges.includes('appstore') ? <AppleBadge /> : null}
-          {badges.includes('googleplay') ? <GooglePlayBadge /> : null}
-        </div>
+        {beat.pill ? (
+          <div style={{ marginTop: 52, opacity: badgesOpacity }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 14,
+                background: PALETTE.accent,
+                color: '#ffffff',
+                borderRadius: 999,
+                padding: '26px 52px',
+                fontFamily: FONTS.display,
+                fontWeight: 700,
+                fontSize: 46,
+                letterSpacing: -0.5,
+              }}
+            >
+              {beat.pill}
+            </div>
+          </div>
+        ) : null}
+        {badges.length ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center', marginTop: 48, opacity: badgesOpacity }}>
+            {badges.includes('appstore') ? <AppleBadge /> : null}
+            {badges.includes('googleplay') ? <GooglePlayBadge /> : null}
+          </div>
+        ) : null}
         {beat.qrDataUrl ? (
           <div style={{ marginTop: 44, display: 'inline-block', background: '#fff', padding: 18, borderRadius: 22, opacity: badgesOpacity }}>
             <Img src={beat.qrDataUrl} style={{ width: 200, height: 200, display: 'block' }} />

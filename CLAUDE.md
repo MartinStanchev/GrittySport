@@ -18,9 +18,7 @@ Progress is tracked in a two-level structure to keep the auto-loaded context sma
 - **`@./PROGRESS.md`** — slim index table, one row per feature, always loaded into context. Keep it short.
 - **`progress/<slug>.md`** — full details for each feature (bullet points, deviations, key files changed).
 
-After each implementation:
-1. Create a new file `progress/<slug>.md` with full details.
-2. Append a new row to the table in `PROGRESS.md` with a link to the file and a one-line summary.
+Since this is a marketing studio branch, you don't need to create enw progress entries. 
 
 To understand what was done for a specific past feature, read its file in `progress/`.
 
@@ -28,8 +26,6 @@ To understand what was done for a specific past feature, read its file in `progr
 
 Always validate your code by:
 
-* Writing and running tests
-* Running the code simplifier agent
 * running linters for both backend and frontend
 
 ** IMPORTANT ** 

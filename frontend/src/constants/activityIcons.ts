@@ -41,6 +41,11 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   cross_training: 'fitness-outline',
   outdoor_activity: 'sunny-outline',
   indoor_activity: 'home-outline',
+  // Recreational sports users schedule around their training. Rendered when an
+  // activity is logged/scheduled with one of these names; not part of the
+  // canonical ACTIVITY_TYPES enum (icon/color/label lookups are includes-based).
+  football: 'football-outline',
+  climbing: 'triangle-outline',
 };
 
 export function getActivityIcon(type: string): keyof typeof Ionicons.glyphMap {
@@ -100,6 +105,8 @@ export const ACTIVITY_DISPLAY_NAMES: Record<string, string> = {
   cross_training: 'Cross Training',
   outdoor_activity: 'Outdoor Activity',
   indoor_activity: 'Indoor Activity',
+  football: 'Football',
+  climbing: 'Climbing',
 };
 
 export function formatActivityType(type: string): string {
@@ -157,6 +164,8 @@ const SPORT_COLOR_MAP: Record<string, string> = {
   cross_training: '#7C5CFC',
   outdoor_activity: '#34C759',
   indoor_activity: '#7C5CFC',
+  football: '#EF4444',
+  climbing: '#D97706',
 };
 
 export function getActivityColor(type: string): string {

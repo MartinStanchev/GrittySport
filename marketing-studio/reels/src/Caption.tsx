@@ -19,10 +19,13 @@ export const Caption: React.FC<{
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
 
-  const revealWindow = revealFrames ?? Math.min(words.length * 7, 54);
-  const perWord = revealWindow / words.length;
+  // `instant` presets show the whole line together — one shared fade-in, no
+  // per-word reveal and no active-word emphasis (so it doesn't read as subtitles).
+  const revealWindow = style.instant ? 0 : (revealFrames ?? Math.min(words.length * 7, 54));
+  const perWord = style.instant ? 0 : revealWindow / words.length;
   const local = frame - startFrame;
-  const activeIndex = Math.floor(local / perWord);
+  const activeIndex = style.instant ? -1 : Math.floor(local / perWord);
+  const blockEnter = spring({ frame: frame - startFrame, fps, config: { damping: 200, mass: 0.5 }, durationInFrames: 10 });
 
   return (
     <div
@@ -39,7 +42,9 @@ export const Caption: React.FC<{
     >
       {words.map((word, i) => {
         const wordStart = startFrame + i * perWord;
-        const enter = spring({ frame: frame - wordStart, fps, config: { damping: 200, mass: 0.5 }, durationInFrames: 8 });
+        const enter = style.instant
+          ? blockEnter
+          : spring({ frame: frame - wordStart, fps, config: { damping: 200, mass: 0.5 }, durationInFrames: 8 });
         if (enter <= 0) return null; // not revealed yet
 
         const isActive = i === activeIndex;

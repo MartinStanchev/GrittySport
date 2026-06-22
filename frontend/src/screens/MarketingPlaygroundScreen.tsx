@@ -29,6 +29,9 @@ import type { ProgramEditData } from '../components/ProgramEditCard';
 import { findScene, groupScenes } from '../marketing/scenes';
 import type { Scene } from '../marketing/types';
 import { DEVICE_DIMENSIONS } from '../marketing/types';
+import { MarketingHome } from '../marketing/MarketingHome';
+import { MarketingLiveWorkout } from '../marketing/MarketingLiveWorkout';
+import { MarketingWorkoutSummary } from '../marketing/MarketingWorkoutSummary';
 import type { ThemeColors } from '../constants/colors';
 
 // Same markdown styles HomeScreen uses, so chat scenes render with identical
@@ -203,6 +206,33 @@ export function SceneStage({ scene, onExit, markdownStyles }: SceneStageProps) {
             onDismissHighlight={() => {}}
           />
         </ScrollView>
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (scene.kind === 'home') {
+    return (
+      <View style={styles.stageRoot}>
+        <MarketingHome {...scene.props} />
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (scene.kind === 'live-workout') {
+    return (
+      <View style={styles.stageRoot}>
+        <MarketingLiveWorkout {...scene.props} />
+        {exitTap}
+      </View>
+    );
+  }
+
+  if (scene.kind === 'workout-summary') {
+    return (
+      <View style={[styles.stageRoot, { backgroundColor: colors.background }]}>
+        <MarketingWorkoutSummary {...scene.props} />
         {exitTap}
       </View>
     );

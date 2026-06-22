@@ -20,7 +20,7 @@ import { PremiumStatsCard } from '../components/PremiumStatsCard';
 import { EffortScoreCard } from '../components/EffortScoreCard';
 import { SplitsCard } from '../components/SplitsCard';
 import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
-import { PRBadge } from '../components/PRBadge';
+import { PersonalRecordsList } from '../components/PersonalRecordsList';
 import { CardiacEfficiencyCard } from '../components/CardiacEfficiencyCard';
 import { WeeklyTrendCard } from '../components/WeeklyTrendCard';
 
@@ -583,25 +583,7 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
               )}
 
               {analytics.personal_records && analytics.personal_records.length > 0 && (
-                <View style={styles.prSection}>
-                  <Text style={[styles.prSectionTitle, { color: colors.textPrimary }]}>Personal Records</Text>
-                  {analytics.personal_records.map((pr) => (
-                    <View key={pr.category} style={styles.prRow}>
-                      <PRBadge />
-                      <View style={styles.prInfo}>
-                        <Text style={[styles.prCategory, { color: colors.textPrimary }]}>{pr.category}</Text>
-                        {pr.formatted_value ? (
-                          <Text style={[styles.prValue, { color: colors.textSecondary }]}>
-                            {pr.formatted_value}
-                            {pr.improvement_pct != null && pr.improvement_pct > 0
-                              ? ` (+${pr.improvement_pct.toFixed(1)}%)`
-                              : ''}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
+                <PersonalRecordsList records={analytics.personal_records} />
               )}
 
               {analytics.weekly_trend && (
@@ -932,34 +914,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bodySemiBold,
   },
 
-  // PR section
-  prSection: {
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  prSectionTitle: {
-    fontSize: 14,
-    fontFamily: Fonts.bodySemiBold,
-  },
-  prRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  prInfo: {
-    flex: 1,
-  },
-  prCategory: {
-    fontSize: 13,
-    fontFamily: Fonts.bodyMedium,
-  },
-  prValue: {
-    fontSize: 12,
-    fontFamily: Fonts.body,
-    fontVariant: ['tabular-nums'] as any,
-    marginTop: 1,
-  },
   trendText: {
     fontSize: 13,
     fontFamily: Fonts.body,

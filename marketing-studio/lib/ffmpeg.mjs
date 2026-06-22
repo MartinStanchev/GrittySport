@@ -41,10 +41,14 @@ export function probeDurationSec(file) {
   });
 }
 
-// Pan a tall still image down through a 1080x1920 window → MP4. The image is
-// scaled to the target width first; it must end up taller than the frame.
-export async function encodeScroll({ input, outPath, durationSec = 8 }) {
-  const { width, height, fps } = config.video;
+// Pan a tall still image down through a window → MP4. The image is scaled to the
+// target width first; it must end up taller than the frame. The window defaults
+// to the social 9:16 target, but `width`/`height` can override it (e.g. a
+// device-aspect window so the clip fills a phone frame in a reel at real size).
+export async function encodeScroll({ input, outPath, durationSec = 8, width: outWidth, height: outHeight }) {
+  const { fps } = config.video;
+  const width = outWidth ?? config.video.width;
+  const height = outHeight ?? config.video.height;
   const src = readPngSize(input);
   const scaledHeight = Math.round((src.height * width) / src.width);
   if (scaledHeight <= height) {

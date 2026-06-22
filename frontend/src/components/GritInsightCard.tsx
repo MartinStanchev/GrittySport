@@ -6,13 +6,14 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { getChatHistory } from '../services/api';
 
+const DEFAULT_INSIGHT = 'Your AI coach is ready to help you train smarter.';
+
 interface GritInsightCardProps {
   onOpenChat: () => void;
 }
 
 export function GritInsightCard({ onOpenChat }: GritInsightCardProps) {
-  const { colors } = useTheme();
-  const [insight, setInsight] = useState('Your AI coach is ready to help you train smarter.');
+  const [insight, setInsight] = useState(DEFAULT_INSIGHT);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,6 +28,14 @@ export function GritInsightCard({ onOpenChat }: GritInsightCardProps) {
         .catch(() => {});
     }, []),
   );
+
+  return <GritInsightCardView insight={insight} onOpenChat={onOpenChat} />;
+}
+
+// Presentational body — no data fetching / navigation hooks, so it is safe to
+// render outside a NavigationContainer (e.g. the headless marketing renderer).
+export function GritInsightCardView({ insight, onOpenChat }: { insight: string; onOpenChat: () => void }) {
+  const { colors } = useTheme();
 
   return (
     <Pressable

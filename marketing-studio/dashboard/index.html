@@ -85,7 +85,7 @@
         <option>float</option><option>kenburns</option><option>tilt</option><option>none</option>
       </select></label>
       <label>Captions (Story) <select id="reelCaptionPreset">
-        <option value="clean">clean</option><option value="karaoke">karaoke</option><option value="boxed">boxed</option><option value="pop">pop</option>
+        <option value="clean">clean</option><option value="static">static (no subtitle reveal)</option><option value="karaoke">karaoke</option><option value="boxed">boxed</option><option value="pop">pop</option>
       </select></label>
       <label>Safe zone <select id="reelSafeZone">
         <option value="none">none</option><option value="tiktok">tiktok</option><option value="reels">reels</option><option value="shorts">shorts</option>
@@ -105,7 +105,7 @@
       <label>BPM <input type="number" id="reelBpm" min="40" step="1" placeholder="off" title="Snap each cut to the beat grid" style="width:80px"></label>
     </div>
     <p id="reelHint" style="color:#ffcf6b;font-size:12px;margin:8px 0 0;display:none"></p>
-    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a screenshot/clip; insert hook/stat/CTA/before-after cards below. Duration blank = auto (video plays full length); speed applies to video beats.</p>
+    <p style="color:var(--muted);font-size:12px;margin:10px 0 6px">Beats (in order) — “+ Reel” adds a screenshot/clip; insert hook/stat/CTA/before-after cards below. For video beats: speed = how fast the clip plays (blank duration = whole clip at that speed); set a duration to control on-screen time — the whole clip is time-scaled to fit (never freezes or cuts off).</p>
     <div class="row" style="margin:0 0 12px">
       <label>Insert card <select id="cardKind">
         <option value="hook">Hook</option><option value="stat">Stat</option><option value="cta">CTA / end card</option><option value="split">Before / After</option>
@@ -187,7 +187,7 @@ let editingReelId = null; // set when editing an existing reel (re-render in pla
 const CARD_DEFAULTS = {
   hook: () => ({ kind: 'hook', kicker: 'Missed a workout?', text: 'Grit texts you back.', seconds: '' }),
   stat: () => ({ kind: 'stat', value: 7, prefix: '', suffix: '', label: 'sessions adjusted this week', seconds: '' }),
-  cta: () => ({ kind: 'cta', headline: 'Train with Grit.', sub: 'Your AI coach, free to start.', badges: ['appstore', 'googleplay'], qr: '', seconds: '' }),
+  cta: () => ({ kind: 'cta', headline: 'Wishlist the app', sub: 'Be first in when Grit launches.', pill: 'Link in bio 👆', badges: [], qr: '', seconds: '' }),
   split: () => ({ kind: 'split', leftPostId: '', rightPostId: '', leftLabel: 'Generic plan', rightLabel: 'With Grit', caption: '', seconds: '' }),
 };
 
@@ -287,7 +287,8 @@ function beatFields(b, i) {
   switch (b.kind) {
     case 'hook': return `
       <input type="text" value="${esc(b.kicker)}" placeholder="Kicker (small)…" oninput="setBeatField(${i},'kicker',this.value)" style="width:240px">
-      <input type="text" value="${esc(b.text)}" placeholder="Hook line (big)…" oninput="setBeatField(${i},'text',this.value)" style="flex:1;min-width:240px">${dur}`;
+      <input type="text" value="${esc(b.text)}" placeholder="Hook line (big)…" oninput="setBeatField(${i},'text',this.value)" style="flex:1;min-width:240px">
+      <label style="flex-direction:row;align-items:center;gap:5px;color:var(--text)" title="Show the whole line at once instead of word-by-word"><input type="checkbox" ${b.instant ? 'checked' : ''} onchange="setBeatField(${i},'instant',this.checked)"> instant</label>${dur}`;
     case 'stat': return `
       <input type="text" value="${esc(b.prefix)}" placeholder="+" oninput="setBeatField(${i},'prefix',this.value)" style="width:48px">
       <input type="number" value="${esc(b.value)}" placeholder="7" oninput="setBeatField(${i},'value',this.value)" style="width:90px">
@@ -296,6 +297,7 @@ function beatFields(b, i) {
     case 'cta': return `
       <input type="text" value="${esc(b.headline)}" placeholder="Headline…" oninput="setBeatField(${i},'headline',this.value)" style="flex:1;min-width:200px">
       <input type="text" value="${esc(b.sub)}" placeholder="Subtext…" oninput="setBeatField(${i},'sub',this.value)" style="flex:1;min-width:180px">
+      <input type="text" value="${esc(b.pill)}" placeholder="Pill, e.g. Link in bio 👆 (pre-launch)" oninput="setBeatField(${i},'pill',this.value)" style="flex:1;min-width:200px">
       <label style="flex-direction:row;align-items:center;gap:5px;color:var(--text)"><input type="checkbox" ${(b.badges||[]).includes('appstore')?'checked':''} onchange="toggleBeatBadge(${i},'appstore',this.checked)"> App Store</label>
       <label style="flex-direction:row;align-items:center;gap:5px;color:var(--text)"><input type="checkbox" ${(b.badges||[]).includes('googleplay')?'checked':''} onchange="toggleBeatBadge(${i},'googleplay',this.checked)"> Google Play</label>
       <input type="text" value="${esc(b.qr)}" placeholder="QR url (optional)" oninput="setBeatField(${i},'qr',this.value)" style="width:200px">${dur}`;
@@ -336,9 +338,9 @@ function beatPayload(b) {
   const kind = b.kind || 'media';
   const seconds = b.seconds === '' || b.seconds == null ? undefined : Number(b.seconds);
   switch (kind) {
-    case 'hook':   return { kind, kicker: b.kicker, text: b.text, seconds };
+    case 'hook':   return { kind, kicker: b.kicker, text: b.text, instant: !!b.instant, seconds };
     case 'stat':   return { kind, value: Number(b.value) || 0, prefix: b.prefix, suffix: b.suffix, label: b.label, seconds };
-    case 'cta':    return { kind, headline: b.headline, sub: b.sub, badges: b.badges || [], qr: b.qr, seconds };
+    case 'cta':    return { kind, headline: b.headline, sub: b.sub, pill: b.pill, badges: b.badges || [], qr: b.qr, seconds };
     case 'split':  return { kind, leftPostId: b.leftPostId, rightPostId: b.rightPostId, leftLabel: b.leftLabel, rightLabel: b.rightLabel, caption: b.caption, seconds };
     default:       return { kind: 'media', postId: b.postId, src: b.src, caption: b.caption, speed: Number(b.speed) || 1, taps: parseTaps(b.tapsStr), seconds };
   }

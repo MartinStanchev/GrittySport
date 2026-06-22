@@ -13,7 +13,6 @@ function getBarColor(progress: number, colors: { textSecondary: string; warning:
 }
 
 export function WeeklyEffortCounter() {
-  const { colors } = useTheme();
   const [total, setTotal] = useState(0);
   const [goal, setGoal] = useState(300);
   const [workoutCount, setWorkoutCount] = useState(0);
@@ -26,6 +25,19 @@ export function WeeklyEffortCounter() {
       setWorkoutCount(data.workout_count);
     }, []),
   );
+
+  return <WeeklyEffortCounterView total={total} goal={goal} workoutCount={workoutCount} />;
+}
+
+interface WeeklyEffortCounterViewProps {
+  total: number;
+  goal: number;
+  workoutCount: number;
+}
+
+// Presentational body — no data fetching, safe to render headless.
+export function WeeklyEffortCounterView({ total, goal, workoutCount }: WeeklyEffortCounterViewProps) {
+  const { colors } = useTheme();
 
   const progress = goal > 0 ? Math.min(total / goal, 1) : 0;
   const barColor = getBarColor(progress, colors);

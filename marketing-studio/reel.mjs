@@ -41,18 +41,18 @@ function resolveSource({ postId, src, mediaType }) {
   throw new Error('a media beat needs a postId or src');
 }
 
-const playbackOf = (spec, mediaType) => (mediaType === 'video' ? { playbackRate: Number(spec.speed) || 1 } : {});
-
 // Media resolvers decide how a beat's asset becomes a `media.src`:
 //  • stage  — copy into the Remotion public/staged dir (for an actual render)
 //  • url    — point at the dashboard's asset endpoint (for the live Player preview)
+// playbackRate is NOT set here — buildBeat derives it from the final on-screen
+// window so the whole clip always plays across the beat (no freeze, no cut-off).
 function stageResolver({ stagedDir, id }) {
   return (spec, name) => {
     const { srcPath, mediaType } = resolveSource(spec);
     const ext = path.extname(srcPath) || (mediaType === 'video' ? '.mp4' : '.png');
     const fileName = `${name}${ext}`;
     fs.copyFileSync(srcPath, path.join(stagedDir, fileName));
-    return { media: { src: `staged/${id}/${fileName}`, mediaType, ...playbackOf(spec, mediaType) }, mediaType, srcPath };
+    return { media: { src: `staged/${id}/${fileName}`, mediaType }, mediaType, srcPath };
   };
 }
 
@@ -60,7 +60,7 @@ function urlResolver(spec) {
   const { srcPath, mediaType, postId, version } = resolveSource(spec);
   if (!postId) throw new Error('live preview needs queued posts (postId) for media / before-after beats');
   const url = `/api/posts/${encodeURIComponent(postId)}/asset?v=${encodeURIComponent(version)}`;
-  return { media: { src: url, mediaType, ...playbackOf(spec, mediaType) }, mediaType, srcPath };
+  return { media: { src: url, mediaType }, mediaType, srcPath };
 }
 
 // Resolve one authoring beat into the concrete beat object the composition renders.
@@ -69,12 +69,19 @@ async function buildBeat(beat, i, { template, resolve }) {
 
   if (kind === 'media') {
     const { media, mediaType, srcPath } = resolve(beat, `beat-${i}`);
-    const seconds =
-      beat.seconds != null
-        ? Number(beat.seconds)
-        : mediaType === 'video'
-          ? (await probeDurationSec(srcPath)) / (Number(beat.speed) || 1)
-          : DEFAULT_IMAGE_SECONDS[template] ?? 4;
+    let seconds;
+    if (mediaType === 'video') {
+      // Two independent knobs:
+      //   • speed    — how fast the clip plays; sets the default on-screen window.
+      //   • duration — the on-screen window (how long the beat is shown).
+      // The whole clip is always time-scaled to the chosen window, so it never
+      // freezes mid-clip (window too long) or gets cut off (window too short).
+      const probe = await probeDurationSec(srcPath);
+      seconds = beat.seconds != null ? Number(beat.seconds) : probe / (Number(beat.speed) || 1);
+      media.playbackRate = probe / seconds;
+    } else {
+      seconds = beat.seconds != null ? Number(beat.seconds) : DEFAULT_IMAGE_SECONDS[template] ?? 4;
+    }
     return omitUndefined({ kind, media, caption: beat.caption || undefined, taps: beat.taps?.length ? beat.taps : undefined, durationInFrames: framesFor(seconds) });
   }
 
@@ -82,12 +89,15 @@ async function buildBeat(beat, i, { template, resolve }) {
 
   switch (kind) {
     case 'hook':
-      return omitUndefined({ kind, text: beat.text || '', kicker: beat.kicker || undefined, durationInFrames });
+      return omitUndefined({ kind, text: beat.text || '', kicker: beat.kicker || undefined, instant: beat.instant || undefined, durationInFrames });
     case 'stat':
       return omitUndefined({ kind, value: Number(beat.value) || 0, label: beat.label || '', prefix: beat.prefix || undefined, suffix: beat.suffix || undefined, durationInFrames });
     case 'cta': {
       const qrDataUrl = beat.qr ? await QRCode.toDataURL(beat.qr, { margin: 1, width: 420 }) : undefined;
-      return omitUndefined({ kind, headline: beat.headline || '', sub: beat.sub || undefined, badges: beat.badges?.length ? beat.badges : undefined, qrDataUrl, durationInFrames });
+      // badges defaults to both stores when omitted, but an explicit [] (pre-launch
+      // wishlist CTA) must be preserved so no store badges render.
+      const badges = Array.isArray(beat.badges) ? beat.badges : undefined;
+      return omitUndefined({ kind, headline: beat.headline || '', sub: beat.sub || undefined, badges, pill: beat.pill || undefined, qrDataUrl, durationInFrames });
     }
     case 'split': {
       const left = resolve({ postId: beat.leftPostId, src: beat.leftSrc, mediaType: beat.leftMediaType }, `beat-${i}-l`).media;

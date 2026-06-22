@@ -13,7 +13,6 @@ interface LastWorkoutCardProps {
 }
 
 export function LastWorkoutCard({ onPress }: LastWorkoutCardProps) {
-  const { colors } = useTheme();
   const [workout, setWorkout] = useState<WorkoutResponse | null>(null);
 
   useFetchOnFocus(
@@ -24,6 +23,18 @@ export function LastWorkoutCard({ onPress }: LastWorkoutCardProps) {
   );
 
   if (!workout) return null;
+
+  return <LastWorkoutCardView workout={workout} onPress={onPress} />;
+}
+
+interface LastWorkoutCardViewProps {
+  workout: WorkoutResponse;
+  onPress: (workoutId: string) => void;
+}
+
+// Presentational body — no data fetching, safe to render headless.
+export function LastWorkoutCardView({ workout, onPress }: LastWorkoutCardViewProps) {
+  const { colors } = useTheme();
 
   const duration = formatDuration(workout.started_at, workout.finished_at);
   const icon = getActivityIcon(workout.activity_type);

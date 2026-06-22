@@ -8,13 +8,17 @@ export type TapMark = { xPct: number; yPct: number; atSec: number };
 type BaseBeat = { durationInFrames: number };
 
 export type MediaBeatData = BaseBeat & { kind: 'media'; media: Media; caption?: string; taps?: TapMark[] };
-export type HookBeatData = BaseBeat & { kind: 'hook'; text: string; kicker?: string };
+export type HookBeatData = BaseBeat & { kind: 'hook'; text: string; kicker?: string; instant?: boolean };
 export type StatBeatData = BaseBeat & { kind: 'stat'; value: number; label: string; prefix?: string; suffix?: string };
 export type CtaBeatData = BaseBeat & {
   kind: 'cta';
   headline: string;
   sub?: string;
   badges?: ('appstore' | 'googleplay')[];
+  // Pre-launch call-to-action: a filled accent pill (e.g. "Link in bio 👆") shown
+  // instead of store badges while the app isn't released yet. Pass badges: [] to
+  // hide the App Store / Google Play badges.
+  pill?: string;
   qrDataUrl?: string;
 };
 export type SplitBeatData = BaseBeat & {

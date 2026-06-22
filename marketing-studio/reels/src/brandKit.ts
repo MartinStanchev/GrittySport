@@ -31,10 +31,14 @@ export type CaptionPreset = {
   fontWeight: number;
   letterSpacing: number;
   uppercase: boolean;
+  // When true, the whole caption appears together (one gentle fade-in) instead of
+  // revealing word-by-word like subtitles.
+  instant?: boolean;
 };
 
 export const CAPTION_PRESETS: Record<string, CaptionPreset> = {
   clean: { label: 'Clean', highlight: 'none', fontSize: 56, fontWeight: 700, letterSpacing: -0.5, uppercase: false },
+  static: { label: 'Static (no subtitle reveal)', highlight: 'none', fontSize: 56, fontWeight: 700, letterSpacing: -0.5, uppercase: false, instant: true },
   karaoke: { label: 'Karaoke', highlight: 'dim', fontSize: 56, fontWeight: 700, letterSpacing: -0.5, uppercase: false },
   boxed: { label: 'Boxed', highlight: 'box', fontSize: 52, fontWeight: 700, letterSpacing: 0, uppercase: true },
   pop: { label: 'Pop', highlight: 'pop', fontSize: 58, fontWeight: 700, letterSpacing: -0.5, uppercase: false },
@@ -51,6 +55,7 @@ export type ResolvedCaptionStyle = {
   lineHeight: number;
   uppercase: boolean;
   highlight: CaptionHighlight;
+  instant: boolean; // reveal the whole caption at once instead of word-by-word
   baseColor: string; // revealed, non-active words
   dimColor: string; // past words when highlight === 'dim'
   activeColor: string; // active word text
@@ -69,6 +74,7 @@ export function resolveCaptionStyle(presetId: string, theme: 'light' | 'dark'): 
     lineHeight: 1.12,
     uppercase: preset.uppercase,
     highlight: preset.highlight,
+    instant: preset.instant ?? false,
     baseColor: base,
     dimColor: theme === 'dark' ? 'rgba(243,241,251,0.45)' : 'rgba(26,22,38,0.42)',
     activeColor: preset.highlight === 'box' ? '#ffffff' : accent,

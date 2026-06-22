@@ -21,6 +21,16 @@ export async function withScenePage(opts, fn) {
       deviceScaleFactor: config.deviceScaleFactor,
     });
     const page = await context.newPage();
+
+    // Track map-tile requests so we can wait for the basemap to finish loading
+    // before capturing (tiles are fetched async, after the React "ready" flag).
+    const isTile = (u) => /basemaps\.cartocdn\.com|tile\.openstreetmap/.test(u);
+    let pendingTiles = 0;
+    page.on('request', (r) => { if (isTile(r.url())) pendingTiles++; });
+    const tileDone = (r) => { if (isTile(r.url())) pendingTiles = Math.max(0, pendingTiles - 1); };
+    page.on('requestfinished', tileDone);
+    page.on('requestfailed', tileDone);
+
     await page.goto(url, { waitUntil: 'load', timeout: config.navTimeoutMs });
 
     await page.waitForFunction(() => window.__marketingScene !== undefined, null, {
@@ -39,6 +49,11 @@ export async function withScenePage(opts, fn) {
       await page.waitForSelector('[data-testid="marketing-render-ready"]', {
         timeout: config.readyTimeoutMs,
       });
+    }
+    // Give tile requests a beat to fire, then drain them (no-op for map-less scenes).
+    await page.waitForTimeout(350);
+    for (let waited = 0; pendingTiles > 0 && waited < 6000; waited += 100) {
+      await page.waitForTimeout(100);
     }
     await page.waitForTimeout(config.settleMs);
 

@@ -12,7 +12,9 @@ export const HookBeat: React.FC<{ beat: HookBeatData; theme: 'light' | 'dark'; s
   const { fps } = useVideoConfig();
   const words = beat.text.trim().split(/\s+/).filter(Boolean);
   const kickerEnter = interpolate(frame, [2, 16], [0, 1], { extrapolateRight: 'clamp' });
-  const underline = spring({ frame: frame - (8 + words.length * 4), fps, config: { damping: 200 }, durationInFrames: 18 });
+  // `instant` hooks show the whole line at once; otherwise each word lands 4f apart.
+  const lastWordStart = beat.instant ? 8 : 8 + words.length * 4;
+  const underline = spring({ frame: frame - (lastWordStart + 4), fps, config: { damping: 200 }, durationInFrames: 18 });
 
   return (
     <AbsoluteFill style={{ background: background(theme), justifyContent: 'center', alignItems: 'center' }}>
@@ -36,7 +38,7 @@ export const HookBeat: React.FC<{ beat: HookBeatData; theme: 'light' | 'dark'; s
         ) : null}
         <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 96, lineHeight: 1.04, letterSpacing: -2, color: textColor(theme), display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '0 24px' }}>
           {words.map((word, i) => {
-            const enter = spring({ frame: frame - (8 + i * 4), fps, config: { damping: 200, mass: 0.6 }, durationInFrames: 12 });
+            const enter = spring({ frame: frame - (8 + (beat.instant ? 0 : i * 4)), fps, config: { damping: 200, mass: 0.6 }, durationInFrames: 12 });
             return (
               <span key={i} style={{ display: 'inline-block', opacity: enter, transform: `translateY(${(1 - enter) * 26}px)` }}>
                 {word}

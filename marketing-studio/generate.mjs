@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { captureStill } from './capture/still.mjs';
 import { captureScroll } from './video/scroll.mjs';
+import { captureScreenScroll } from './video/screen-scroll.mjs';
 import { captureChatReplay } from './video/chat-replay.mjs';
 import { readPngSize } from './lib/ffmpeg.mjs';
 import { makePostId, postDir, writePost } from './lib/queue.mjs';
@@ -11,12 +12,14 @@ const FORMATS = {
   still: { fn: captureStill, ext: 'png', mediaType: 'image' },
   'chat-replay': { fn: captureChatReplay, ext: 'mp4', mediaType: 'video' },
   scroll: { fn: captureScroll, ext: 'mp4', mediaType: 'video' },
+  // Real scroll of an app screen (device-aspect), for reel phone frames.
+  'screen-scroll': { fn: captureScreenScroll, ext: 'mp4', mediaType: 'video' },
 };
 
 export const FORMAT_NAMES = Object.keys(FORMATS);
 
 // Render an asset for a scene and create a reviewable post in the queue.
-export async function generatePost({ sceneId, format = 'still', theme = 'light', caption = '', platforms = [], baseUrl, seconds, speed } = {}) {
+export async function generatePost({ sceneId, format = 'still', theme = 'light', caption = '', platforms = [], baseUrl, seconds, speed, fit } = {}) {
   if (!sceneId) throw new Error('sceneId is required');
   const spec = FORMATS[format];
   if (!spec) throw new Error(`Unknown format "${format}" (${FORMAT_NAMES.join(' | ')})`);
@@ -27,7 +30,11 @@ export async function generatePost({ sceneId, format = 'still', theme = 'light',
 
   // scroll → duration (s); chat-replay → speed (×). Undefined falls back to the
   // capture fn's own default.
-  const tuning = format === 'scroll' ? { durationSec: seconds } : format === 'chat-replay' ? { speed } : {};
+  const tuning =
+    format === 'scroll' ? { durationSec: seconds, fit }
+    : format === 'screen-scroll' ? { durationSec: seconds }
+    : format === 'chat-replay' ? { speed }
+    : {};
   const { out } = await spec.fn({ sceneId, theme, baseUrl, outPath, ...tuning });
 
   const post = {
