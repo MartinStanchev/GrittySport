@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 export const alt =
@@ -7,7 +9,13 @@ export const contentType = "image/png";
 // Required when next.config.ts has `output: "export"` — emits at build time.
 export const dynamic = "force-static";
 
-export default function Image() {
+export default async function Image() {
+  const logoData = await readFile(
+    join(process.cwd(), "public/logo-icon.png"),
+    "base64",
+  );
+  const logoSrc = `data:image/png;base64,${logoData}`;
+
   return new ImageResponse(
     (
       <div
@@ -34,21 +42,7 @@ export default function Image() {
             letterSpacing: "-0.02em",
           }}
         >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              background: "linear-gradient(135deg, #7C5CFC, #0EA5B0)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 32,
-              fontWeight: 900,
-            }}
-          >
-            G
-          </div>
+          <img src={logoSrc} width={72} height={72} alt="" />
           Gritty Fitness
         </div>
 

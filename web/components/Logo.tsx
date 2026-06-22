@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-const ASPECT = 1280 / 567;
+const ASPECT = 901 / 351;
 
 export function Logo({ height = 100 }: { height?: number }) {
   return (
