@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import MapView, { Polyline, UrlTile } from '../components/NativeMap';
+import { RouteMapPreview } from '../components/RouteMapPreview';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -151,20 +151,6 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
   const userIsPremium = isPremium(user);
 
-  const polylineCoords = workout.points.map((p) => ({ latitude: p.lat, longitude: p.lng }));
-  const firstPoint = workout.points[0];
-  const lastPoint = workout.points[workout.points.length - 1];
-
-  const mapRegion =
-    firstPoint && lastPoint
-      ? {
-          latitude: (firstPoint.lat + lastPoint.lat) / 2,
-          longitude: (firstPoint.lng + lastPoint.lng) / 2,
-          latitudeDelta: Math.abs(firstPoint.lat - lastPoint.lat) * 2 + 0.01,
-          longitudeDelta: Math.abs(firstPoint.lng - lastPoint.lng) * 2 + 0.01,
-        }
-      : { latitude: 51.5074, longitude: -0.1278, latitudeDelta: 0.05, longitudeDelta: 0.05 };
-
   async function handleSave() {
     setSaving(true);
     const workoutPayload = {
@@ -219,26 +205,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       <ScrollView style={[styles.flex, { backgroundColor: colors.background }]} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
         {/* Route map */}
         {workout.points.length > 1 ? (
-          <MapView
-            style={styles.map}
-            region={mapRegion}
-            scrollEnabled={false}
-            zoomEnabled={false}
-            mapType={Platform.OS === 'android' ? 'none' : 'standard'}
-          >
-            {Platform.OS === 'android' && (
-              <UrlTile
-                urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maximumZ={19}
-                flipY={false}
-              />
-            )}
-            <Polyline
-              coordinates={polylineCoords}
-              strokeColor={colors.primary}
-              strokeWidth={4}
-            />
-          </MapView>
+          <RouteMapPreview gpsRoute={{ points: workout.points }} style={styles.map} />
         ) : (
           <View style={[styles.noMapPlaceholder, { backgroundColor: colors.surfaceAlt }]}>
             <Ionicons name="map-outline" size={40} color={colors.textSecondary} />
@@ -510,7 +477,7 @@ function getLapSpeedColor(speed: number, colors: ThemeColors): string {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  map: { height: 220, width: '100%' },
+  map: { height: 220, width: '100%', borderRadius: 0 },
   noMapPlaceholder: {
     height: 160,
     alignItems: 'center',
