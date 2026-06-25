@@ -1,4 +1,9 @@
-import { applyGPSPoint, AUTO_PAUSE_POINT_COUNT, MAX_ACCURACY_METRES } from '../services/gpsReducer';
+import {
+  applyGPSPoint,
+  AUTO_PAUSE_POINT_COUNT,
+  AUTO_RESUME_POINT_COUNT,
+  MAX_ACCURACY_METRES,
+} from '../services/gpsReducer';
 import type { RawLocation } from '../services/gpsReducer';
 import type { ActiveGPSWorkout } from '../contexts/WorkoutContext';
 
@@ -28,7 +33,9 @@ function baseWorkout(overrides: Partial<ActiveGPSWorkout> = {}): ActiveGPSWorkou
     avgCadence: null,
     autoPausedDurationSec: 0,
     lastAutoPauseStart: null,
+    autoPaused: false,
     slowPointCount: 0,
+    movingPointCount: 0,
     workoutNotes: '',
     ...overrides,
   };
@@ -50,8 +57,9 @@ function reading(index: number, opts: Partial<RawLocation['coords']> = {}): RawL
 }
 
 describe('applyGPSPoint', () => {
-  it('ignores readings when not recording', () => {
-    const paused = baseWorkout({ recordingState: 'paused' });
+  it('ignores readings while manually paused', () => {
+    // A manual pause (autoPaused: false) is never auto-resumed.
+    const paused = baseWorkout({ recordingState: 'paused', autoPaused: false });
     expect(applyGPSPoint(paused, reading(0))).toBe(paused);
   });
 
@@ -63,7 +71,7 @@ describe('applyGPSPoint', () => {
 
   it('accumulates points and distance across readings', () => {
     const readings = [reading(0), reading(1), reading(2)];
-    const result = readings.reduce(applyGPSPoint, baseWorkout());
+    const result = readings.reduce((w, r) => applyGPSPoint(w, r), baseWorkout());
 
     expect(result.points).toHaveLength(3);
     expect(result.totalDistanceM).toBeGreaterThan(10);
@@ -75,7 +83,7 @@ describe('applyGPSPoint', () => {
   it('replaying a buffered batch matches feeding readings one at a time', () => {
     const readings = [reading(0), reading(1), reading(2), reading(3)];
 
-    const batched = readings.reduce(applyGPSPoint, baseWorkout());
+    const batched = readings.reduce((w, r) => applyGPSPoint(w, r), baseWorkout());
     let oneByOne = baseWorkout();
     for (const r of readings) oneByOne = applyGPSPoint(oneByOne, r);
 
@@ -83,20 +91,56 @@ describe('applyGPSPoint', () => {
     expect(batched.points).toHaveLength(oneByOne.points.length);
   });
 
-  it('auto-pauses after a run of near-stationary readings', () => {
-    // All readings at the same coordinate → ~0 m/s.
-    const still = (i: number): RawLocation => ({
-      coords: { latitude: 40, longitude: -74, altitude: 100, accuracy: 5, speed: 0 },
-      timestamp: START_MS + i * 1000,
-    });
+  // All readings at the same coordinate → ~0 m/s.
+  const still = (i: number): RawLocation => ({
+    coords: { latitude: 40, longitude: -74, altitude: 100, accuracy: 5, speed: 0 },
+    timestamp: START_MS + i * 1000,
+  });
 
+  function stationaryUntilPaused(): ReturnType<typeof baseWorkout> {
     let w = baseWorkout();
     w = applyGPSPoint(w, still(0)); // seeds first point
     for (let i = 1; i <= AUTO_PAUSE_POINT_COUNT; i++) {
       w = applyGPSPoint(w, still(i));
     }
+    return w;
+  }
+
+  it('auto-pauses after a run of near-stationary readings', () => {
+    const w = stationaryUntilPaused();
 
     expect(w.recordingState).toBe('paused');
+    expect(w.autoPaused).toBe(true);
     expect(w.slowPointCount).toBe(0);
+  });
+
+  it('does not auto-pause when the setting is off', () => {
+    let w = baseWorkout();
+    for (let i = 0; i <= AUTO_PAUSE_POINT_COUNT + 2; i++) {
+      w = applyGPSPoint(w, still(i), false);
+    }
+
+    expect(w.recordingState).toBe('recording');
+  });
+
+  it('auto-resumes after sustained movement away from the pause spot', () => {
+    let w = stationaryUntilPaused();
+    expect(w.recordingState).toBe('paused');
+
+    // Each reading walks ~7 m/index further north — quickly clears the resume distance.
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT; i++) {
+      w = applyGPSPoint(w, reading(i + AUTO_PAUSE_POINT_COUNT));
+    }
+
+    expect(w.recordingState).toBe('recording');
+    expect(w.autoPaused).toBe(false);
+    expect(w.movingPointCount).toBe(0);
+  });
+
+  it('does not auto-resume when the setting is off', () => {
+    const paused = stationaryUntilPaused();
+    const next = applyGPSPoint(paused, reading(AUTO_PAUSE_POINT_COUNT + 5), false);
+
+    expect(next).toBe(paused);
   });
 });

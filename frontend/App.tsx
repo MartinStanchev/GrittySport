@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { ProgramProvider } from './src/contexts/ProgramContext';
 import { WorkoutProvider } from './src/contexts/WorkoutContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { PreferencesProvider } from './src/contexts/PreferencesContext';
 import { ToastProvider } from './src/contexts/ToastContext';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import AuthScreen from './src/screens/auth/AuthScreen';
@@ -110,7 +111,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AppContent />
+        <PreferencesProvider>
+          <AppContent />
+        </PreferencesProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

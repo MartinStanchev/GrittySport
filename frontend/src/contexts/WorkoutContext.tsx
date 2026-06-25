@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
+import { bleService } from '../services/bleService';
 
 // ---- Manual workout types (unchanged) ----
 
@@ -94,8 +95,13 @@ export interface ActiveGPSWorkout {
   // Pause tracking
   autoPausedDurationSec: number;
   lastAutoPauseStart: number | null;
+  // True when the current pause was triggered automatically (vs. a manual Pause tap);
+  // only auto-pauses are eligible for auto-resume.
+  autoPaused: boolean;
   // Consecutive below-threshold points, drives auto-pause (folded by the GPS reducer)
   slowPointCount: number;
+  // Consecutive moving readings while auto-paused, drives auto-resume
+  movingPointCount: number;
   // BLE
   hrDeviceName?: string;
   // Notes (filled in summary screen)
@@ -113,8 +119,9 @@ type GPSWorkoutInitFields =
   | 'currentSpeedKph' | 'avgSpeedKph'
   | 'currentHR' | 'avgHR'
   | 'cadenceReadings' | 'currentCadence' | 'avgCadence'
-  | 'autoPausedDurationSec' | 'lastAutoPauseStart' | 'slowPointCount'
-  | 'workoutNotes';
+  | 'autoPausedDurationSec' | 'lastAutoPauseStart' | 'autoPaused'
+  | 'slowPointCount' | 'movingPointCount'
+  | 'hrDeviceName' | 'workoutNotes';
 
 export type StartGPSWorkoutOpts = Omit<ActiveGPSWorkout, GPSWorkoutInitFields>;
 
@@ -133,6 +140,12 @@ interface WorkoutContextType {
   clearGPSWorkout: () => void;
   // Derived
   workoutMode: WorkoutMode | null;
+}
+
+// Name of the HR monitor connected before the workout started, if any (e.g. an
+// auto-reconnect that completed while the recording screen was open).
+function connectedHRDeviceName(): string | undefined {
+  return bleService.isConnected() ? bleService.getDeviceName() ?? undefined : undefined;
 }
 
 const WorkoutContext = createContext<WorkoutContextType | null>(null);
@@ -158,7 +171,8 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       hrReadings: [],
       currentHR: null,
       avgHR: null,
-      hrDeviceName: undefined,
+      // Carry over an HR monitor already connected before start (e.g. auto-reconnect).
+      hrDeviceName: connectedHRDeviceName(),
       pausedDurationSec: 0,
       lastPauseStart: null,
     });
@@ -196,7 +210,11 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       avgCadence: null,
       autoPausedDurationSec: 0,
       lastAutoPauseStart: null,
+      autoPaused: false,
       slowPointCount: 0,
+      movingPointCount: 0,
+      // Carry over an HR monitor already connected before start (e.g. auto-reconnect).
+      hrDeviceName: connectedHRDeviceName(),
       workoutNotes: '',
     });
   }, []);

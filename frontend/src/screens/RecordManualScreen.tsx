@@ -33,6 +33,7 @@ import {
 import { useProgram } from '../contexts/ProgramContext';
 import HRSensorModal from '../components/HRSensorModal';
 import LiveHRChart from '../components/LiveHRChart';
+import { useHRAutoConnect } from '../hooks/useHRAutoConnect';
 import { bleService } from '../services/bleService';
 import {
   getHRZoneColor,
@@ -781,16 +782,17 @@ export default function RecordManualScreen() {
     updateWorkout({ hrDeviceName: deviceName });
   }, [updateWorkout]);
 
-  // Disconnect BLE on unmount if no workout is active (e.g. stack drop after save).
+  // Reconnect to the last HR monitor as soon as the screen opens, so a manual
+  // workout (strength/mobility/drill) can start with HR already streaming. The hook
+  // also drops the connection on unmount when no workout is active (e.g. stack drop
+  // after save), so we keep a ref to the latest active workout for it to read.
   const activeWorkoutLatestRef = useRef(activeWorkout);
   activeWorkoutLatestRef.current = activeWorkout;
-  useEffect(() => {
-    return () => {
-      if (!activeWorkoutLatestRef.current && bleService.isConnected()) {
-        bleService.disconnect();
-      }
-    };
-  }, []);
+  useHRAutoConnect({
+    onReading: handleHRReading,
+    onConnected: handleHRConnected,
+    hasActiveWorkout: () => activeWorkoutLatestRef.current !== null,
+  });
 
   const { highlight, dismiss: dismissHighlight } = useSetDetection({
     hrReadings: activeWorkout?.hrReadings ?? [],

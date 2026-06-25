@@ -86,7 +86,9 @@ export default function HRSensorModal({
   );
 
   const handleDisconnect = useCallback(async () => {
+    // Explicit user disconnect — also forget the device so we don't auto-reconnect to it.
     await bleService.disconnect();
+    await bleService.forgetLastDevice();
     onClose();
   }, [onClose]);
 

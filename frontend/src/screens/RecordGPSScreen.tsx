@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,6 +38,7 @@ import { locationTracking } from '../services/locationTrackingService';
 import { bleService } from '../services/bleService';
 import { cadenceService } from '../services/cadenceService';
 import HRSensorModal from '../components/HRSensorModal';
+import { useHRAutoConnect } from '../hooks/useHRAutoConnect';
 import type { CadenceReading } from '../types/gps';
 import {
   formatLiveWorkoutType,
@@ -64,6 +66,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const { height: windowHeight } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout, workoutMode } = useWorkout();
+  const { autoPauseEnabled } = usePreferences();
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
 
@@ -78,6 +81,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const showCadence = isRun || activityType === 'walk';
   const gpsWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
   gpsWorkoutRef.current = activeGPSWorkout;
+  // Read inside the stable drain callback without re-subscribing the location listener.
+  const autoPauseEnabledRef = useRef(autoPauseEnabled);
+  autoPauseEnabledRef.current = autoPauseEnabled;
   const metricsExpandedRef = useRef(false);
   const userMovedMapRef = useRef(false);
   const followTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -173,7 +179,10 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     const base = gpsWorkoutRef.current;
     if (!base || readings.length === 0) return;
 
-    const next = readings.reduce(applyGPSPoint, base);
+    const next = readings.reduce(
+      (workout, reading) => applyGPSPoint(workout, reading, autoPauseEnabledRef.current),
+      base,
+    );
     if (next === base) return;
 
     gpsWorkoutRef.current = next;
@@ -219,7 +228,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       return;
     }
 
-    startGPSWorkout({ activityType, activityDisplayType: displayType, scheduledActivityId, startedAt: new Date() });
+    startGPSWorkout({
+      activityType,
+      activityDisplayType: displayType,
+      scheduledActivityId,
+      startedAt: new Date(),
+    });
     updateGPSWorkout({ recordingState: 'recording' });
 
     if (showCadence) {
@@ -235,7 +249,13 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   }, [activityType, scheduledActivityId, showCadence, startGPSWorkout, updateGPSWorkout]);
 
   const handlePause = useCallback(() => {
-    updateGPSWorkout({ recordingState: 'paused', lastAutoPauseStart: Date.now() });
+    // Manual pause: mark it non-auto so the reducer won't auto-resume it.
+    updateGPSWorkout({
+      recordingState: 'paused',
+      autoPaused: false,
+      lastAutoPauseStart: Date.now(),
+      movingPointCount: 0,
+    });
   }, [updateGPSWorkout]);
 
   const handleResume = useCallback(() => {
@@ -245,9 +265,11 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     const additionalPause = (Date.now() - pausedSince) / 1000;
     updateGPSWorkout({
       recordingState: 'recording',
+      autoPaused: false,
       autoPausedDurationSec: gpsWorkout.autoPausedDurationSec + additionalPause,
       lastAutoPauseStart: null,
       slowPointCount: 0,
+      movingPointCount: 0,
     });
   }, [updateGPSWorkout]);
 
@@ -333,6 +355,12 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     }
   }, []);
 
+  const { connectingTo } = useHRAutoConnect({
+    onReading: handleHRReading,
+    onConnected: handleHRConnected,
+    hasActiveWorkout: () => gpsWorkoutRef.current !== null,
+  });
+
   const handleRecenter = useCallback(async () => {
     const gpsWorkout = gpsWorkoutRef.current;
     const last = gpsWorkout && gpsWorkout.points.length > 0
@@ -375,9 +403,10 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const mapOverlay = isDark ? 'rgba(17, 17, 26, 0.78)' : 'rgba(255, 255, 255, 0.82)';
   const mapScrimColor = isDark ? 'rgba(12, 11, 18, 0.18)' : 'rgba(245, 243, 255, 0.12)';
   const collapsedPillBg = isDark ? 'rgba(17, 17, 26, 0.88)' : 'rgba(255, 255, 255, 0.92)';
-  const connectionLabel = bleService.isConnected()
-    ? `Connected to ${workout?.hrDeviceName ?? previewDeviceName ?? bleService.getDeviceName()}`
-    : 'Connect heart rate monitor';
+  const connectionLabel = getHRConnectionLabel(
+    workout?.hrDeviceName ?? previewDeviceName,
+    connectingTo,
+  );
   const expandedPanelHeight = Math.min(Math.max(560, windowHeight * 0.72), 700);
   const collapsedTranslateY = Math.max(expandedPanelHeight - COLLAPSED_PANEL_PEEK, 0);
   const panelTranslateY = useRef(new Animated.Value(collapsedTranslateY)).current;
@@ -617,7 +646,9 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         {recordingState === 'paused' && workout && workout.points.length > 0 && (
           <View style={[styles.pauseChip, { top: insets.top + 82, backgroundColor: `${colors.tertiary}22` }]}>
             <Ionicons name="pause-circle" size={15} color={colors.tertiary} />
-            <Text style={[styles.pauseChipText, { color: colors.textPrimary }]}>Auto-paused</Text>
+            <Text style={[styles.pauseChipText, { color: colors.textPrimary }]}>
+              {workout.autoPaused ? 'Auto-paused' : 'Paused'}
+            </Text>
           </View>
         )}
 
@@ -941,6 +972,17 @@ function ControlButton({
       <Text style={[styles.controlButtonText, { color: colors.textPrimary }]}>{label}</Text>
     </Pressable>
   );
+}
+
+// Heart-rate sensor row subtitle: connected device, in-flight reconnect, or prompt.
+function getHRConnectionLabel(connectedName: string | null | undefined, connectingTo: string | null): string {
+  if (bleService.isConnected()) {
+    return `Connected to ${connectedName ?? bleService.getDeviceName()}`;
+  }
+  if (connectingTo) {
+    return `Connecting to ${connectingTo}…`;
+  }
+  return 'Connect heart rate monitor';
 }
 
 function getQualityColor(tone: 'good' | 'fair' | 'searching', colors: ThemeColors): string {

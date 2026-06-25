@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
+import { usePreferences } from '../contexts/PreferencesContext';
 import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
 import { bleService } from '../services/bleService';
@@ -60,6 +61,7 @@ const DEFAULT_EFFORT_GOAL = 300;
 export default function SettingsScreen() {
   const { user, signOut, deleteAccount, updateUser } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
+  const { autoPauseEnabled, setAutoPauseEnabled } = usePreferences();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
 
@@ -451,6 +453,28 @@ export default function SettingsScreen() {
             </KineticPanel>
           </>
         )}
+
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Workout Tracking</Text>
+        <KineticPanel style={styles.section}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingLabel, { color: colors.textPrimary }]}>Auto-pause</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>
+                Pause GPS recording when you stop moving (e.g. at a red light) and resume once you&apos;re going again
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.themeToggle, autoPauseEnabled && { backgroundColor: colors.primary }]}
+              onPress={() => setAutoPauseEnabled(!autoPauseEnabled)}
+            >
+              <View style={[
+                styles.themeToggleKnob,
+                { backgroundColor: colors.surface },
+                autoPauseEnabled && styles.themeToggleKnobOn,
+              ]} />
+            </TouchableOpacity>
+          </View>
+        </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>
         <KineticPanel style={styles.section}>
