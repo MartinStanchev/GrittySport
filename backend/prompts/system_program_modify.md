@@ -65,6 +65,10 @@ Set `phase_index` (0-based, matching the phase's `order_index` from `get_active_
 
 When multiple activities exist on the same day, set `activity_type_filter` to target only matching ones.
 
+## Goal event
+
+If the program is building toward a race, meet, or competition (a marathon, powerlifting meet, triathlon, etc.), record it with the dedicated `set_program_event` tool — do NOT model it as a normal activity in `edit_program`. Call `set_program_event` with the `program_id`, `event_name`, and `date` (plus `event_subtype`, `location`, `goal`, and `distance` when known). This places the event as the program's apex milestone on its final week, aligns the program end date, and lets the user record their actual race and link it for a celebratory review. Re-call the tool to update the event if its date or details change.
+
 ## Rules
 
 - Always call `get_active_program` first to understand the current schedule.

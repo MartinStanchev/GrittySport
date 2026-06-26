@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/achievements"
 	"github.com/grittyfitness/api/internal/middleware"
 	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/review"
@@ -21,24 +22,42 @@ import (
 )
 
 type WorkoutHandler struct {
-	workoutService *services.WorkoutService
-	reviewService  *review.Service
-	usageService   *usage.Service
-	pool           *pgxpool.Pool
+	workoutService     *services.WorkoutService
+	reviewService      *review.Service
+	achievementService *achievements.Service
+	usageService       *usage.Service
+	pool               *pgxpool.Pool
 }
 
 func NewWorkoutHandler(
 	workoutService *services.WorkoutService,
 	reviewService *review.Service,
+	achievementService *achievements.Service,
 	usageService *usage.Service,
 	pool *pgxpool.Pool,
 ) *WorkoutHandler {
 	return &WorkoutHandler{
-		workoutService: workoutService,
-		reviewService:  reviewService,
-		usageService:   usageService,
-		pool:           pool,
+		workoutService:     workoutService,
+		reviewService:      reviewService,
+		achievementService: achievementService,
+		usageService:       usageService,
+		pool:               pool,
 	}
+}
+
+// evaluateAchievements mints any achievements a workout earns, in the
+// background. Idempotent, so calling it on both save and link is safe.
+func (h *WorkoutHandler) evaluateAchievements(userID, workoutID string) {
+	if h.achievementService == nil {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := h.achievementService.Evaluate(ctx, userID, workoutID); err != nil {
+			log.Error().Err(err).Str("workout_id", workoutID).Msg("Achievement evaluation failed")
+		}
+	}()
 }
 
 func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +101,8 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to save workout")
 		return
 	}
+
+	h.evaluateAchievements(userID, workout.ID)
 
 	writeJSON(w, http.StatusCreated, workout)
 }
@@ -167,6 +188,9 @@ func (h *WorkoutHandler) Link(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to link workout")
 		return
 	}
+
+	// Linking can newly qualify the workout for an event-completion trophy.
+	h.evaluateAchievements(userID, workoutID)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

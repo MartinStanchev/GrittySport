@@ -400,3 +400,16 @@ type UpdateActivityInput struct {
 	DayOfWeek    *int            `json:"day_of_week,omitempty"`
 	ActivityType *string         `json:"activity_type,omitempty"`
 }
+
+// SetProgramEventInput describes the goal event (race/meet/competition) a
+// program is building toward. It is stored as a single scheduled activity of
+// type `event` in the program's final week; the rich fields live in the
+// activity's prescription.
+type SetProgramEventInput struct {
+	EventName    string `json:"event_name"`
+	EventSubtype string `json:"event_subtype"`
+	Date         string `json:"date"` // YYYY-MM-DD
+	Location     string `json:"location"`
+	Goal         string `json:"goal"`
+	Distance     string `json:"distance"`
+}

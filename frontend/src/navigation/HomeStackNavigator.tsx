@@ -8,6 +8,7 @@ import WorkoutSummaryScreen from '../screens/WorkoutSummaryScreen';
 import WorkoutDetailScreen from '../screens/WorkoutDetailScreen';
 import ImportScreen from '../screens/ImportScreen';
 import ImportPreviewScreen from '../screens/ImportPreviewScreen';
+import AchievementsScreen from '../screens/AchievementsScreen';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Stack = createNativeStackNavigator();
@@ -67,6 +68,11 @@ export default function HomeStackNavigator() {
         name="ImportPreview"
         component={ImportPreviewScreen}
         options={{ title: 'Import Workout' }}
+      />
+      <Stack.Screen
+        name="Achievements"
+        component={AchievementsScreen}
+        options={{ title: 'Trophy Room' }}
       />
     </Stack.Navigator>
   );

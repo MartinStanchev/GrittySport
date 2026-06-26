@@ -33,6 +33,11 @@ func isValidUUID(s string) bool {
 	return true
 }
 
+func stringParam(params map[string]any, key string) string {
+	s, _ := params[key].(string)
+	return s
+}
+
 func intFromAny(v any, defaultVal int) int {
 	switch n := v.(type) {
 	case float64:
@@ -53,6 +58,7 @@ var ActivityTypes = []string{
 	"indoor_run", "indoor_cycling",
 	"strength_training", "mobility", "yoga", "recovery", "rest", "drill",
 	"cross_training", "outdoor_activity", "indoor_activity",
+	"event",
 }
 
 // phaseSchema returns the genai.Schema for a single phase used by save_draft_phase and update_draft_phase.
@@ -781,6 +787,52 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 		// Handler is intentionally nil: this tool is intercepted by the chat handler
 		// before reaching the registry. It triggers a mode escalation to program_management.
 		Handler: nil,
+	})
+
+	reg.Register(&Tool{
+		Name:        "set_program_event",
+		Modes:       []chat.Mode{chat.ModeProgramManagement},
+		Description: "Set or update the goal event the program is building toward — the user's race, meet, or competition (e.g. a marathon, powerlifting meet, or triathlon). Stores it as a special milestone on the program's final week and aligns the program end date to the event. Call this when the user tells you about the event they're training for. Re-call to update details if the event changes.",
+		Parameters: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"program_id", "event_name", "date"},
+			Properties: map[string]*genai.Schema{
+				"program_id":    {Type: genai.TypeString, Description: "The active program's ID"},
+				"event_name":    {Type: genai.TypeString, Description: "The event name (e.g. 'Berlin Marathon', 'Regional Powerlifting Meet')"},
+				"event_subtype": {Type: genai.TypeString, Description: "Short category, snake_case (e.g. marathon, half_marathon, powerlifting_meet, triathlon, 5k, 10k)"},
+				"date":          {Type: genai.TypeString, Description: "Event date (YYYY-MM-DD)"},
+				"location":      {Type: genai.TypeString, Description: "Where the event takes place (optional)"},
+				"goal":          {Type: genai.TypeString, Description: "The user's target outcome (e.g. 'sub-3:30', 'total 500kg', 'finish strong') (optional)"},
+				"distance":      {Type: genai.TypeString, Description: "Event distance if applicable (e.g. '42.2 km', '70.3') (optional)"},
+			},
+		},
+		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
+			programID, _ := params["program_id"].(string)
+			if programID == "" {
+				return nil, fmt.Errorf("program_id is required")
+			}
+			in := models.SetProgramEventInput{
+				EventName:    stringParam(params, "event_name"),
+				EventSubtype: stringParam(params, "event_subtype"),
+				Date:         stringParam(params, "date"),
+				Location:     stringParam(params, "location"),
+				Goal:         stringParam(params, "goal"),
+				Distance:     stringParam(params, "distance"),
+			}
+			if in.EventName == "" || in.Date == "" {
+				return nil, fmt.Errorf("event_name and date are required")
+			}
+			activity, err := programSvc.SetProgramEvent(ctx, programID, userID, in)
+			if err != nil {
+				return nil, fmt.Errorf("set program event: %w", err)
+			}
+			return map[string]any{
+				"status":      "saved",
+				"activity_id": activity.ID,
+				"event_date":  in.Date,
+				"message":     fmt.Sprintf("Event '%s' set for %s.", in.EventName, in.Date),
+			}, nil
+		},
 	})
 
 	reg.Register(&Tool{
