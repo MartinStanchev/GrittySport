@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
-import { isGPSActivity } from '../constants/activityIcons';
+import { isGPSActivity, EVENT_COLOR } from '../constants/activityIcons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
@@ -39,6 +39,8 @@ import { WeeklyEffortCounter } from '../components/WeeklyEffortCounter';
 import { LastWorkoutCard } from '../components/LastWorkoutCard';
 import { StreakDots } from '../components/StreakDots';
 import { QuickStartSection } from '../components/QuickStartSection';
+import { EventCountdownCard } from '../components/EventCountdownCard';
+import { AchievementsHighlightCard } from '../components/AchievementsHighlightCard';
 import { mondayOf } from '../utils/dates';
 import { useAuth } from '../contexts/AuthContext';
 import { pickWorkoutFile } from '../services/workoutFileParser';
@@ -590,13 +592,24 @@ export default function HomeScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: colors.primary }]}>GRITTY FITNESS</Text>
-          <Text style={[styles.greeting, { color: colors.textPrimary }]}>
-            {getGreeting()}, {user?.name?.split(' ')[0] || 'Athlete'}
-          </Text>
-          <Text style={[styles.greetingSub, { color: colors.textSecondary }]}>
-            READY FOR THE GRIND?
-          </Text>
+          <View style={styles.headerRow}>
+            <View style={styles.headerCopy}>
+              <Text style={[styles.headerTitle, { color: colors.primary }]}>GRITTY FITNESS</Text>
+              <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+                {getGreeting()}, {user?.name?.split(' ')[0] || 'Athlete'}
+              </Text>
+              <Text style={[styles.greetingSub, { color: colors.textSecondary }]}>
+                READY FOR THE GRIND?
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => navigation.navigate('Achievements')}
+              style={[styles.trophyButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              hitSlop={8}
+            >
+              <Ionicons name="trophy-outline" size={22} color={EVENT_COLOR} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Quick Stats */}
@@ -626,6 +639,9 @@ export default function HomeScreen() {
           onCreateProgram={openProgramCreation}
         />
 
+        {/* Goal Event Countdown */}
+        <EventCountdownCard programId={activeProgram?.id} />
+
         {/* Grit Insight */}
         <GritInsightCard onOpenChat={openChat} />
 
@@ -634,6 +650,9 @@ export default function HomeScreen() {
 
         {/* Last Workout */}
         <LastWorkoutCard onPress={(workoutId) => navigation.navigate('WorkoutDetail', { workoutId })} />
+
+        {/* Trophy Room highlight */}
+        <AchievementsHighlightCard onPress={() => navigation.navigate('Achievements')} />
 
         {/* Streak Dots */}
         <StreakDots completedDays={completedDays} />
@@ -854,6 +873,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerCopy: {
+    flex: 1,
+  },
+  trophyButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
   headerTitle: {
     fontSize: 12,

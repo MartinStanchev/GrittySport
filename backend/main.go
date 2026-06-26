@@ -16,6 +16,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/achievements"
 	"github.com/grittyfitness/api/internal/ai"
 	"github.com/grittyfitness/api/internal/db"
 	"github.com/grittyfitness/api/internal/email"
@@ -232,7 +233,10 @@ func main() {
 	retentionScheduler := retention.NewScheduler(pool)
 	go retentionScheduler.Run(ctx)
 
-	workoutHandler := handlers.NewWorkoutHandler(workoutService, reviewService, usageService, pool)
+	achievementService := achievements.NewService(pool, workoutService)
+	achievementHandler := handlers.NewAchievementHandler(achievementService)
+
+	workoutHandler := handlers.NewWorkoutHandler(workoutService, reviewService, achievementService, usageService, pool)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -317,6 +321,10 @@ func main() {
 			r.Get("/workouts/{workoutId}/analytics", workoutHandler.Analytics)
 			r.Get("/workouts/{workoutId}/review", workoutHandler.GetReview)
 			r.Post("/workouts/{workoutId}/review/trigger", workoutHandler.TriggerReview)
+
+			r.Get("/achievements", achievementHandler.List)
+			r.Post("/achievements", achievementHandler.Create)
+			r.Delete("/achievements/{id}", achievementHandler.Delete)
 		})
 	})
 

@@ -737,6 +737,39 @@ export async function triggerWorkoutReview(workoutId: string): Promise<{ status:
   });
 }
 
+// Achievements / trophy room
+
+export type AchievementType = 'event_completion' | 'personal_record' | 'milestone' | 'manual';
+
+export interface Achievement {
+  id: string;
+  type: AchievementType;
+  title: string;
+  subtitle?: string;
+  workout_id?: string;
+  program_id?: string;
+  activity_type?: string;
+  metric_value?: number;
+  metric_unit?: string;
+  achieved_at: string;
+  created_at: string;
+}
+
+export async function getAchievements(): Promise<Achievement[]> {
+  return apiFetch<Achievement[]>('/api/v1/achievements');
+}
+
+export async function pinAchievement(workoutId: string, title?: string): Promise<Achievement> {
+  return apiFetch<Achievement>('/api/v1/achievements', {
+    method: 'POST',
+    body: JSON.stringify({ workout_id: workoutId, title }),
+  });
+}
+
+export async function deleteAchievement(id: string): Promise<void> {
+  await apiFetch<{ status: string }>(`/api/v1/achievements/${id}`, { method: 'DELETE' });
+}
+
 // Push notifications
 
 export async function registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {

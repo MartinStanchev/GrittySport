@@ -34,6 +34,7 @@ import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import type { ThemeColors } from '../constants/colors';
 import { CriteriaEditorModal } from '../components/CriteriaEditorModal';
 import { AdherenceBar } from '../components/AdherenceBar';
+import { EventCountdownCard } from '../components/EventCountdownCard';
 import { computeAdherence } from '../utils/adherence';
 import { addDays, sameDay, startOfDay } from '../utils/dates';
 import { useProgram } from '../contexts/ProgramContext';
@@ -306,6 +307,8 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
         today={today}
         colors={colors}
       />
+
+      <EventCountdownCard programId={program.id} />
 
       <AdherenceBar counts={adherence} title="Plan adherence" />
 

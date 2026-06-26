@@ -20,6 +20,7 @@ export const ACTIVITY_TYPES = [
   'cross_training',
   'outdoor_activity',
   'indoor_activity',
+  'event',
 ] as const;
 
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -41,7 +42,11 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   cross_training: 'fitness-outline',
   outdoor_activity: 'sunny-outline',
   indoor_activity: 'home-outline',
+  event: 'trophy-outline',
 };
+
+// Gold accent used to mark the program's goal event and trophy-room items.
+export const EVENT_COLOR = '#E8B53C';
 
 export function getActivityIcon(type: string): keyof typeof Ionicons.glyphMap {
   const normalized = type.toLowerCase().replace(/\s+/g, '_');
@@ -100,6 +105,7 @@ export const ACTIVITY_DISPLAY_NAMES: Record<string, string> = {
   cross_training: 'Cross Training',
   outdoor_activity: 'Outdoor Activity',
   indoor_activity: 'Indoor Activity',
+  event: 'Event',
 };
 
 export function formatActivityType(type: string): string {
@@ -157,6 +163,7 @@ const SPORT_COLOR_MAP: Record<string, string> = {
   cross_training: '#7C5CFC',
   outdoor_activity: '#34C759',
   indoor_activity: '#7C5CFC',
+  event: EVENT_COLOR,
 };
 
 export function getActivityColor(type: string): string {

@@ -5,9 +5,9 @@ import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
-import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, EVENT_COLOR } from '../constants/activityIcons';
 import { formatDuration, formatFullDate, formatRelativeDay } from '../utils/dates';
-import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout } from '../services/api';
+import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout, pinAchievement } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { canExportWorkout, workoutHasGPS, shareWorkoutExport, type ExportFormat } from '../services/workoutExport';
 import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
@@ -483,6 +483,24 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
     }
   }, [workout, shareSheet]);
 
+  const [pinned, setPinned] = useState(false);
+  const handlePin = useCallback(async () => {
+    if (!userIsPremium) {
+      Alert.alert(
+        'Premium feature',
+        'Pinning your own workouts to the trophy room is a Premium feature. Event completions, personal records, and milestones are saved automatically for everyone.',
+      );
+      return;
+    }
+    try {
+      await pinAchievement(workoutId);
+      setPinned(true);
+      Alert.alert('Pinned', 'Saved to your trophy room.');
+    } catch {
+      Alert.alert('Error', 'Could not pin this workout.');
+    }
+  }, [workoutId, userIsPremium]);
+
   const handleDelete = useCallback(() => {
     Alert.alert('Delete Workout', 'This workout will be permanently deleted.', [
       { text: 'Cancel', style: 'cancel' },
@@ -651,6 +669,18 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
           )}
         </Pressable>
       )}
+
+      {/* Pin to Trophy Room */}
+      <Pressable
+        style={[styles.linkBtn, { borderColor: EVENT_COLOR, marginTop: 12 }]}
+        onPress={handlePin}
+        disabled={pinned}
+      >
+        <Ionicons name={pinned ? 'trophy' : 'trophy-outline'} size={16} color={EVENT_COLOR} />
+        <Text style={[styles.linkBtnText, { color: EVENT_COLOR }]}>
+          {pinned ? 'Saved to Trophy Room' : 'Pin to Trophy Room'}
+        </Text>
+      </Pressable>
 
       {/* Delete */}
       <Pressable style={[styles.deleteBtn, { borderColor: colors.error }]} onPress={handleDelete}>

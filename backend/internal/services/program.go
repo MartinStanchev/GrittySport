@@ -1143,6 +1143,104 @@ func (s *ProgramService) UpdateActivity(ctx context.Context, programID, activity
 	return s.GetActivityDetail(ctx, activityID, userID)
 }
 
+// SetProgramEvent creates or updates the program's goal event — a single
+// scheduled activity of type `event` placed in the program's final week. The
+// program's end_date is aligned to the event date. Idempotent: re-calling
+// updates the existing event rather than adding a second one.
+func (s *ProgramService) SetProgramEvent(ctx context.Context, programID, userID string, in models.SetProgramEventInput) (*models.ActivityDetailResponse, error) {
+	if err := s.VerifyProgramOwnership(ctx, programID, userID); err != nil {
+		return nil, err
+	}
+	eventDate, err := time.Parse("2006-01-02", in.Date)
+	if err != nil {
+		return nil, fmt.Errorf("parse date: %w", err)
+	}
+	dayOfWeek := int(eventDate.Weekday()) // Sunday=0..Saturday=6, matches schema
+
+	// Store the absolute date in the prescription so the UI shows the real
+	// event day regardless of week-grid math, plus the rich event metadata.
+	prescription := map[string]any{"date": in.Date}
+	for k, v := range map[string]string{
+		"event_name":    in.EventName,
+		"event_subtype": in.EventSubtype,
+		"location":      in.Location,
+		"goal":          in.Goal,
+		"distance":      in.Distance,
+	} {
+		if v != "" {
+			prescription[k] = v
+		}
+	}
+	prescriptionJSON, err := json.Marshal(prescription)
+	if err != nil {
+		return nil, fmt.Errorf("marshal prescription: %w", err)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// The program's last week (latest phase, latest week) anchors the event.
+	var lastWeekID string
+	err = tx.QueryRow(ctx,
+		`SELECT w.id FROM weeks w
+		 JOIN phases ph ON ph.id = w.phase_id
+		 WHERE ph.program_id = $1
+		 ORDER BY ph.order_index DESC, w.week_number DESC
+		 LIMIT 1`, programID,
+	).Scan(&lastWeekID)
+	if err != nil {
+		return nil, fmt.Errorf("find last week: %w", err)
+	}
+
+	// Reuse an existing event activity if present.
+	var activityID string
+	err = tx.QueryRow(ctx,
+		`SELECT sa.id FROM scheduled_activities sa
+		 JOIN weeks w ON w.id = sa.week_id
+		 JOIN phases ph ON ph.id = w.phase_id
+		 WHERE ph.program_id = $1 AND sa.activity_type = 'event'
+		 LIMIT 1`, programID,
+	).Scan(&activityID)
+	switch {
+	case err == pgx.ErrNoRows:
+		err = tx.QueryRow(ctx,
+			`INSERT INTO scheduled_activities (week_id, day_of_week, activity_type, prescription, notes, order_index)
+			 VALUES ($1, $2, 'event', $3, $4, 0) RETURNING id`,
+			lastWeekID, dayOfWeek, prescriptionJSON, nilIfEmpty(in.EventName),
+		).Scan(&activityID)
+		if err != nil {
+			return nil, fmt.Errorf("insert event: %w", err)
+		}
+	case err != nil:
+		return nil, fmt.Errorf("find event: %w", err)
+	default:
+		_, err = tx.Exec(ctx,
+			`UPDATE scheduled_activities
+			 SET week_id = $2, day_of_week = $3, prescription = $4, notes = $5, updated_at = NOW()
+			 WHERE id = $1`,
+			activityID, lastWeekID, dayOfWeek, prescriptionJSON, nilIfEmpty(in.EventName),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("update event: %w", err)
+		}
+	}
+
+	if _, err = tx.Exec(ctx,
+		`UPDATE programs SET end_date = $2, updated_at = NOW() WHERE id = $1`,
+		programID, eventDate,
+	); err != nil {
+		return nil, fmt.Errorf("update end_date: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return s.GetActivityDetail(ctx, activityID, userID)
+}
+
 func (s *ProgramService) DeleteProgram(ctx context.Context, programID, userID string) error {
 	result, err := s.pool.Exec(ctx,
 		`DELETE FROM programs WHERE id = $1 AND user_id = $2`, programID, userID)

@@ -56,6 +56,19 @@ func NewService(
 	}
 }
 
+// eventCelebrationPreamble is prepended to the review prompt when the workout
+// is the program's goal event, so Grit opens by celebrating the accomplishment.
+const eventCelebrationPreamble = `IMPORTANT: This workout IS the goal event the user has been training for — their race, meet, or competition. This is the culmination of the whole program. Open your review by celebrating this accomplishment warmly and specifically before any analysis. Acknowledge the journey it took to get here. Keep the debrief that follows brief and encouraging.`
+
+// isEventActivity reports whether a scheduled activity is the program's goal event.
+func (s *Service) isEventActivity(ctx context.Context, activityID string) bool {
+	var activityType string
+	err := s.pool.QueryRow(ctx,
+		"SELECT activity_type FROM scheduled_activities WHERE id = $1", activityID,
+	).Scan(&activityType)
+	return err == nil && activityType == "event"
+}
+
 // TriggerReview runs a post-workout AI review for a completed workout.
 func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) error {
 	workout, err := s.workoutService.GetByID(ctx, workoutID, userID)
@@ -82,10 +95,12 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	effortLabel := EffortLabel(effortScore)
 
 	var prescriptionSummary, deviationMetrics string
+	isEvent := false
 	if workout.ScheduledActivityID != nil && *workout.ScheduledActivityID != "" {
 		prescriptionSummary, deviationMetrics = s.computeAlignmentSummary(
 			ctx, *workout.ScheduledActivityID, workout,
 		)
+		isEvent = s.isEventActivity(ctx, *workout.ScheduledActivityID)
 	}
 
 	trendSummary := s.loadTrendSummary(ctx, userID, workout.ActivityType)
@@ -94,6 +109,11 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 	programContext := s.buildProgramContext(ctx, userID)
 
 	prompt := s.reviewPrompt
+	if isEvent {
+		// This workout is the program's goal event — celebrate the milestone
+		// first, then debrief. Prepended so it dominates the review's tone.
+		prompt = eventCelebrationPreamble + "\n\n" + prompt
+	}
 	prompt = strings.ReplaceAll(prompt, "{{.UserName}}", userName)
 	prompt = strings.ReplaceAll(prompt, "{{.UserMemory}}", userMemory)
 	prompt = strings.ReplaceAll(prompt, "{{.ProgramContext}}", programContext)
