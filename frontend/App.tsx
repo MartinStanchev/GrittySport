@@ -21,10 +21,18 @@ import { OfflineBanner } from './src/components/OfflineBanner';
 import { navigationRef } from './src/navigation/navigationRef';
 import { syncPendingWorkouts } from './src/services/syncService';
 import { useNotifications } from './src/hooks/useNotifications';
+import { Sentry, initMonitoring, navigationIntegration, setMonitoringUser } from './src/services/monitoring';
+
+initMonitoring();
 
 function RootNavigator() {
   const { isLoading, isAuthenticated, user } = useAuth();
   const { colors } = useTheme();
+
+  // Tag crash/error reports with the signed-in user (cleared on sign-out).
+  useEffect(() => {
+    setMonitoringUser(user);
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -80,7 +88,10 @@ function AppContent() {
 
   return (
     <AuthProvider>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={() => navigationIntegration.registerNavigationContainer(navigationRef)}
+      >
         <RootNavigator />
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </NavigationContainer>
@@ -88,7 +99,7 @@ function AppContent() {
   );
 }
 
-export default function App() {
+function App() {
   const [fontsLoaded] = useFonts({
     SpaceGrotesk_500Medium,
     SpaceGrotesk_700Bold,
@@ -118,6 +129,9 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
+
+// Sentry.wrap enables automatic error boundary + native crash linking.
+export default Sentry.wrap(App);
 
 const styles = StyleSheet.create({
   loading: {

@@ -96,7 +96,8 @@
             "minSdkVersion": 26
           }
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "extra": {
       "eas": {

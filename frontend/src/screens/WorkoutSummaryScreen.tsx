@@ -165,21 +165,25 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       notes: notes.trim() || undefined,
     };
 
-    const savedWorkout = await saveWorkoutWithFallback(workoutPayload);
+    try {
+      const savedWorkout = await saveWorkoutWithFallback(workoutPayload);
+      notifyProgramDataChanged();
 
-    setSaving(false);
-    notifyProgramDataChanged();
-
-    if (savedWorkout) {
-      hasSaved.current = true;
-      setSavedWorkoutId(savedWorkout.id);
-    } else {
-      // Offline save — queued for sync; clear and navigate to history.
-      setSavedOffline(true);
-      clearGPSWorkout();
-      const parent = navigation.getParent();
-      navigation.popToTop();
-      parent?.navigate('History');
+      if (savedWorkout) {
+        hasSaved.current = true;
+        setSavedWorkoutId(savedWorkout.id);
+      } else {
+        // Offline save — queued for sync; clear and navigate to history.
+        setSavedOffline(true);
+        clearGPSWorkout();
+        const parent = navigation.getParent();
+        navigation.popToTop();
+        parent?.navigate('History');
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to save workout. Your workout is still here — please try again.');
+    } finally {
+      setSaving(false);
     }
   }
 

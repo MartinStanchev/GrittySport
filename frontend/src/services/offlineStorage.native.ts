@@ -32,8 +32,22 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       );
     `);
+    await migratePendingWorkouts(db);
   }
   return db;
+}
+
+// CREATE TABLE IF NOT EXISTS never alters an already-existing table, so users who
+// upgrade from a build with an older pending_workouts schema would be missing
+// newer columns and every INSERT would throw "no such column". Add them here.
+async function migratePendingWorkouts(database: SQLite.SQLiteDatabase): Promise<void> {
+  const cols = await database.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(pending_workouts)`,
+  );
+  const have = new Set(cols.map((c) => c.name));
+  if (!have.has('scheduled_activity_id')) {
+    await database.execAsync(`ALTER TABLE pending_workouts ADD COLUMN scheduled_activity_id TEXT`);
+  }
 }
 
 export async function savePendingWorkout(workout: LocalPendingWorkout): Promise<void> {
