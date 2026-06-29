@@ -1022,6 +1022,7 @@ export default function RecordManualScreen() {
         source: 'manual',
         started_at: activeWorkout.startedAt.toISOString(),
         finished_at: activeWorkout.finishedAt?.toISOString(),
+        paused_duration_sec: activeWorkout.pausedDurationSec,
         notes: activeWorkout.workoutNotes || undefined,
       });
       notifyProgramDataChanged();

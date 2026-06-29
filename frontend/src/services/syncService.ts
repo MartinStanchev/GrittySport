@@ -29,6 +29,7 @@ export async function saveWorkoutWithFallback(
     source: payload.source,
     started_at: payload.started_at,
     finished_at: payload.finished_at,
+    paused_duration_sec: payload.paused_duration_sec,
     scheduled_activity_id: payload.scheduled_activity_id,
     notes: payload.notes,
   });
@@ -53,6 +54,7 @@ export async function syncPendingWorkouts(): Promise<void> {
         source: w.source as 'gps' | 'manual' | 'garmin' | 'apple_health',
         started_at: w.started_at,
         finished_at: w.finished_at,
+        paused_duration_sec: w.paused_duration_sec,
         scheduled_activity_id: w.scheduled_activity_id,
         notes: w.notes,
       });

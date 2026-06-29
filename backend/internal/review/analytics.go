@@ -100,10 +100,7 @@ type TrendData struct {
 
 // ComputeAnalytics generates full analytics for a workout.
 func ComputeAnalytics(ctx context.Context, pool *pgxpool.Pool, workout *models.Workout, maxHR int) (*AnalyticsResponse, error) {
-	var durationSec float64
-	if workout.FinishedAt != nil {
-		durationSec = workout.FinishedAt.Sub(workout.StartedAt).Seconds()
-	}
+	durationSec := workout.EffectiveDurationSec()
 
 	effortScore := ComputeEffortScore(workout.HeartRateData, maxHR, durationSec)
 	splits := ComputeKmSplits(workout.GPSRoute)
@@ -225,7 +222,7 @@ func computeAlignment(ctx context.Context, pool *pgxpool.Pool, activityID string
 	// Duration
 	prescDur := floatFromMap(prescMap, "duration_minutes")
 	if prescDur > 0 && workout.FinishedAt != nil {
-		actDur := workout.FinishedAt.Sub(workout.StartedAt).Minutes()
+		actDur := workout.EffectiveDurationSec() / 60
 		ad.PrescribedDurationMin = &prescDur
 		ad.ActualDurationMin = &actDur
 		d := math.Round(((actDur-prescDur)/prescDur)*1000) / 10

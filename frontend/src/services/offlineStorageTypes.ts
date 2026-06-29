@@ -11,6 +11,7 @@ export interface LocalPendingWorkout {
   source: string;
   started_at: string;
   finished_at?: string;
+  paused_duration_sec?: number;
   scheduled_activity_id?: string;
   notes?: string;
 }

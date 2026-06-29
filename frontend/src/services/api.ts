@@ -632,6 +632,9 @@ export interface SaveWorkoutInput {
   source: 'manual' | 'gps' | 'garmin' | 'apple_health' | 'health_connect' | 'gpx' | 'tcx' | 'fit' | 'csv';
   started_at: string;
   finished_at?: string;
+  // Total paused seconds, so the backend duration matches the elapsed timer shown
+  // during recording (which excludes pauses). Omitted/0 for imports.
+  paused_duration_sec?: number;
   gps_route?: Record<string, any>;
   heart_rate_data?: Record<string, any>;
   notes?: string;

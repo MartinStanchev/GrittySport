@@ -82,7 +82,7 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		startedAt, err1 := time.Parse(time.RFC3339, input.StartedAt)
 		finishedAt, err2 := time.Parse(time.RFC3339, *input.FinishedAt)
 		if err1 == nil && err2 == nil {
-			durationSec := finishedAt.Sub(startedAt).Seconds()
+			durationSec := finishedAt.Sub(startedAt).Seconds() - input.PausedDurationSec
 			if durationSec > 0 {
 				maxHR := h.getUserMaxHR(r.Context(), userID)
 				score := review.ComputeEffortScore(input.HeartRateData, maxHR, durationSec)

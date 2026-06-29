@@ -294,10 +294,7 @@ func detectSwimPRs(workout *models.Workout, historical []historicalWorkout) []Pe
 	if totalDist <= 0 {
 		return nil
 	}
-	if workout.FinishedAt == nil {
-		return nil
-	}
-	totalDur := workout.FinishedAt.Sub(workout.StartedAt).Seconds()
+	totalDur := workout.EffectiveDurationSec()
 	if totalDur <= 0 {
 		return nil
 	}

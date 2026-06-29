@@ -21,6 +21,7 @@ async function getDB(): Promise<SQLite.SQLiteDatabase> {
         source TEXT NOT NULL DEFAULT 'gps',
         started_at TEXT NOT NULL,
         finished_at TEXT,
+        paused_duration_sec REAL NOT NULL DEFAULT 0,
         scheduled_activity_id TEXT,
         notes TEXT,
         synced INTEGER NOT NULL DEFAULT 0,
@@ -48,14 +49,17 @@ async function migratePendingWorkouts(database: SQLite.SQLiteDatabase): Promise<
   if (!have.has('scheduled_activity_id')) {
     await database.execAsync(`ALTER TABLE pending_workouts ADD COLUMN scheduled_activity_id TEXT`);
   }
+  if (!have.has('paused_duration_sec')) {
+    await database.execAsync(`ALTER TABLE pending_workouts ADD COLUMN paused_duration_sec REAL NOT NULL DEFAULT 0`);
+  }
 }
 
 export async function savePendingWorkout(workout: LocalPendingWorkout): Promise<void> {
   const database = await getDB();
   await database.runAsync(
     `INSERT INTO pending_workouts
-      (id, activity_type, recorded_data, gps_route, heart_rate_data, source, started_at, finished_at, scheduled_activity_id, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, activity_type, recorded_data, gps_route, heart_rate_data, source, started_at, finished_at, paused_duration_sec, scheduled_activity_id, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       workout.id,
       workout.activity_type,
@@ -65,6 +69,7 @@ export async function savePendingWorkout(workout: LocalPendingWorkout): Promise<
       workout.source,
       workout.started_at,
       workout.finished_at ?? null,
+      workout.paused_duration_sec ?? 0,
       workout.scheduled_activity_id ?? null,
       workout.notes ?? null,
     ]
@@ -75,7 +80,7 @@ export async function getPendingWorkouts(): Promise<LocalPendingWorkout[]> {
   const database = await getDB();
   return database.getAllAsync<LocalPendingWorkout>(
     `SELECT id, activity_type, recorded_data, gps_route, heart_rate_data, source,
-            started_at, finished_at, scheduled_activity_id, notes
+            started_at, finished_at, paused_duration_sec, scheduled_activity_id, notes
      FROM pending_workouts WHERE synced = 0`
   );
 }

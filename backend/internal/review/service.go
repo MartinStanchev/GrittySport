@@ -87,10 +87,7 @@ func (s *Service) TriggerReview(ctx context.Context, userID, workoutID string) e
 		userName = "there"
 	}
 
-	var durationSec float64
-	if workout.FinishedAt != nil {
-		durationSec = workout.FinishedAt.Sub(workout.StartedAt).Seconds()
-	}
+	durationSec := workout.EffectiveDurationSec()
 	effortScore := ComputeEffortScore(workout.HeartRateData, maxHR, durationSec)
 	effortLabel := EffortLabel(effortScore)
 
@@ -348,11 +345,7 @@ func (s *Service) computeAlignmentSummary(ctx context.Context, activityID string
 	case strings.Contains(actType, "strength") || strings.Contains(actType, "weight"):
 		deviation = ComputeStrengthDeviation(prescMap, workout.RecordedData)
 	default:
-		var dur float64
-		if workout.FinishedAt != nil {
-			dur = workout.FinishedAt.Sub(workout.StartedAt).Seconds()
-		}
-		deviation = ComputeGenericDeviation(prescMap, workout.RecordedData, dur)
+		deviation = ComputeGenericDeviation(prescMap, workout.RecordedData, workout.EffectiveDurationSec())
 	}
 
 	devJSON, _ := json.Marshal(deviation)
@@ -449,8 +442,7 @@ func buildRecordedDataSummary(workout *models.Workout) string {
 	parts = append(parts, fmt.Sprintf("Source: %s", workout.Source))
 	parts = append(parts, fmt.Sprintf("Started: %s", workout.StartedAt.Format(time.RFC3339)))
 	if workout.FinishedAt != nil {
-		dur := workout.FinishedAt.Sub(workout.StartedAt)
-		parts = append(parts, fmt.Sprintf("Duration: %.0f minutes", dur.Minutes()))
+		parts = append(parts, fmt.Sprintf("Duration: %.0f minutes", workout.EffectiveDurationSec()/60))
 	}
 	if len(workout.RecordedData) > 0 {
 		parts = append(parts, fmt.Sprintf("Data: %s", string(workout.RecordedData)))

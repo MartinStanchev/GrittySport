@@ -161,6 +161,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       source: 'gps' as const,
       started_at: workout.startedAt.toISOString(),
       finished_at: finishedAt.toISOString(),
+      paused_duration_sec: workout.autoPausedDurationSec,
       scheduled_activity_id: workout.scheduledActivityId,
       notes: notes.trim() || undefined,
     };

@@ -109,10 +109,7 @@ func (s *Service) eventCompletion(ctx context.Context, workout *models.Workout) 
 // personalRecords mints a personal_record per detected PR for this workout.
 func (s *Service) personalRecords(ctx context.Context, userID string, workout *models.Workout) []candidate {
 	maxHR := s.userMaxHR(ctx, userID)
-	var durationSec float64
-	if workout.FinishedAt != nil {
-		durationSec = workout.FinishedAt.Sub(workout.StartedAt).Seconds()
-	}
+	durationSec := workout.EffectiveDurationSec()
 	effort := review.ComputeEffortScore(workout.HeartRateData, maxHR, durationSec)
 
 	prs := review.DetectPersonalRecords(ctx, s.pool, workout, maxHR, effort)

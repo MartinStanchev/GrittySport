@@ -26,13 +26,13 @@ func NewWorkoutService(pool *pgxpool.Pool) *WorkoutService {
 	return &WorkoutService{pool: pool}
 }
 
-const workoutColumns = `id, user_id, scheduled_activity_id, activity_type, recorded_data, source, started_at, finished_at, gps_route, heart_rate_data, notes, effort_score, created_at, updated_at`
+const workoutColumns = `id, user_id, scheduled_activity_id, activity_type, recorded_data, source, started_at, finished_at, paused_duration_sec, gps_route, heart_rate_data, notes, effort_score, created_at, updated_at`
 
 func scanWorkout(row interface{ Scan(...any) error }) (*models.Workout, error) {
 	var w models.Workout
 	err := row.Scan(
 		&w.ID, &w.UserID, &w.ScheduledActivityID, &w.ActivityType, &w.RecordedData,
-		&w.Source, &w.StartedAt, &w.FinishedAt, &w.GPSRoute, &w.HeartRateData,
+		&w.Source, &w.StartedAt, &w.FinishedAt, &w.PausedDurationSec, &w.GPSRoute, &w.HeartRateData,
 		&w.Notes, &w.EffortScore, &w.CreatedAt, &w.UpdatedAt,
 	)
 	if err != nil {
@@ -83,10 +83,10 @@ func (s *WorkoutService) Create(ctx context.Context, userID string, input models
 
 	row := s.pool.QueryRow(ctx,
 		`INSERT INTO workouts
-			(user_id, scheduled_activity_id, activity_type, recorded_data, source, started_at, finished_at, gps_route, heart_rate_data, notes, effort_score)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			(user_id, scheduled_activity_id, activity_type, recorded_data, source, started_at, finished_at, paused_duration_sec, gps_route, heart_rate_data, notes, effort_score)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		 RETURNING `+workoutColumns,
-		userID, input.ScheduledActivityID, input.ActivityType, recordedData, source, startedAt, finishedAt, gpsRoute, heartRateData, input.Notes, input.EffortScore,
+		userID, input.ScheduledActivityID, input.ActivityType, recordedData, source, startedAt, finishedAt, input.PausedDurationSec, gpsRoute, heartRateData, input.Notes, input.EffortScore,
 	)
 	return scanWorkout(row)
 }
