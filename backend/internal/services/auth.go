@@ -61,6 +61,11 @@ type AuthService struct {
 	// email" — narrow but cheap to close.
 	dummyOTPHash []byte
 
+	// reviewEmail/reviewOTP configure a single account (App Store / Play review)
+	// whose OTP is a fixed code and never emailed. Empty means disabled.
+	reviewEmail string
+	reviewOTP   string
+
 	limiterMu sync.Mutex
 	recent    map[string][]time.Time
 }
@@ -80,6 +85,23 @@ func NewAuthService(pool *pgxpool.Pool, jwtSecret string, mailer email.Sender, r
 	}
 }
 
+// SetReviewAccount enables a static-OTP login for one account so app-store
+// reviewers can sign in without receiving email. The code must be 6 digits to
+// match what the OTP input accepts. Verification still goes through the normal
+// email_otps path (attempt cap, expiry, single use).
+func (s *AuthService) SetReviewAccount(rawEmail, code string) error {
+	addr, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return fmt.Errorf("review account: invalid email %q", rawEmail)
+	}
+	if len(code) != 6 || strings.ContainsFunc(code, func(r rune) bool { return r < '0' || r > '9' }) {
+		return errors.New("review account: code must be exactly 6 digits")
+	}
+	s.reviewEmail = addr
+	s.reviewOTP = code
+	return nil
+}
+
 // RequestOTP processes the same way regardless of whether the email exists — no enumeration.
 func (s *AuthService) RequestOTP(ctx context.Context, rawEmail string) error {
 	addr, err := normalizeEmail(rawEmail)
@@ -91,9 +113,14 @@ func (s *AuthService) RequestOTP(ctx context.Context, rawEmail string) error {
 		return err
 	}
 
-	code, err := generateNumericCode(6)
-	if err != nil {
-		return fmt.Errorf("generate code: %w", err)
+	isReviewAccount := s.reviewEmail != "" && addr == s.reviewEmail
+
+	code := s.reviewOTP
+	if !isReviewAccount {
+		code, err = generateNumericCode(6)
+		if err != nil {
+			return fmt.Errorf("generate code: %w", err)
+		}
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(code), 10)
@@ -130,6 +157,11 @@ func (s *AuthService) RequestOTP(ctx context.Context, rawEmail string) error {
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit otp tx: %w", err)
+	}
+
+	if isReviewAccount {
+		// The reviewer types the fixed code from the review notes; nothing to send.
+		return nil
 	}
 
 	if err := s.mailer.SendOTP(ctx, addr, code); err != nil {

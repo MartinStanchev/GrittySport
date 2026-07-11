@@ -55,6 +55,7 @@ func TestMain(m *testing.M) {
 		_, _ = testPool.Exec(ctx, "DELETE FROM email_otps")
 		_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 		_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+		_, _ = testPool.Exec(ctx, "DELETE FROM user_consents")
 		_, _ = testPool.Exec(ctx, "DELETE FROM users")
 	}
 	os.Exit(code)
@@ -69,6 +70,7 @@ func cleanTables(t *testing.T) {
 	_, _ = testPool.Exec(ctx, "DELETE FROM email_otps")
 	_, _ = testPool.Exec(ctx, "DELETE FROM usage_tracking")
 	_, _ = testPool.Exec(ctx, "DELETE FROM refresh_tokens")
+	_, _ = testPool.Exec(ctx, "DELETE FROM user_consents")
 	_, _ = testPool.Exec(ctx, "DELETE FROM users")
 }
 
@@ -147,6 +149,67 @@ func TestRequestOTP_ResendCooldown(t *testing.T) {
 	err := svc.RequestOTP(context.Background(), "rl@example.com")
 	if !errors.Is(err, services.ErrRateLimited) {
 		t.Errorf("expected ErrRateLimited on immediate retry, got %v", err)
+	}
+}
+
+func TestReviewAccount_StaticOTPWithoutEmail(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	if err := svc.SetReviewAccount("Review@Example.com", "246810"); err != nil {
+		t.Fatalf("SetReviewAccount failed: %v", err)
+	}
+	ctx := context.Background()
+
+	if err := svc.RequestOTP(ctx, "review@example.com"); err != nil {
+		t.Fatalf("RequestOTP failed: %v", err)
+	}
+	if sent := mock.Sent(); len(sent) != 0 {
+		t.Fatalf("expected no email for review account, got %d", len(sent))
+	}
+
+	if _, err := svc.VerifyOTP(ctx, "review@example.com", "111111"); !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP for wrong code, got %v", err)
+	}
+
+	resp, err := svc.VerifyOTP(ctx, "review@example.com", "246810")
+	if err != nil {
+		t.Fatalf("VerifyOTP with static code failed: %v", err)
+	}
+	if resp.User.Email != "review@example.com" {
+		t.Errorf("unexpected user email %q", resp.User.Email)
+	}
+
+	// Consumed on use like any OTP: the same code needs a fresh request.
+	if _, err := svc.VerifyOTP(ctx, "review@example.com", "246810"); !errors.Is(err, services.ErrInvalidOTP) {
+		t.Errorf("expected ErrInvalidOTP after consumption, got %v", err)
+	}
+}
+
+func TestReviewAccount_OtherEmailsStillGetRandomCodes(t *testing.T) {
+	cleanTables(t)
+	mock := &email.MockSender{}
+	svc := newService(mock)
+	if err := svc.SetReviewAccount("review@example.com", "246810"); err != nil {
+		t.Fatalf("SetReviewAccount failed: %v", err)
+	}
+
+	code := requestAndExtractCode(t, svc, mock, "normal@example.com")
+	if code == "246810" {
+		t.Error("normal account received the review account's static code")
+	}
+}
+
+func TestSetReviewAccount_RejectsBadConfig(t *testing.T) {
+	svc := newService(&email.MockSender{})
+	if err := svc.SetReviewAccount("not-an-email", "246810"); err == nil {
+		t.Error("expected error for invalid email")
+	}
+	if err := svc.SetReviewAccount("review@example.com", "1234"); err == nil {
+		t.Error("expected error for short code")
+	}
+	if err := svc.SetReviewAccount("review@example.com", "abc123"); err == nil {
+		t.Error("expected error for non-numeric code")
 	}
 }
 

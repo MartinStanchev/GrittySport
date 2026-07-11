@@ -187,6 +187,12 @@ func main() {
 	refreshTTL := time.Duration(envInt("REFRESH_TOKEN_TTL_DAYS", 180)) * 24 * time.Hour
 
 	authService := services.NewAuthService(pool, jwtSecret, mailer, refreshTTL)
+	if reviewEmail := os.Getenv("REVIEW_ACCOUNT_EMAIL"); reviewEmail != "" {
+		if err := authService.SetReviewAccount(reviewEmail, os.Getenv("REVIEW_ACCOUNT_OTP")); err != nil {
+			log.Fatal().Err(err).Msg("Invalid review account configuration")
+		}
+		log.Info().Str("email", reviewEmail).Msg("Static-OTP review account enabled")
+	}
 	authHandler := handlers.NewAuthHandler(authService)
 
 	userService := services.NewUserService(pool)

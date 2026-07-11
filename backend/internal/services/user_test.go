@@ -27,13 +27,15 @@ func TestDeleteAccount_AnonymizesConsentsAndCascadesUserData(t *testing.T) {
 	userID := seedUser(t, "delete-me@example.com")
 
 	consentSvc := services.NewConsentService(testPool)
+	birthYear := 1990
 	if err := consentSvc.RecordConsents(context.Background(), userID, services.RecordConsentsInput{
+		BirthYear: &birthYear,
 		Consents: []services.ConsentInput{
-			{Type: models.ConsentTypeTerms, Version: "v1"},
-			{Type: models.ConsentTypePrivacy, Version: "v1"},
-			{Type: models.ConsentTypeHealthData, Version: "v1"},
-			{Type: models.ConsentTypeAge16Plus, Version: "v1"},
-			{Type: models.ConsentTypeMarketing, Version: "v1"},
+			{Type: models.ConsentTypeTerms, Version: models.TermsVersion},
+			{Type: models.ConsentTypePrivacy, Version: models.PrivacyVersion},
+			{Type: models.ConsentTypeHealthData, Version: models.HealthDataVersion},
+			{Type: models.ConsentTypeAge16Plus, Version: models.Age16PlusVersion},
+			{Type: models.ConsentTypeMarketing, Version: models.MarketingVersion},
 		},
 		IPAddress: "127.0.0.1",
 		UserAgent: "test-agent",
@@ -77,7 +79,7 @@ func TestDeleteAccount_AnonymizesConsentsAndCascadesUserData(t *testing.T) {
 	}
 
 	rows, err := testPool.Query(ctx,
-		`SELECT user_id, consent_type, version, ip_address, user_agent FROM user_consents WHERE consent_type IN ('terms','privacy','health_data','age_16_plus','marketing')`,
+		`SELECT user_id, consent_type, version, ip_address::text, user_agent FROM user_consents WHERE consent_type IN ('terms','privacy','health_data','age_16_plus','marketing')`,
 	)
 	if err != nil {
 		t.Fatalf("query consents: %v", err)
