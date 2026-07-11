@@ -3,6 +3,7 @@ import {
   AUTO_PAUSE_POINT_COUNT,
   AUTO_RESUME_POINT_COUNT,
   MAX_ACCURACY_METRES,
+  RESUME_MAX_ACCURACY_METRES,
 } from '../services/gpsReducer';
 import type { RawLocation } from '../services/gpsReducer';
 import type { ActiveGPSWorkout } from '../contexts/WorkoutContext';
@@ -97,6 +98,22 @@ describe('applyGPSPoint', () => {
     timestamp: START_MS + i * 1000,
   });
 
+  // A reading `distanceM` due north of the pause spot (40, -74 — where `stationaryUntilPaused`
+  // leaves the track), with a configurable accuracy, `idx` steps after the pause began.
+  const DEG_PER_METRE = 1 / 111_194.9;
+  function awayReading(distanceM: number, accuracy: number, idx: number): RawLocation {
+    return {
+      coords: {
+        latitude: 40 + distanceM * DEG_PER_METRE,
+        longitude: -74,
+        altitude: 100,
+        accuracy,
+        speed: 3,
+      },
+      timestamp: START_MS + (AUTO_PAUSE_POINT_COUNT + idx) * 1000,
+    };
+  }
+
   function stationaryUntilPaused(): ReturnType<typeof baseWorkout> {
     let w = baseWorkout();
     w = applyGPSPoint(w, still(0)); // seeds first point
@@ -142,5 +159,73 @@ describe('applyGPSPoint', () => {
     const next = applyGPSPoint(paused, reading(AUTO_PAUSE_POINT_COUNT + 5), false);
 
     expect(next).toBe(paused);
+  });
+
+  it('auto-resumes on degraded-accuracy (60-90 m) fixes moving steadily away from the pause spot', () => {
+    // Regression test for the deadlock bug: accuracy above MAX_ACCURACY_METRES (50) but
+    // below RESUME_MAX_ACCURACY_METRES (100) must still be considered while paused, and
+    // each fix clears its own accuracy-based threshold as it moves further away.
+    let w = stationaryUntilPaused();
+    expect(w.recordingState).toBe('paused');
+
+    w = applyGPSPoint(w, awayReading(90, 60, 1));
+    expect(w.recordingState).toBe('paused');
+    w = applyGPSPoint(w, awayReading(150, 75, 2));
+    expect(w.recordingState).toBe('paused');
+    w = applyGPSPoint(w, awayReading(210, 90, 3));
+
+    expect(w.recordingState).toBe('recording');
+    expect(w.autoPaused).toBe(false);
+  });
+
+  it('ignores fixes worse than RESUME_MAX_ACCURACY_METRES while auto-paused, stays paused', () => {
+    let w = stationaryUntilPaused();
+    expect(w.recordingState).toBe('paused');
+
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT + 2; i++) {
+      w = applyGPSPoint(w, awayReading(500, RESUME_MAX_ACCURACY_METRES + 1, i));
+    }
+
+    expect(w.recordingState).toBe('paused');
+    expect(w.autoPaused).toBe(true);
+  });
+
+  it('stays paused when manually paused even with good, moving fixes', () => {
+    const paused = baseWorkout({
+      recordingState: 'paused',
+      autoPaused: false,
+      points: [
+        { lat: 40, lng: -74, altitude: 100, accuracy: 5, speed: 0, timestamp: START_MS, distance_from_prev: 0 },
+      ],
+    });
+
+    let w = paused;
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT; i++) {
+      w = applyGPSPoint(w, awayReading(500, 5, i));
+    }
+
+    expect(w).toBe(paused);
+    expect(w.recordingState).toBe('paused');
+  });
+
+  it('still drops fixes with accuracy > MAX_ACCURACY_METRES while recording (even within resume tolerance)', () => {
+    const w = baseWorkout();
+    const degraded = reading(1, { accuracy: RESUME_MAX_ACCURACY_METRES - 10 });
+    expect(applyGPSPoint(w, degraded)).toBe(w);
+  });
+
+  it('does not auto-resume on noisy fixes jittering within the accuracy-scaled threshold', () => {
+    // accuracy 80 m → resume threshold is max(AUTO_RESUME_DISTANCE_M, 80) = 80 m; fixes
+    // 50 m from the pause spot never clear it, however many arrive.
+    let w = stationaryUntilPaused();
+    expect(w.recordingState).toBe('paused');
+
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT + 3; i++) {
+      w = applyGPSPoint(w, awayReading(50, 80, i));
+    }
+
+    expect(w.recordingState).toBe('paused');
+    expect(w.autoPaused).toBe(true);
+    expect(w.movingPointCount).toBe(0);
   });
 });

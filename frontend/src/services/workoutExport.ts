@@ -183,6 +183,22 @@ function renderTCXLaps(inputs: ExportInputs): string {
     for (const lap of inputs.laps) {
       lapDefs.push({ startMs: lap.start_time, endMs: lap.end_time, distanceM: lap.distance_m, avgHR: lap.avg_hr });
     }
+
+    // Stored laps only cover recording-time auto/manual laps; anything recorded after the
+    // last lap's end (e.g. the final partial km, or a manual lap pressed early) is otherwise
+    // silently dropped. Append a synthetic tail lap covering that remainder, if any exists.
+    const lastEndMs = lapDefs[lapDefs.length - 1].endMs;
+    const tailPoints = inputs.points.filter((p) => p.timestamp > lastEndMs);
+    const tailHR = inputs.hrReadings.filter((r) => r.timestamp > lastEndMs);
+    if (tailPoints.length > 0 || tailHR.length > 0) {
+      const lastPointMs = inputs.points.length > 0 ? inputs.points[inputs.points.length - 1].timestamp : 0;
+      const lastHRMs = inputs.hrReadings.length > 0 ? inputs.hrReadings[inputs.hrReadings.length - 1].timestamp : 0;
+      const fallbackEndMs = Math.max(lastEndMs, lastPointMs, lastHRMs);
+      const tailEndMs = inputs.finishedAtMs > lastEndMs ? inputs.finishedAtMs : fallbackEndMs;
+      const distanceM = tailPoints.reduce((s, p) => s + (p.distance_from_prev || 0), 0);
+      // avg/max HR for the tail are derived by renderTCXLap itself from readings in-range.
+      lapDefs.push({ startMs: lastEndMs, endMs: tailEndMs, distanceM });
+    }
   } else {
     const distanceM = inputs.points.length > 0
       ? inputs.points.reduce((s, p) => s + (p.distance_from_prev || 0), 0)
@@ -200,7 +216,13 @@ function renderTCXLaps(inputs: ExportInputs): string {
   const hrIndex = buildTimeIndex(inputs.hrReadings.map((r) => ({ t: r.timestamp, v: r.bpm })));
   const cadIndex = buildTimeIndex(inputs.cadenceReadings.map((r) => ({ t: r.timestamp, v: r.spm })));
 
-  return lapDefs.map((lap) => renderTCXLap(lap, inputs, hrIndex, cadIndex)).join('\n');
+  // Adjacent stored laps share a boundary trackpoint (the lap-trigger point that starts lap
+  // N+1 is the same point that ended lap N). Walk with a cursor so each point is emitted in
+  // exactly one lap's <Track>: the first lap includes its start point, every later lap starts
+  // strictly after the previous lap's end.
+  return lapDefs
+    .map((lap, i) => renderTCXLap(lap, inputs, hrIndex, cadIndex, i === 0 ? null : lapDefs[i - 1].endMs))
+    .join('\n');
 }
 
 function renderTCXLap(
@@ -208,10 +230,12 @@ function renderTCXLap(
   inputs: ExportInputs,
   hrIndex: TimeIndex,
   cadIndex: TimeIndex,
+  prevEndMs: number | null,
 ): string {
   const totalTimeSec = Math.max(0, (lap.endMs - lap.startMs) / 1000);
-  const lapPoints = inputs.points.filter((p) => p.timestamp >= lap.startMs && p.timestamp <= lap.endMs);
-  const lapHRReadings = inputs.hrReadings.filter((r) => r.timestamp >= lap.startMs && r.timestamp <= lap.endMs);
+  const inRange = (t: number) => (prevEndMs === null ? t >= lap.startMs : t > prevEndMs) && t <= lap.endMs;
+  const lapPoints = inputs.points.filter((p) => inRange(p.timestamp));
+  const lapHRReadings = inputs.hrReadings.filter((r) => inRange(r.timestamp));
 
   // If HR-only (no GPS in this lap), emit synthetic trackpoints from HR readings.
   const trackpoints = lapPoints.length > 0

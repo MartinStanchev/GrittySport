@@ -11,6 +11,8 @@ import {
 } from './gpsUtils';
 
 export const MAX_ACCURACY_METRES = 50;
+// Looser than MAX_ACCURACY_METRES — applied only while auto-paused (see applyGPSPoint).
+export const RESUME_MAX_ACCURACY_METRES = 100;
 export const AUTO_PAUSE_SPEED_THRESHOLD = 0.5; // m/s
 export const AUTO_PAUSE_POINT_COUNT = 5; // ~5s of near-stillness before auto-pausing
 export const AUTO_RESUME_DISTANCE_M = 10; // displacement from the pause spot that counts as moving
@@ -48,17 +50,24 @@ export function applyGPSPoint(
   autoPauseEnabled = true,
 ): ActiveGPSWorkout {
   const { latitude, longitude, altitude, accuracy, speed } = loc.coords;
-  // Drop low-quality fixes in every state so GPS noise can't drive auto-pause/resume.
-  if (accuracy !== null && accuracy > MAX_ACCURACY_METRES) return workout;
 
-  // While auto-paused, watch for sustained movement to auto-resume. A manual pause
-  // (autoPaused === false) is left alone — only the user resumes it.
+  // While auto-paused, watch for sustained movement to auto-resume. This runs BEFORE the
+  // strict recording-path accuracy gate below, using the looser RESUME_MAX_ACCURACY_METRES
+  // instead: if accuracy degrades (pocket, urban canyon) while paused, the strict gate would
+  // drop every fix before detectAutoResume ever runs, deadlocking the workout in 'paused'
+  // forever. detectAutoResume itself requires displacement beyond the fix's own uncertainty
+  // to reject noisy fixes. A manual pause (autoPaused === false) is left alone — only the
+  // user resumes it.
   if (workout.recordingState === 'paused') {
     if (!autoPauseEnabled || !workout.autoPaused) return workout;
+    if (accuracy !== null && accuracy > RESUME_MAX_ACCURACY_METRES) return workout;
     return detectAutoResume(workout, loc);
   }
 
   if (workout.recordingState !== 'recording') return workout;
+
+  // Drop low-quality fixes while actively recording so GPS noise can't corrupt the track.
+  if (accuracy !== null && accuracy > MAX_ACCURACY_METRES) return workout;
 
   const newPoint: GPSPoint = {
     lat: latitude,
@@ -139,16 +148,20 @@ export function applyGPSPoint(
  * Decides whether an auto-paused session should resume. We compare each incoming fix to
  * the spot where recording paused (the last recorded point) rather than to the previous
  * reading: a stationary user's fixes jitter around that spot, while a moving user walks
- * steadily away from it. Requiring AUTO_RESUME_POINT_COUNT consecutive fixes past
- * AUTO_RESUME_DISTANCE_M filters out single noisy jumps before recording restarts.
+ * steadily away from it. A fix only counts as movement once it clears both
+ * AUTO_RESUME_DISTANCE_M and its own reported accuracy — otherwise a noisy, low-quality
+ * fix could "jitter" past the pause spot by more than its own uncertainty and look like
+ * movement. Requiring AUTO_RESUME_POINT_COUNT consecutive qualifying fixes filters out
+ * single noisy jumps before recording restarts.
  */
 function detectAutoResume(workout: ActiveGPSWorkout, loc: RawLocation): ActiveGPSWorkout {
   const pausePoint = workout.points.length > 0 ? workout.points[workout.points.length - 1] : null;
   const movedM = pausePoint
     ? haversineMetres(pausePoint, { lat: loc.coords.latitude, lng: loc.coords.longitude } as GPSPoint)
     : 0;
+  const resumeThresholdM = Math.max(AUTO_RESUME_DISTANCE_M, loc.coords.accuracy ?? 0);
 
-  if (movedM < AUTO_RESUME_DISTANCE_M) {
+  if (movedM < resumeThresholdM) {
     // Jitter, not real movement — reset the streak (cheap no-op if already zero).
     return workout.movingPointCount === 0 ? workout : { ...workout, movingPointCount: 0 };
   }

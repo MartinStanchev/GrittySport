@@ -260,3 +260,151 @@ describe('buildTCX', () => {
     expect(() => buildTCX(makeStrengthOnlyWorkout())).toThrow(/GPS or HR/);
   });
 });
+
+// ── buildTCX: lap boundary handling ─────────────────────────────────────────────
+//
+// Stored `gps_route.laps` only cover recording-time auto/manual laps, and each lap's
+// start_time is set to the previous lap's end_time (the trigger point is shared). Two
+// regressions this guards against:
+//   1. Trackpoints after the last stored lap's end were silently dropped.
+//   2. The shared boundary point between two adjacent laps was emitted (and its
+//      distance double-counted) in both laps' <Track>.
+
+function makeLappedWorkout(opts: {
+  tailPoints?: { timestamp: number; distance_from_prev: number }[];
+  finishedAtMs?: number;
+} = {}): WorkoutResponse {
+  // Two laps sharing an exact boundary at T0+60_000, matching real triggerLap output
+  // (lap2.start_time === lap1.end_time).
+  const basePoints = [
+    { lat: 51.5074, lng: -0.1278, altitude: 10, accuracy: 5, speed: 2.5, timestamp: T0, distance_from_prev: 0 },
+    { lat: 51.5080, lng: -0.1270, altitude: 12, accuracy: 5, speed: 2.7, timestamp: T0 + 30_000, distance_from_prev: 80 },
+    { lat: 51.5085, lng: -0.1265, altitude: 13, accuracy: 5, speed: 2.8, timestamp: T0 + 60_000, distance_from_prev: 80 }, // lap boundary
+    { lat: 51.5090, lng: -0.1260, altitude: 15, accuracy: 5, speed: 3.0, timestamp: T0 + 90_000, distance_from_prev: 70 },
+    { lat: 51.5095, lng: -0.1255, altitude: 16, accuracy: 5, speed: 3.0, timestamp: T0 + 120_000, distance_from_prev: 70 },
+  ];
+  const tail = (opts.tailPoints ?? []).map((p, i) => ({
+    lat: 51.51 + i * 0.001,
+    lng: -0.125 + i * 0.001,
+    altitude: 17,
+    accuracy: 5,
+    speed: 3.0,
+    timestamp: p.timestamp,
+    distance_from_prev: p.distance_from_prev,
+  }));
+  const points = [...basePoints, ...tail];
+  const finishedAtMs = opts.finishedAtMs ?? points[points.length - 1].timestamp;
+
+  const route: any = {
+    sport: 'run',
+    distance_km: 0.3,
+    duration_sec: (finishedAtMs - T0) / 1000,
+    avg_pace_sec_per_km: 500,
+    avg_speed_kph: 7,
+    elevation_gain_m: 6,
+    points,
+    laps: [
+      { lap_number: 1, start_time: T0, end_time: T0 + 60_000, distance_m: 160, duration_sec: 60, avg_pace_sec_per_km: 375, avg_speed_kph: 9.6, elevation_gain_m: 2 },
+      { lap_number: 2, start_time: T0 + 60_000, end_time: T0 + 120_000, distance_m: 140, duration_sec: 60, avg_pace_sec_per_km: 429, avg_speed_kph: 8.4, elevation_gain_m: 2 },
+    ],
+  };
+
+  return {
+    id: 'w-lapped',
+    user_id: 'u1',
+    activity_type: 'run',
+    recorded_data: {},
+    source: 'gps',
+    started_at: new Date(T0).toISOString(),
+    finished_at: new Date(finishedAtMs).toISOString(),
+    gps_route: route,
+    heart_rate_data: undefined,
+    created_at: '',
+    updated_at: '',
+  };
+}
+
+describe('buildTCX lap boundary handling', () => {
+  it('includes tail trackpoints after the last stored lap in a synthetic final lap', () => {
+    const tailPoints = [
+      { timestamp: T0 + 150_000, distance_from_prev: 60 },
+      { timestamp: T0 + 180_000, distance_from_prev: 55 },
+    ];
+    const workout = makeLappedWorkout({ tailPoints });
+    const xml = buildTCX(workout);
+
+    // 2 stored laps + 1 synthetic tail lap.
+    const lapMatches = [...xml.matchAll(/<Lap StartTime="([^"]+)">/g)];
+    expect(lapMatches).toHaveLength(3);
+
+    // The tail lap's StartTime must equal the last stored lap's end time.
+    const tailLapStart = lapMatches[2][1];
+    expect(tailLapStart).toBe(new Date(T0 + 120_000).toISOString());
+
+    // Tail points must be present in the output.
+    expect(xml).toContain(isoTimeOf(T0 + 150_000));
+    expect(xml).toContain(isoTimeOf(T0 + 180_000));
+
+    // Total trackpoints across the whole document = total points (5 base + 2 tail).
+    const trackpointCount = (xml.match(/<Trackpoint>/g) ?? []).length;
+    expect(trackpointCount).toBe(7);
+  });
+
+  it('does not add an empty tail lap when the last stored lap already ends at the final point', () => {
+    const workout = makeLappedWorkout(); // no tail points, finishedAtMs === last point timestamp
+    const xml = buildTCX(workout);
+
+    const lapMatches = xml.match(/<Lap StartTime/g);
+    expect(lapMatches).toHaveLength(2);
+
+    // No boundary duplication either: 5 points in, 5 trackpoints out.
+    const trackpointCount = (xml.match(/<Trackpoint>/g) ?? []).length;
+    expect(trackpointCount).toBe(5);
+  });
+
+  it('emits the shared lap-boundary point exactly once', () => {
+    const workout = makeLappedWorkout();
+    const xml = buildTCX(workout);
+
+    // The boundary timestamp legitimately also appears once more as lap 2's
+    // <Lap StartTime> attribute (unchanged, per spec) — so scope the count to
+    // <Time> elements inside <Trackpoint>s specifically.
+    const boundaryTimeTag = `<Time>${isoTimeOf(T0 + 60_000)}</Time>`;
+    const occurrences = xml.split(boundaryTimeTag).length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  it('does not double-count the boundary point distance across laps', () => {
+    const workout = makeLappedWorkout();
+    const xml = buildTCX(workout);
+
+    // Extract each lap's <Track> block and its last cumulative <DistanceMeters> value —
+    // that's the lap's total rendered trackpoint distance, which must not include the
+    // other lap's share of the boundary point's leg.
+    const lapBlocks = [...xml.matchAll(/<Track>([\s\S]*?)<\/Track>/g)].map((m) => m[1]);
+    expect(lapBlocks).toHaveLength(2);
+    const lastDistanceOf = (block: string) => {
+      const matches = [...block.matchAll(/<DistanceMeters>([\d.]+)<\/DistanceMeters>/g)];
+      return parseFloat(matches[matches.length - 1][1]);
+    };
+    // Lap 1 track: points at T0, T0+30s, T0+60s (boundary) → cumulative distance 0+80+80=160.
+    expect(lastDistanceOf(lapBlocks[0])).toBeCloseTo(160, 1);
+    // Lap 2 track: points at T0+90s, T0+120s only (boundary point excluded here, kept in
+    // lap 1 above) → cumulative 70+70=140.
+    expect(lastDistanceOf(lapBlocks[1])).toBeCloseTo(140, 1);
+  });
+
+  it('fallback single-lap export (no stored laps) remains unchanged — all points emitted once', () => {
+    const workout = makeGPSWorkout(); // withLaps: false by default
+    const xml = buildTCX(workout);
+
+    const lapMatches = xml.match(/<Lap StartTime/g);
+    expect(lapMatches).toHaveLength(1);
+    const trackpointCount = (xml.match(/<Trackpoint>/g) ?? []).length;
+    expect(trackpointCount).toBe(3); // makeGPSWorkout has 3 points
+  });
+});
+
+function isoTimeOf(ms: number): string {
+  return new Date(ms).toISOString();
+}

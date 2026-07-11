@@ -257,6 +257,33 @@ describe('triggerLap', () => {
     const lap = triggerLap(points, 0, [], []);
     expect(lap.avg_hr).toBeUndefined();
   });
+
+  it("excludes the boundary point's distance_from_prev when lapStartIndex > 0", () => {
+    // points[lapStartIndex] is the LAST point of the PREVIOUS lap (the reducer sets
+    // lapStartIndex = allPoints.length - 1 when a lap fires), so its distance_from_prev
+    // belongs to the previous lap segment and must not be counted again here.
+    const points = straightRoute(5, 100, 10000); // 5 points, ~100 m apart
+    const lapStartIndex = 2;
+    const lap = triggerLap(points, lapStartIndex, [], []);
+
+    const expectedDist = points[3].distance_from_prev + points[4].distance_from_prev;
+    expect(lap.distance_m).toBeCloseTo(expectedDist, 6);
+    // The buggy version summed from the boundary point, over-counting its distance_from_prev.
+    expect(lap.distance_m).not.toBeCloseTo(expectedDist + points[lapStartIndex].distance_from_prev, 0);
+  });
+
+  it('sums two consecutive laps to the total of all distance_from_prev (no double count)', () => {
+    const points = straightRoute(7, 100, 10000);
+
+    // Lap 1 fires once 4 points have accumulated (indices 0-3).
+    const lap1 = triggerLap(points.slice(0, 4), 0, [], []);
+    const lapStartIndex = 3; // last point of lap 1, per the reducer's convention
+    // Lap 2 fires once the rest of the points have accumulated (indices 0-6).
+    const lap2 = triggerLap(points.slice(0, 7), lapStartIndex, [lap1], []);
+
+    const totalDist = points.slice(1).reduce((s, p) => s + p.distance_from_prev, 0);
+    expect(lap1.distance_m + lap2.distance_m).toBeCloseTo(totalDist, 6);
+  });
 });
 
 // ─── Formatting helpers ────────────────────────────────────────────────────

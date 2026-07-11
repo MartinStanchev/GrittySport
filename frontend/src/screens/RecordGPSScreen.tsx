@@ -17,8 +17,10 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../contexts/ThemeContext';
 import { usePreferences } from '../contexts/PreferencesContext';
+import { useToast } from '../contexts/ToastContext';
 import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -126,12 +128,42 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Only stop background GPS/cadence on unmount if there's no in-progress workout —
+    // otherwise navigating away mid-recording (e.g. via the ActiveWorkoutBanner) would
+    // silently kill tracking with nothing left to ever restart it. `gpsWorkoutRef` is a
+    // ref kept in sync every render, so reading it here always reflects the state at the
+    // moment of unmount, not the state when this effect was registered.
     return () => {
-      void locationTracking.stop();
-      cadenceService.stop();
+      const active = gpsWorkoutRef.current;
+      const inProgress = active?.recordingState === 'recording' || active?.recordingState === 'paused';
+      if (!inProgress) {
+        void locationTracking.stop();
+        cadenceService.stop();
+      }
       if (followTimerRef.current) clearTimeout(followTimerRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Self-heal: if we (re)focus this screen mid-recording and background GPS isn't
+  // actually running (e.g. it was previously killed by the unmount bug above, or the OS
+  // stopped it), silently restart it. `locationTracking.start()` is idempotent.
+  useFocusEffect(
+    useCallback(() => {
+      if (recordingState !== 'recording') return;
+      let cancelled = false;
+      (async () => {
+        const running = await locationTracking.isRunning();
+        if (cancelled || running) return;
+        const result = await locationTracking.start();
+        if (!result.ok) {
+          console.warn('[RecordGPS] Self-heal failed to restart GPS tracking:', result.reason);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [recordingState]),
+  );
 
   useEffect(() => {
     (async () => {
@@ -784,18 +816,25 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
                   icon="flag-outline"
                   label="Lap"
                   accent={colors.tertiary}
-                  onPress={handleManualLap}
+                  onActivate={handleManualLap}
+                  hintText="Hold to log a lap"
                   colors={colors}
                 />
-                <Pressable style={[styles.primaryControl, styles.primaryControlCompact, { backgroundColor: colors.secondary }]} onPress={handlePause}>
-                  <Ionicons name="pause" size={18} color={colors.background} />
-                  <Text style={[styles.primaryControlText, { color: colors.background }]}>Pause</Text>
-                </Pressable>
+                <ControlButton
+                  variant="primary"
+                  icon="pause"
+                  label="Pause"
+                  backgroundColor={colors.secondary}
+                  onActivate={handlePause}
+                  hintText="Hold to pause"
+                  colors={colors}
+                />
                 <ControlButton
                   icon="stop"
                   label="Finish"
                   accent={colors.primary}
-                  onPress={handleStop}
+                  onActivate={handleStop}
+                  hintText="Hold to finish"
                   colors={colors}
                 />
               </View>
@@ -807,18 +846,25 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
                   icon="stop"
                   label="Finish"
                   accent={colors.primary}
-                  onPress={handleStop}
+                  onActivate={handleStop}
+                  hintText="Hold to finish"
                   colors={colors}
                 />
-                <Pressable style={[styles.primaryControl, styles.primaryControlCompact, { backgroundColor: colors.primary }]} onPress={handleResume}>
-                  <Ionicons name="play" size={18} color={colors.background} />
-                  <Text style={[styles.primaryControlText, { color: colors.background }]}>Resume</Text>
-                </Pressable>
+                <ControlButton
+                  variant="primary"
+                  holdToActivate={false}
+                  icon="play"
+                  label="Resume"
+                  backgroundColor={colors.primary}
+                  onActivate={handleResume}
+                  colors={colors}
+                />
                 <ControlButton
                   icon="trash-outline"
                   label="Discard"
                   accent={colors.error}
-                  onPress={handleDiscard}
+                  onActivate={handleDiscard}
+                  hintText="Hold to discard"
                   colors={colors}
                 />
               </View>
@@ -951,26 +997,85 @@ function SecondaryMetricCard({
   );
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const HOLD_TO_ACTIVATE_DELAY_MS = 600;
+
+// Recording controls double as a "second barrier" against accidental touches (the
+// original incident: phone-against-body presses hit Lap then Pause mid-race). Anything
+// destructive-ish requires a deliberate hold; a short tap only surfaces a toast hint so
+// users learn the gesture instead of feeling like the button is broken. `onPress` and
+// `onLongPress` are mutually exclusive at the RN Pressability layer — a long press never
+// also fires `onPress` on release — so there's no risk of double-firing the action.
 function ControlButton({
   icon,
   label,
   accent,
-  onPress,
+  backgroundColor,
+  variant = 'compact',
+  holdToActivate = true,
+  hintText,
+  onActivate,
   colors,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  accent: string;
-  onPress: () => void;
+  accent?: string;
+  /** 'primary' variant only — the pill's fill color. */
+  backgroundColor?: string;
+  /** 'compact' (icon bubble on surfaceAlt) or 'primary' (filled pill, e.g. Pause). */
+  variant?: 'compact' | 'primary';
+  /** False for safe actions like Resume, which stay a plain tap. */
+  holdToActivate?: boolean;
+  /** Toast shown on a short tap when holdToActivate is true. */
+  hintText?: string;
+  onActivate: () => void;
   colors: ThemeColors;
 }) {
+  const { showToast } = useToast();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.timing(scale, { toValue: 0.94, duration: 90, useNativeDriver: true }).start();
+  }, [scale]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.timing(scale, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+  }, [scale]);
+
+  const handleShortPress = useCallback(() => {
+    if (hintText) showToast(hintText);
+  }, [hintText, showToast]);
+
+  const pressHandlers = holdToActivate
+    ? { onPress: handleShortPress, onLongPress: onActivate, delayLongPress: HOLD_TO_ACTIVATE_DELAY_MS }
+    : { onPress: onActivate };
+
+  const dynamicStyle =
+    variant === 'primary'
+      ? [styles.primaryControl, styles.primaryControlCompact, { backgroundColor }]
+      : [styles.controlButton, { backgroundColor: colors.surfaceAlt }];
+
   return (
-    <Pressable style={[styles.controlButton, { backgroundColor: colors.surfaceAlt }]} onPress={onPress}>
-      <View style={[styles.controlIcon, { backgroundColor: `${accent}20` }]}>
-        <Ionicons name={icon} size={18} color={accent} />
-      </View>
-      <Text style={[styles.controlButtonText, { color: colors.textPrimary }]}>{label}</Text>
-    </Pressable>
+    <AnimatedPressable
+      style={[...dynamicStyle, { transform: [{ scale }] }]}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      {...pressHandlers}
+    >
+      {variant === 'primary' ? (
+        <>
+          <Ionicons name={icon} size={18} color={colors.background} />
+          <Text style={[styles.primaryControlText, { color: colors.background }]}>{label}</Text>
+        </>
+      ) : (
+        <>
+          <View style={[styles.controlIcon, { backgroundColor: `${accent}20` }]}>
+            <Ionicons name={icon} size={18} color={accent} />
+          </View>
+          <Text style={[styles.controlButtonText, { color: colors.textPrimary }]}>{label}</Text>
+        </>
+      )}
+    </AnimatedPressable>
   );
 }
 

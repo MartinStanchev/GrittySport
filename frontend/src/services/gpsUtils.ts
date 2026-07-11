@@ -77,7 +77,11 @@ export function triggerLap(
   hrReadings: HRReading[]
 ): Lap {
   const lapPoints = points.slice(lapStartIndex);
-  const distM = lapPoints.reduce((s, p) => s + p.distance_from_prev, 0);
+  // lapPoints[0] is the last point of the PREVIOUS lap (callers set lapStartIndex to
+  // allPoints.length - 1 when a lap fires), so its distance_from_prev belongs to that
+  // previous segment. Exclude it here so consecutive laps don't double-count it; this is
+  // a no-op for the very first lap since points[0].distance_from_prev is always 0.
+  const distM = lapPoints.slice(1).reduce((s, p) => s + p.distance_from_prev, 0);
   const startTime = lapPoints[0]?.timestamp ?? Date.now();
   const endTime = lapPoints[lapPoints.length - 1]?.timestamp ?? Date.now();
   const durSec = (endTime - startTime) / 1000;

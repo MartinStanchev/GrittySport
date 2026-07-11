@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import type { ReactNode } from 'react';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
 import { bleService } from '../services/bleService';
+import { usePauseNotification } from '../hooks/usePauseNotification';
 
 // ---- Manual workout types (unchanged) ----
 
@@ -159,6 +160,10 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   const activeGPSWorkoutRef = useRef<ActiveGPSWorkout | null>(null);
   activeWorkoutRef.current = activeWorkout;
   activeGPSWorkoutRef.current = activeGPSWorkout;
+
+  // Lives at the provider so the "workout paused" notification survives navigating away
+  // from the recording screen — its whole point is alerting a user who isn't looking at it.
+  usePauseNotification(activeGPSWorkout?.recordingState ?? 'idle', activeGPSWorkout?.autoPaused ?? false);
 
   // Manual
   const startWorkout = useCallback((workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => {
