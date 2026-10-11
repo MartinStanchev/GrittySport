@@ -3,15 +3,17 @@ import { FONTS } from './fonts';
 
 // Platforms overlay their own chrome (caption, action rail, username) on top of
 // the video. Captions/CTAs must stay inside the safe area or they get covered.
-// Insets are px at the 1080×1920 composition. Approximate but conservative —
-// based on where TikTok/Reels/Shorts UI actually sits as of 2026.
+// Insets are px at the 1080×1920 composition, measured against where the
+// platform text actually sits (TikTok Studio preview) rather than the paranoid
+// template values: bottoms assume a SHORT post description (1–2 lines) — a long
+// description grows upward and will cover our caption.
 export type SafeZone = 'none' | 'tiktok' | 'reels' | 'shorts';
 
 export const SAFE_ZONES: Record<SafeZone, { top: number; bottom: number; left: number; right: number }> = {
   none: { top: 0, bottom: 0, left: 0, right: 0 },
-  tiktok: { top: 120, bottom: 520, left: 32, right: 220 },
-  reels: { top: 150, bottom: 440, left: 32, right: 180 },
-  shorts: { top: 110, bottom: 380, left: 32, right: 150 },
+  tiktok: { top: 120, bottom: 340, left: 32, right: 220 },
+  reels: { top: 150, bottom: 320, left: 32, right: 180 },
+  shorts: { top: 110, bottom: 280, left: 32, right: 150 },
 };
 
 export const SAFE_ZONE_IDS = Object.keys(SAFE_ZONES) as SafeZone[];
@@ -19,11 +21,17 @@ export const DEFAULT_SAFE_ZONE: SafeZone = 'none';
 
 const W = 1080;
 const H = 1920;
-// Vertical band reserved for the caption, just above the bottom safe inset.
-const CAPTION_BAND = 280;
-// The phone's intrinsic total height at scale 1 (screenHeight + bezel*2, ~1336);
-// kept here so the layout can scale it to fit the usable stage.
+// Vertical clearance kept free for the caption below the phone. Sized for a
+// two-line caption (~126px at 56px/1.12) plus breathing room — NOT a generous
+// band: every extra px here comes straight out of the phone's scale. Captions
+// longer than two lines may kiss the phone's bottom bezel, which is fine.
+const CAPTION_CLEARANCE = 150;
+// The phone's intrinsic size at scale 1 (screen + bezel*2, ~636×1336); kept
+// here so the layout can scale it to fill the usable stage.
 const PHONE_NATURAL_HEIGHT = 1336;
+const PHONE_NATURAL_WIDTH = 636;
+// Minimum breathing room on each side when the phone is width-constrained.
+const PHONE_SIDE_MARGIN = 40;
 
 export type StageLayout = {
   phoneScale: number; // multiply the phone's screenHeight to fit
@@ -42,18 +50,28 @@ export function stageLayout(zone: SafeZone): StageLayout {
   }
   const usableTop = s.top;
   const usableBottom = H - s.bottom;
-  const captionBottom = s.bottom + 28;
-  // Phone gets the room above the caption band.
+  // Caption sits as low as it can — right above the platform chrome — so the
+  // phone keeps as much of the usable height as possible.
+  const captionBottom = s.bottom + 16;
+  // Phone gets the room above the caption clearance.
   const phoneAreaTop = usableTop;
-  const phoneAreaBottom = usableBottom - CAPTION_BAND;
+  const phoneAreaBottom = usableBottom - CAPTION_CLEARANCE;
   const phoneAreaHeight = Math.max(200, phoneAreaBottom - phoneAreaTop);
-  const phoneScale = Math.min(1, phoneAreaHeight / PHONE_NATURAL_HEIGHT);
+  // Fill the available height — the phone may grow past its natural size, up to
+  // where its width would crowd the frame edges.
+  const phoneScale = Math.min(
+    phoneAreaHeight / PHONE_NATURAL_HEIGHT,
+    (W - 2 * PHONE_SIDE_MARGIN) / PHONE_NATURAL_WIDTH,
+  );
   const phoneCenterY = phoneAreaTop + phoneAreaHeight / 2;
   return {
     phoneScale,
     phoneTranslateY: Math.round(phoneCenterY - H / 2),
     captionBottom,
-    captionMaxWidth: Math.round(W - s.left - s.right),
+    // Caption stays centred in the composition, so cap its width against the
+    // larger side inset — an asymmetric cap would let long lines poke into the
+    // platform's action rail.
+    captionMaxWidth: Math.round(W - 2 * Math.max(s.left, s.right)),
   };
 }
 

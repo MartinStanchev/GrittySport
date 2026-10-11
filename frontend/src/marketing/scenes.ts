@@ -13,11 +13,18 @@ import { appLiveRunScene } from './scenes/app-live-run';
 import { appLiveRideScene } from './scenes/app-live-ride';
 import { appSummaryRunScene } from './scenes/app-summary-run';
 import { appSummaryRideScene } from './scenes/app-summary-ride';
+import { postCyclingProgramCreateScene } from './scenes/post-cycling-program-create';
 import { postGritAroundLifeScene } from './scenes/post-grit-around-life';
 import { postHybridWeekScene } from './scenes/post-hybrid-week';
+import { postLegdayBeforeRunScene } from './scenes/post-legday-before-run';
+import { postMarathonPlusLifeScene } from './scenes/post-marathon-plus-life';
+import { postMissedWeekCheckinScene } from './scenes/post-missed-week-checkin';
+import { postNoPasting1LockscreenScene } from './scenes/post-no-pasting-1-lockscreen';
+import { postNoPasting2ChatScene } from './scenes/post-no-pasting-2-chat';
 import { postRealWeekScene } from './scenes/post-real-week';
 import { postSingleSportPlanScene } from './scenes/post-single-sport-plan';
 import { postStrengthReviewProgressionScene } from './scenes/post-strength-review-progression';
+import { postTurnItUpScene } from './scenes/post-turn-it-up';
 import { postYouAreInControlScene } from './scenes/post-you-are-in-control';
 import { sanityCheckScene } from './scenes/sanity-check';
 
@@ -28,6 +35,13 @@ export const SCENES: Scene[] = [
   postSingleSportPlanScene,
   postGritAroundLifeScene,
   postYouAreInControlScene,
+  postMarathonPlusLifeScene,
+  postTurnItUpScene,
+  postLegdayBeforeRunScene,
+  postCyclingProgramCreateScene,
+  postNoPasting1LockscreenScene,
+  postNoPasting2ChatScene,
+  postMissedWeekCheckinScene,
   postStrengthReviewProgressionScene,
   appHomeProgressScene,
   appHomeAllDoneScene,
