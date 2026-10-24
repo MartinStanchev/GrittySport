@@ -100,7 +100,7 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			`SELECT id, segment_type, status, summary, started_at, completed_at
 			 FROM chat_segments WHERE user_id = $1 ORDER BY started_at`},
 		{"chat_facts", new([]map[string]any),
-			`SELECT fact_type, content, active, created_at, updated_at
+			`SELECT fact_type, content, active, forgotten_at, created_at, updated_at
 			 FROM chat_facts WHERE user_id = $1 ORDER BY created_at`},
 		{"notification_preferences", new([]map[string]any),
 			`SELECT notif_type, enabled, updated_at

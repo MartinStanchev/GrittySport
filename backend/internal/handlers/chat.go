@@ -224,11 +224,6 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		userName = user.Name
 	}
 
-	assembledMemory, err := h.memoryService.AssembleMemory(r.Context(), userID, "")
-	if err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("Failed to assemble memory")
-	}
-
 	session := &sessionState{}
 
 	// Restore active segment if one exists.
@@ -270,7 +265,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if incoming.Type == "proposal_response" {
-			h.handleProposalResponse(r, ws, userID, userName, assembledMemory, user, incoming, &recentMsgs, session)
+			h.handleProposalResponse(r, ws, userID, userName, user, incoming, &recentMsgs, session)
 			continue
 		}
 
@@ -318,7 +313,7 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		incoming.Content = sanitize.SanitizeChatMessage(incoming.Content)
 
 		// Segment boundary detection: check for time gap.
-		assembledMemory = h.handleSegmentBoundary(r.Context(), userID, session, assembledMemory)
+		h.handleSegmentBoundary(r.Context(), session)
 
 		log.Debug().
 			Str("user_id", userID).
@@ -345,22 +340,15 @@ func (h *ChatHandler) WebSocket(w http.ResponseWriter, r *http.Request) {
 		// Detect conversation mode for tool/prompt filtering.
 		h.applyDetectedMode(session, userID)
 
-		// Reassemble memory with mode-aware filtering when in a specialized mode.
-		if session.mode != chat.ModeGeneralCoaching {
-			if mem, err := h.memoryService.AssembleMemory(r.Context(), userID, string(session.mode)); err == nil {
-				assembledMemory = mem
-			}
-		}
-
 		aiMessages := buildAIMessages(recentMsgs, incoming.Content)
-		h.handleWithTools(r, ws, userID, userName, assembledMemory, user, aiMessages, userMsg, &recentMsgs, session, remaining)
+		h.handleWithTools(r, ws, userID, userName, user, aiMessages, userMsg, &recentMsgs, session, remaining)
 	}
 }
 
-func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, userName, assembledMemory string, user *models.UserResponse, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState, chatRemaining int) {
+func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, userName string, user *models.UserResponse, aiMessages []ai.ChatMessage, userMsg *models.ChatMessage, recentMsgs *[]models.ChatMessage, session *sessionState, chatRemaining int) {
 	session.escalated = false // reset per turn
 
-	systemPrompt := h.buildSystemPrompt(r.Context(), userID, userName, assembledMemory, user, session)
+	systemPrompt := h.buildSystemPrompt(r.Context(), userID, userName, user, session)
 	toolDefs := h.toolRegistry.GeminiToolsForMode(session.mode)
 	log.Debug().
 		Str("user_id", userID).
@@ -499,7 +487,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, use
 			Msg("Mode escalation: retrying with correct mode")
 
 		toolDefs = h.toolRegistry.GeminiToolsForMode(session.mode)
-		systemPrompt = h.buildSystemPrompt(r.Context(), userID, userName, assembledMemory, user, session)
+		systemPrompt = h.buildSystemPrompt(r.Context(), userID, userName, user, session)
 
 		fullResponse, toolCalls, err = h.aiClient.ChatWithTools(
 			r.Context(),
@@ -561,7 +549,7 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, use
 	}
 }
 
-func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName, assembledMemory string, user *models.UserResponse, incoming wsIncoming, recentMsgs *[]models.ChatMessage, session *sessionState) {
+func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, userID, userName string, user *models.UserResponse, incoming wsIncoming, recentMsgs *[]models.ChatMessage, session *sessionState) {
 	var userContent string
 	if incoming.Action == "accept" {
 		userContent = "I accept this program, please save it."
@@ -580,33 +568,26 @@ func (h *ChatHandler) handleProposalResponse(r *http.Request, ws *wsWriter, user
 
 	h.applyDetectedMode(session, userID)
 
-	// Reassemble memory with mode-aware filtering for specialized modes.
-	if session.mode != chat.ModeGeneralCoaching {
-		if mem, err := h.memoryService.AssembleMemory(r.Context(), userID, string(session.mode)); err == nil {
-			assembledMemory = mem
-		}
-	}
-
 	aiMessages := buildAIMessages(*recentMsgs, userContent)
 
-	h.handleWithTools(r, ws, userID, userName, assembledMemory, user, aiMessages, userMsg, recentMsgs, session, -1)
+	h.handleWithTools(r, ws, userID, userName, user, aiMessages, userMsg, recentMsgs, session, -1)
 }
 
 // handleSegmentBoundary checks for a 2+ hour gap since the last message. If found,
-// it uses the LLM to check if the active segment is complete, closes and summarizes
-// it if so, and reassembles memory for the prompt.
-func (h *ChatHandler) handleSegmentBoundary(ctx context.Context, userID string, session *sessionState, currentMemory string) string {
+// it uses the LLM to check if the active segment is complete and closes and
+// summarizes it if so.
+func (h *ChatHandler) handleSegmentBoundary(ctx context.Context, session *sessionState) {
 	const gapThreshold = 2 * time.Hour
 
 	if session.activeSegmentID == "" || session.lastMessageTime.IsZero() {
-		return currentMemory
+		return
 	}
 
 	if time.Since(session.lastMessageTime) < gapThreshold {
-		return currentMemory
+		return
 	}
 
-	log.Debug().Str("user_id", userID).Str("segment_id", session.activeSegmentID).Msg("Time gap detected, checking segment completion")
+	log.Debug().Str("segment_id", session.activeSegmentID).Msg("Time gap detected, checking segment completion")
 
 	complete, err := h.memoryService.CheckSegmentCompletion(ctx, session.activeSegmentID)
 	if err != nil {
@@ -615,17 +596,8 @@ func (h *ChatHandler) handleSegmentBoundary(ctx context.Context, userID string, 
 	}
 
 	if complete {
-		h.memoryService.CloseAndSummarize(ctx, session.activeSegmentID)
-		session.activeSegmentID = ""
-		session.activeSegmentType = ""
-
-		// Reassemble memory with the new summary.
-		if mem, err := h.memoryService.AssembleMemory(ctx, userID, string(session.mode)); err == nil {
-			return mem
-		}
+		h.closeSessionSegment(ctx, session)
 	}
-
-	return currentMemory
 }
 
 // closeSessionSegment closes the active segment and triggers async summarization.
@@ -673,7 +645,14 @@ func (h *ChatHandler) applyDetectedMode(session *sessionState, userID string) {
 		Msg("Chat mode detected")
 }
 
-func (h *ChatHandler) buildSystemPrompt(ctx context.Context, userID, userName, memory string, user *models.UserResponse, session *sessionState) string {
+// buildSystemPrompt assembles memory fresh on every call so facts saved or
+// forgotten earlier in the same WebSocket session are reflected immediately.
+func (h *ChatHandler) buildSystemPrompt(ctx context.Context, userID, userName string, user *models.UserResponse, session *sessionState) string {
+	mem, err := h.memoryService.AssembleMemory(ctx, userID, string(session.mode), memory.WithIDTags)
+	if err != nil {
+		log.Warn().Err(err).Str("user_id", userID).Msg("Failed to assemble memory")
+	}
+
 	tz := "UTC"
 	if user.Timezone != nil && *user.Timezone != "" {
 		tz = *user.Timezone
@@ -684,7 +663,7 @@ func (h *ChatHandler) buildSystemPrompt(ctx context.Context, userID, userName, m
 		Timezone:        tz,
 		Units:           user.UnitsPreference,
 		CurrentDateTime: formatCurrentDateTime(tz),
-		Memory:          memory,
+		Memory:          mem,
 	}, string(session.mode))
 
 	if session.mode == chat.ModeProgramManagement {

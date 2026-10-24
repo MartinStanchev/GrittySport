@@ -204,10 +204,11 @@ func (s *Service) getSegmentMessages(ctx context.Context, segmentID string) ([]m
 func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error {
 	// Load segment metadata.
 	var segType, userID string
+	var startedAt time.Time
 	err := s.pool.QueryRow(ctx,
-		`SELECT user_id, segment_type FROM chat_segments WHERE id = $1`,
+		`SELECT user_id, segment_type, started_at FROM chat_segments WHERE id = $1`,
 		segmentID,
-	).Scan(&userID, &segType)
+	).Scan(&userID, &segType, &startedAt)
 	if err != nil {
 		return fmt.Errorf("load segment for summarization: %w", err)
 	}
@@ -220,7 +221,12 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 		return nil
 	}
 
-	prompt := buildSummarizePrompt(segType, messages)
+	forgotten, err := s.getForgottenSince(ctx, userID, startedAt)
+	if err != nil {
+		log.Warn().Err(err).Str("segment_id", segmentID).Msg("Failed to load forgotten facts for summarization")
+	}
+
+	prompt := buildSummarizePrompt(segType, messages, forgotten)
 	// Flex tier: async background summarization, no user waiting
 	raw, err := s.aiClient.GenerateCheapFlex(ctx, prompt)
 	if err != nil {
@@ -254,7 +260,7 @@ func (s *Service) SummarizeSegment(ctx context.Context, segmentID string) error 
 
 	// Save extracted facts.
 	for _, f := range result.Facts {
-		if f.Content == "" {
+		if f.Content == "" || isForgotten(f.Type, f.Content, forgotten) {
 			continue
 		}
 		// Deactivate older facts of the same type that might be outdated.
@@ -409,19 +415,224 @@ func (s *Service) SaveExplicitPreference(ctx context.Context, userID, content st
 	return nil
 }
 
-// RemoveMemory deactivates any active fact matching the given content (case-insensitive),
-// regardless of fact type — covering both explicit preferences and auto-extracted facts.
-// Returns the number of rows deactivated.
-func (s *Service) RemoveMemory(ctx context.Context, userID, content string) (int64, error) {
-	tag, err := s.pool.Exec(ctx,
-		`UPDATE chat_facts SET active = false, updated_at = NOW()
-		 WHERE user_id = $1 AND LOWER(content) = LOWER($2) AND active = true`,
-		userID, content,
+// shortIDLen is the length of the memory ID prefix shown to the LLM in assembled memory.
+const shortIDLen = 8
+
+// normalizeMemoryIDs lowercases and trims LLM-provided memory IDs, strips a
+// leading "id:" label, and drops anything that isn't an 8-char hex prefix.
+func normalizeMemoryIDs(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		id = strings.ToLower(strings.TrimSpace(id))
+		id = strings.TrimSpace(strings.TrimPrefix(id, "id:"))
+		if len(id) != shortIDLen || strings.Trim(id, "0123456789abcdef") != "" {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out
+}
+
+// ForgetMemories marks the active facts/preferences with the given short IDs as
+// forgotten and scrubs them from past session summaries in the background.
+// A redaction that fails is retried by the maintenance scheduler.
+// Returns the facts that were forgotten.
+func (s *Service) ForgetMemories(ctx context.Context, userID string, ids []string) ([]models.ChatFact, error) {
+	forgotten, err := s.markForgotten(ctx, userID, ids)
+	if err != nil || len(forgotten) == 0 {
+		return forgotten, err
+	}
+	go func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := s.redactPending(bgCtx, userID); err != nil {
+			log.Warn().Err(err).Str("user_id", userID).Msg("Failed to redact forgotten memories from summaries")
+		}
+	}()
+	return forgotten, nil
+}
+
+// markForgotten deactivates the matching active facts and stamps forgotten_at.
+func (s *Service) markForgotten(ctx context.Context, userID string, ids []string) ([]models.ChatFact, error) {
+	ids = normalizeMemoryIDs(ids)
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return s.queryFacts(ctx,
+		`UPDATE chat_facts SET active = false, forgotten_at = NOW(), updated_at = NOW()
+		 WHERE user_id = $1 AND active = true AND LEFT(id::text, $3) = ANY($2)
+		 RETURNING `+factColumns,
+		"forget memories", userID, ids, shortIDLen,
+	)
+}
+
+// getForgottenSince returns facts the user asked to forget after the given time.
+// Summarization passes a segment's start time: only a conversation that began
+// before the forget can still carry the old content. Anything the user says in
+// a later conversation is new information and may be extracted again.
+func (s *Service) getForgottenSince(ctx context.Context, userID string, since time.Time) ([]models.ChatFact, error) {
+	return s.queryFacts(ctx,
+		`SELECT `+factColumns+` FROM chat_facts
+		 WHERE user_id = $1 AND forgotten_at > $2`,
+		"get forgotten facts", userID, since,
+	)
+}
+
+// isForgotten reports whether an extracted fact matches a forgotten one (same type, case-insensitive content).
+func isForgotten(factType, content string, forgotten []models.ChatFact) bool {
+	for _, f := range forgotten {
+		if f.FactType == factType && strings.EqualFold(strings.TrimSpace(f.Content), strings.TrimSpace(content)) {
+			return true
+		}
+	}
+	return false
+}
+
+// RedactPendingForgotten retries summary redaction for every user who has
+// forgotten facts that haven't been scrubbed from summaries yet.
+// Returns the number of users redacted.
+func (s *Service) RedactPendingForgotten(ctx context.Context) (int, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT DISTINCT user_id::text FROM chat_facts
+		 WHERE forgotten_at IS NOT NULL AND summaries_redacted_at IS NULL`,
 	)
 	if err != nil {
-		return 0, fmt.Errorf("remove memory: %w", err)
+		return 0, fmt.Errorf("list pending redactions: %w", err)
 	}
-	return tag.RowsAffected(), nil
+	userIDs, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return 0, fmt.Errorf("scan pending redactions: %w", err)
+	}
+
+	redacted := 0
+	for _, userID := range userIDs {
+		if err := s.redactPending(ctx, userID); err != nil {
+			log.Warn().Err(err).Str("user_id", userID).Msg("Retrying forgotten-memory redaction failed")
+			continue
+		}
+		redacted++
+	}
+	return redacted, nil
+}
+
+// redactPending scrubs all of a user's forgotten-but-unredacted facts from their
+// session summaries, then marks those facts as redacted.
+func (s *Service) redactPending(ctx context.Context, userID string) error {
+	pending, err := s.queryFacts(ctx,
+		`SELECT `+factColumns+` FROM chat_facts
+		 WHERE user_id = $1 AND forgotten_at IS NOT NULL AND summaries_redacted_at IS NULL`,
+		"get pending redactions", userID,
+	)
+	if err != nil || len(pending) == 0 {
+		return err
+	}
+	if err := s.redactSummaries(ctx, userID, pending); err != nil {
+		return err
+	}
+
+	ids := make([]string, len(pending))
+	for i, f := range pending {
+		ids[i] = f.ID
+	}
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE chat_facts SET summaries_redacted_at = NOW() WHERE user_id = $1 AND id::text = ANY($2)`,
+		userID, ids,
+	); err != nil {
+		return fmt.Errorf("mark facts redacted: %w", err)
+	}
+	return nil
+}
+
+// redactCandidateLimit caps how many past summaries are checked for forgotten content.
+const redactCandidateLimit = 30
+
+// redactSummaries rewrites completed segment summaries so they no longer mention
+// the forgotten facts. The facts' source segments are always checked, then the
+// most recent summaries. A summary that becomes empty is cleared (NULL), which
+// drops the segment from memory assembly.
+func (s *Service) redactSummaries(ctx context.Context, userID string, forgotten []models.ChatFact) error {
+	sourceIDs := []string{}
+	for _, f := range forgotten {
+		if f.SourceSegmentID != nil {
+			sourceIDs = append(sourceIDs, *f.SourceSegmentID)
+		}
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT id::text, summary FROM chat_segments
+		 WHERE user_id = $1 AND status = 'completed' AND summary IS NOT NULL
+		 ORDER BY (id::text = ANY($2)) DESC, completed_at DESC
+		 LIMIT $3`,
+		userID, sourceIDs, redactCandidateLimit,
+	)
+	if err != nil {
+		return fmt.Errorf("load summaries for redaction: %w", err)
+	}
+	segs, err := pgx.CollectRows(rows, pgx.RowToStructByPos[struct {
+		ID      string
+		Summary string
+	}])
+	if err != nil {
+		return fmt.Errorf("scan summaries for redaction: %w", err)
+	}
+	if len(segs) == 0 {
+		return nil
+	}
+
+	summaries := make([]string, len(segs))
+	for i, seg := range segs {
+		summaries[i] = seg.Summary
+	}
+	raw, err := s.aiClient.GenerateCheap(ctx, buildRedactSummariesPrompt(forgotten, summaries))
+	if err != nil {
+		return fmt.Errorf("redact summaries LLM call: %w", err)
+	}
+	updates, err := parseRedactionUpdates(raw, len(segs))
+	if err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+
+	ids := make([]string, 0, len(updates))
+	rewritten := make([]string, 0, len(updates))
+	for index, summary := range updates {
+		ids = append(ids, segs[index].ID)
+		rewritten = append(rewritten, summary)
+	}
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE chat_segments seg SET summary = NULLIF(u.summary, '')
+		 FROM unnest($2::text[], $3::text[]) AS u(id, summary)
+		 WHERE seg.id::text = u.id AND seg.user_id = $1`,
+		userID, ids, rewritten,
+	); err != nil {
+		return fmt.Errorf("save redacted summaries: %w", err)
+	}
+	log.Info().Str("user_id", userID).Int("checked", len(segs)).Int("redacted", len(updates)).Msg("Forgotten memories redacted from summaries")
+	return nil
+}
+
+// parseRedactionUpdates parses the redaction LLM response into a map of
+// 0-based summary index → rewritten summary, dropping out-of-range indices.
+func parseRedactionUpdates(raw string, count int) (map[int]string, error) {
+	var result struct {
+		Updates []struct {
+			Index   int    `json:"index"`
+			Summary string `json:"summary"`
+		} `json:"updates"`
+	}
+	if err := json.Unmarshal([]byte(stripCodeFence(raw)), &result); err != nil {
+		return nil, fmt.Errorf("parse redaction response: %w", err)
+	}
+	updates := make(map[int]string, len(result.Updates))
+	for _, u := range result.Updates {
+		if u.Index < 1 || u.Index > count {
+			continue
+		}
+		updates[u.Index-1] = strings.TrimSpace(u.Summary)
+	}
+	return updates, nil
 }
 
 // CountExplicitPreferences returns the number of active explicit preferences for a user.
@@ -440,7 +651,7 @@ func (s *Service) CountExplicitPreferences(ctx context.Context, userID string) (
 // GetExplicitPreferences returns up to 10 active explicit preferences for a user, newest first.
 func (s *Service) GetExplicitPreferences(ctx context.Context, userID string) ([]models.ChatFact, error) {
 	return s.queryFacts(ctx,
-		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
+		`SELECT `+factColumns+`
 		 FROM chat_facts WHERE user_id = $1 AND fact_type = 'explicit_preference' AND active = true
 		 ORDER BY created_at DESC LIMIT 10`,
 		"get explicit preferences", userID,
@@ -450,15 +661,17 @@ func (s *Service) GetExplicitPreferences(ctx context.Context, userID string) ([]
 // GetActiveFacts returns the 20 most recent active facts for a user (excludes explicit_preference, which is fetched separately).
 func (s *Service) GetActiveFacts(ctx context.Context, userID string) ([]models.ChatFact, error) {
 	return s.queryFacts(ctx,
-		`SELECT id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at
+		`SELECT `+factColumns+`
 		 FROM chat_facts WHERE user_id = $1 AND active = true AND fact_type != 'explicit_preference'
 		 ORDER BY created_at DESC LIMIT 20`,
 		"get active facts", userID,
 	)
 }
 
-// queryFacts executes a chat_facts SELECT query and scans the results into a slice.
-// The query must select the standard eight fact columns in declaration order.
+// factColumns are the chat_facts columns queryFacts scans, in order.
+const factColumns = "id, user_id, fact_type, content, source_segment_id, active, created_at, updated_at"
+
+// queryFacts executes a chat_facts query returning factColumns and scans the results into a slice.
 func (s *Service) queryFacts(ctx context.Context, query, errContext string, args ...any) ([]models.ChatFact, error) {
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -477,10 +690,25 @@ func (s *Service) queryFacts(ctx context.Context, query, errContext string, args
 	return facts, nil
 }
 
+// IDTags controls whether AssembleMemory prefixes preferences and facts with
+// their [id:…] tag. Only chat needs them (for forget_memory); review prompts have no tools.
+type IDTags bool
+
+const (
+	WithIDTags    IDTags = true
+	WithoutIDTags IDTags = false
+)
+
 // AssembleMemory builds the complete memory string for injection into the system prompt.
 // The mode parameter filters segment summaries by relevance; empty string defaults to general_coaching.
-func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (string, error) {
+func (s *Service) AssembleMemory(ctx context.Context, userID, mode string, idTags IDTags) (string, error) {
 	var b strings.Builder
+	tag := func(id string) string {
+		if !idTags {
+			return ""
+		}
+		return "[id:" + id[:shortIDLen] + "] "
+	}
 
 	// 1. Explicit user preferences (always included, separate from general facts).
 	prefs, err := s.GetExplicitPreferences(ctx, userID)
@@ -490,7 +718,7 @@ func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (stri
 	if len(prefs) > 0 {
 		b.WriteString("### User Preferences\n")
 		for _, p := range prefs {
-			b.WriteString(fmt.Sprintf("- %s\n", p.Content))
+			fmt.Fprintf(&b, "- %s%s\n", tag(p.ID), p.Content)
 		}
 		b.WriteString("\n")
 	}
@@ -503,7 +731,7 @@ func (s *Service) AssembleMemory(ctx context.Context, userID, mode string) (stri
 	if len(facts) > 0 {
 		b.WriteString("### User Facts\n")
 		for _, f := range facts {
-			b.WriteString(fmt.Sprintf("- [%s] %s\n", formatFactType(f.FactType), f.Content))
+			fmt.Fprintf(&b, "- %s%s\n", tag(f.ID), factLine(f))
 		}
 		b.WriteString("\n")
 	}
@@ -703,6 +931,11 @@ func (s *Service) GetLastMessageTime(ctx context.Context, userID string) (time.T
 		return time.Time{}, fmt.Errorf("get last message time: %w", err)
 	}
 	return t, nil
+}
+
+// factLine renders a fact as "[Type] content".
+func factLine(f models.ChatFact) string {
+	return "[" + formatFactType(f.FactType) + "] " + f.Content
 }
 
 func formatFactType(ft string) string {

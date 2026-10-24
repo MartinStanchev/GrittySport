@@ -51,7 +51,7 @@ func TestBuildSummarizePrompt(t *testing.T) {
 		{Role: "assistant", Content: "Great goal! Let me build a program for you."},
 	}
 
-	prompt := buildSummarizePrompt("program_creation", messages)
+	prompt := buildSummarizePrompt("program_creation", messages, nil)
 
 	if !strings.Contains(prompt, "program_creation") {
 		t.Error("prompt should include segment type")
@@ -67,6 +67,44 @@ func TestBuildSummarizePrompt(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "running") {
 		t.Error("prompt should list example tags like running")
+	}
+}
+
+func TestBuildSummarizePrompt_ForgottenFacts(t *testing.T) {
+	messages := []models.ChatMessage{
+		{Role: "user", Content: "Please forget about my ankle injury, it's healed."},
+	}
+
+	without := buildSummarizePrompt("general_coaching", messages, nil)
+	if strings.Contains(without, "asked their coach to forget") {
+		t.Error("prompt without forgotten facts should not include the forgotten section")
+	}
+
+	forgotten := []models.ChatFact{{FactType: "injury", Content: "Left ankle sprain, avoid jumping"}}
+	with := buildSummarizePrompt("general_coaching", messages, forgotten)
+	if !strings.Contains(with, "- [Injury] Left ankle sprain, avoid jumping") {
+		t.Error("prompt should list forgotten facts with their type label")
+	}
+	if !strings.Contains(with, "Do NOT extract these") {
+		t.Error("prompt should instruct the model not to re-extract forgotten facts")
+	}
+}
+
+func TestBuildRedactSummariesPrompt(t *testing.T) {
+	forgotten := []models.ChatFact{{FactType: "injury", Content: "Left ankle sprain"}}
+	prompt := buildRedactSummariesPrompt(forgotten, []string{
+		"Built a 10k program around a left ankle sprain.",
+		"Reviewed an easy run.",
+	})
+
+	if !strings.Contains(prompt, "- [Injury] Left ankle sprain") {
+		t.Error("prompt should list forgotten facts")
+	}
+	if !strings.Contains(prompt, "1. Built a 10k program") || !strings.Contains(prompt, "2. Reviewed an easy run.") {
+		t.Error("prompt should number summaries starting at 1")
+	}
+	if !strings.Contains(prompt, `"updates"`) {
+		t.Error("prompt should request the updates JSON shape")
 	}
 }
 

@@ -35,16 +35,32 @@ Messages:
 Respond with JSON only: {"complete": true, "reason": "brief reason"} or {"complete": false, "reason": "brief reason"}`
 }
 
-func buildSummarizePrompt(segmentType string, messages []models.ChatMessage) string {
+// formatForgottenList renders forgotten facts as a bullet list for LLM prompts.
+func formatForgottenList(forgotten []models.ChatFact) string {
+	var b strings.Builder
+	for _, f := range forgotten {
+		fmt.Fprintf(&b, "- %s\n", factLine(f))
+	}
+	return b.String()
+}
+
+func buildSummarizePrompt(segmentType string, messages []models.ChatMessage, forgotten []models.ChatFact) string {
 	var convo strings.Builder
 	for _, m := range messages {
 		fmt.Fprintf(&convo, "%s: %s\n", m.Role, m.Content)
 	}
 
+	var forgottenSection string
+	if len(forgotten) > 0 {
+		forgottenSection = `
+The user asked their coach to forget the following. Do NOT extract these (or rewordings of them) as facts and do NOT mention them in the summary. Asking to forget something, or saying it is resolved, is not new information — leave it out entirely. Only extract it if the user reports it again in these messages as new, current information (e.g. a fresh injury).
+` + formatForgottenList(forgotten)
+	}
+
 	return `Summarize this fitness coaching conversation segment in 1-3 sentences. Also extract any persistent user facts and topic tags.
 
 Segment type: ` + segmentType + `
-
+` + forgottenSection + `
 Facts to extract (if mentioned):
 - Injuries or pain (type: "injury")
 - Health conditions (type: "health_condition")
@@ -69,6 +85,27 @@ Respond with JSON only:
 }
 
 If no facts are present, return an empty facts array. Always include at least one tag. Be concise and factual.`
+}
+
+// buildRedactSummariesPrompt asks the LLM to rewrite session summaries so they no
+// longer mention anything the user asked to forget. Summaries are keyed by their
+// position in the slice (1-based) so the model never has to copy UUIDs.
+func buildRedactSummariesPrompt(forgotten []models.ChatFact, summaries []string) string {
+	var list strings.Builder
+	for i, s := range summaries {
+		fmt.Fprintf(&list, "%d. %s\n", i+1, s)
+	}
+
+	return `The user asked their fitness coach to forget the following:
+` + formatForgottenList(forgotten) + `
+Below are numbered summaries of past coaching sessions. Rewrite every summary that mentions any of the forgotten items so it no longer does, keeping everything else unchanged. If nothing is left once the forgotten content is removed, use an empty string. Leave out summaries that don't mention them.
+
+Summaries:
+` + list.String() + `
+Respond with JSON only:
+{"updates": [{"index": 2, "summary": "rewritten summary"}]}
+
+If no summary mentions the forgotten items, respond with {"updates": []}.`
 }
 
 // condensePreferenceThreshold is the character count above which a preference is condensed via LLM.

@@ -401,7 +401,7 @@ func (s *Service) assembleUserMemory(ctx context.Context, userID string) string 
 	if s.memoryService == nil {
 		return "No prior context available."
 	}
-	mem, err := s.memoryService.AssembleMemory(ctx, userID, "workout_review")
+	mem, err := s.memoryService.AssembleMemory(ctx, userID, "workout_review", memory.WithoutIDTags)
 	if err != nil || mem == "" {
 		return "No prior context available."
 	}

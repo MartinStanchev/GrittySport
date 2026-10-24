@@ -233,8 +233,8 @@ func main() {
 	userReminderChecker := review.NewUserReminderChecker(chatService, reminderService, notifService, memoryService)
 	go userReminderChecker.Run(ctx)
 
-	factDecay := memory.NewFactDecayScheduler(memoryService)
-	go factDecay.Run(ctx)
+	memoryMaintenance := memory.NewMaintenanceScheduler(memoryService)
+	go memoryMaintenance.Run(ctx)
 
 	retentionScheduler := retention.NewScheduler(pool)
 	go retentionScheduler.Run(ctx)

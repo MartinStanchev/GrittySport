@@ -898,33 +898,46 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 	reg.Register(&Tool{
 		Name:        "forget_memory",
 		Modes:       []chat.Mode{chat.ModeGeneralCoaching, chat.ModeProgramCreation, chat.ModeProgramManagement, chat.ModeWorkoutReview},
-		Description: "Forget something Grit remembers about the user — either a saved preference (from User Preferences) or an auto-extracted fact (from User Facts). Use when the user says 'forget that...', 'that's not true anymore', 'stop doing...', 'I no longer...'. Provide the exact content text. For a User Facts entry, omit the leading [type] label and pass only the fact text.",
+		Description: "Forget things Grit remembers about the user — saved preferences (User Preferences) or auto-extracted facts (User Facts). Use when the user says 'forget that...', 'that's not true anymore', 'stop doing...', 'I no longer...'. Pass the id from the [id:...] tag of EVERY entry that matches what the user wants forgotten — one topic (e.g. an injury) can appear in several entries. Past session summaries are cleaned up automatically.",
 		Parameters: &genai.Schema{
 			Type:     genai.TypeObject,
-			Required: []string{"content"},
+			Required: []string{"memory_ids"},
 			Properties: map[string]*genai.Schema{
-				"content": {Type: genai.TypeString, Description: "The exact content to forget, as shown under User Preferences or User Facts (without any leading [type] label)"},
+				"memory_ids": {
+					Type:        genai.TypeArray,
+					Description: "IDs of the memories to forget, copied from the [id:...] tags (e.g. \"1a2b3c4d\")",
+					Items:       &genai.Schema{Type: genai.TypeString},
+				},
 			},
 		},
 		Handler: func(ctx context.Context, userID string, params map[string]any) (any, error) {
-			content, _ := params["content"].(string)
-			if content == "" {
-				return nil, fmt.Errorf("content is required")
+			idsJSON, err := json.Marshal(params["memory_ids"])
+			if err != nil {
+				return nil, fmt.Errorf("marshal memory_ids: %w", err)
+			}
+			var ids []string
+			if err := json.Unmarshal(idsJSON, &ids); err != nil {
+				return nil, fmt.Errorf("invalid memory_ids payload: %w", err)
 			}
 
-			removed, err := memorySvc.RemoveMemory(ctx, userID, content)
+			forgotten, err := memorySvc.ForgetMemories(ctx, userID, ids)
 			if err != nil {
 				return nil, err
 			}
-			if removed == 0 {
+			if len(forgotten) == 0 {
 				return map[string]string{
 					"status":  "not_found",
-					"message": "No matching memory found. Check the exact wording in User Preferences or User Facts.",
+					"message": "No memory matched those IDs. Use the [id:...] tags shown under User Preferences or User Facts.",
 				}, nil
 			}
-			return map[string]string{
-				"status":  "removed",
-				"message": "Forgotten.",
+			contents := make([]string, len(forgotten))
+			for i, f := range forgotten {
+				contents[i] = f.Content
+			}
+			return map[string]any{
+				"status":    "forgotten",
+				"forgotten": contents,
+				"message":   "Forgotten. Treat these as no longer true and don't bring them up again, even if earlier messages in this chat mention them.",
 			}, nil
 		},
 	})
