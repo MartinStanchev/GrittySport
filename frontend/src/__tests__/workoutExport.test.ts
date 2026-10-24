@@ -62,6 +62,7 @@ function makeGPSWorkout(opts: Partial<{
     source: 'gps',
     started_at: new Date(T0).toISOString(),
     finished_at: new Date(T0 + 120_000).toISOString(),
+    paused_duration_sec: 0,
     gps_route: route,
     heart_rate_data,
     created_at: '',
@@ -78,6 +79,7 @@ function makeHROnlyWorkout(): WorkoutResponse {
     source: 'manual',
     started_at: new Date(T0).toISOString(),
     finished_at: new Date(T0 + 1800_000).toISOString(),
+    paused_duration_sec: 0,
     heart_rate_data: {
       readings: [
         { bpm: 110, timestamp: T0 },
@@ -100,6 +102,7 @@ function makeStrengthOnlyWorkout(): WorkoutResponse {
     source: 'manual',
     started_at: new Date(T0).toISOString(),
     finished_at: new Date(T0 + 1800_000).toISOString(),
+    paused_duration_sec: 0,
     created_at: '',
     updated_at: '',
   };
@@ -210,6 +213,18 @@ describe('buildTCX', () => {
     expect(xml).toContain('<TotalTimeSeconds>120.0</TotalTimeSeconds>');
   });
 
+  it('uses the active (pause-excluded) duration for the single Lap', () => {
+    const xml = buildTCX({ ...makeGPSWorkout(), paused_duration_sec: 30 });
+    expect(xml).toContain('<TotalTimeSeconds>90.0</TotalTimeSeconds>');
+  });
+
+  it("uses each stored lap's active duration_sec", () => {
+    const workout = makeGPSWorkout({ withLaps: true });
+    (workout.gps_route as any).laps[0].duration_sec = 45; // a 15 s pause inside lap 1
+    const xml = buildTCX(workout);
+    expect(xml).toContain('<TotalTimeSeconds>45.0</TotalTimeSeconds>');
+  });
+
   it('writes one Lap per recorded GPS lap', () => {
     const xml = buildTCX(makeGPSWorkout({ withLaps: true, withHR: true }));
     const lapMatches = xml.match(/<Lap StartTime/g);
@@ -317,6 +332,7 @@ function makeLappedWorkout(opts: {
     source: 'gps',
     started_at: new Date(T0).toISOString(),
     finished_at: new Date(finishedAtMs).toISOString(),
+    paused_duration_sec: 0,
     gps_route: route,
     heart_rate_data: undefined,
     created_at: '',

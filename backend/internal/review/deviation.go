@@ -31,6 +31,9 @@ type GPSPoint struct {
 	Speed            *float64 `json:"speed"`
 	Timestamp        int64    `json:"timestamp"`
 	DistanceFromPrev float64  `json:"distance_from_prev"`
+	// Seconds the recording was paused between the previous point and this one;
+	// excluded from split times so they match the workout's active duration.
+	PausedBeforeSec float64 `json:"paused_before_sec,omitempty"`
 }
 
 type zoneWeight struct {
@@ -158,16 +161,17 @@ func computeKmSplitsFromPoints(points []GPSPoint) []KmSplit {
 
 	var splits []KmSplit
 	splitStart := 0
-	var splitDist float64
+	var splitDist, splitPausedSec float64
 
 	for i := 1; i < len(points); i++ {
 		splitDist += points[i].DistanceFromPrev
+		splitPausedSec += points[i].PausedBeforeSec
 
 		if splitDist >= 1000 {
 			km := len(splits) + 1
 			startTs := points[splitStart].Timestamp
 			endTs := points[i].Timestamp
-			durSec := float64(endTs-startTs) / 1000.0
+			durSec := math.Max(0, float64(endTs-startTs)/1000.0-splitPausedSec)
 			pace := 0.0
 			if durSec > 0 && splitDist > 0 {
 				pace = (durSec / splitDist) * 1000
@@ -181,6 +185,7 @@ func computeKmSplitsFromPoints(points []GPSPoint) []KmSplit {
 
 			splitStart = i
 			splitDist = 0
+			splitPausedSec = 0
 		}
 	}
 

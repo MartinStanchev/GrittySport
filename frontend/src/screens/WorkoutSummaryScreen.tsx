@@ -25,8 +25,10 @@ import { goHomeAndReset } from '../utils/navigation';
 import { PostWorkoutReview } from '../components/PostWorkoutReview';
 import { HROverTimeChart, PaceOverTimeChart, SpeedOverTimeChart, CadenceChart } from '../components/WorkoutCharts';
 import { saveWorkoutWithFallback } from '../services/syncService';
+import { activeElapsedSec } from '../utils/workoutDuration';
 import {
   buildFinalGPSPayload,
+  closeFinalLap,
   formatPaceSecPerKm,
   formatSpeedKph,
   formatDistanceKm,
@@ -38,6 +40,7 @@ import {
   computeKmSplits,
   cadenceUnit,
   computeCyclingDerivedStats,
+  hasRecordedLaps,
 } from '../services/gpsUtils';
 import type { Lap, HRZone } from '../types/gps';
 import { isPremium } from '../utils/premium';
@@ -88,17 +91,21 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
 
   const gpsPayload = useMemo(() => {
     if (!activeGPSWorkout) return null;
-    const finishedAt = activeGPSWorkout.finishedAt ?? new Date();
+    const finishedAtMs = (activeGPSWorkout.finishedAt ?? new Date()).getTime();
     return buildFinalGPSPayload({
       activityType: activeGPSWorkout.activityType,
       points: activeGPSWorkout.points,
-      laps: activeGPSWorkout.laps,
+      // Live laps stop at the last Lap press; close the remainder into a final lap.
+      laps: closeFinalLap(
+        activeGPSWorkout.points,
+        activeGPSWorkout.laps,
+        activeGPSWorkout.lapStartIndex,
+        activeGPSWorkout.hrReadings,
+      ),
       hrReadings: activeGPSWorkout.hrReadings,
       cadenceReadings: activeGPSWorkout.cadenceReadings,
       totalDistanceM: activeGPSWorkout.totalDistanceM,
-      autoPausedDurationSec: activeGPSWorkout.autoPausedDurationSec,
-      startedAt: activeGPSWorkout.startedAt,
-      finishedAt,
+      durationSec: activeElapsedSec(activeGPSWorkout, finishedAtMs),
       hrDeviceName: activeGPSWorkout.hrDeviceName,
     });
   }, [activeGPSWorkout]);
@@ -128,18 +135,19 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
   const { routeData, summaryData, hrData } = gpsPayload;
 
   const totalElapsed = routeData.duration_sec;
-  const { movingSec, vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
+  const { vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
     durationSec: totalElapsed,
-    autoPausedSec: routeData.auto_paused_duration_sec,
     elevationGainM: isCycling ? routeData.elevation_gain_m : 0,
     avgPower: routeData.avg_power,
   });
-  const showMovingTime = isCycling && routeData.auto_paused_duration_sec > 0;
+  // Only laps the user pressed Lap for (plus the closed final lap).
+  const laps = hasRecordedLaps(routeData.laps) ? routeData.laps : [];
+  const lapsHaveHR = laps.some((l) => l.avg_hr);
   let bestLap = null;
-  if (workout.laps.length > 0) {
+  if (laps.length > 0) {
     bestLap = isRun
-      ? workout.laps.reduce((best, l) => (l.avg_pace_sec_per_km > 0 && l.avg_pace_sec_per_km < best.avg_pace_sec_per_km ? l : best))
-      : workout.laps.reduce((best, l) => (l.avg_speed_kph > best.avg_speed_kph ? l : best));
+      ? laps.reduce((best, l) => (l.avg_pace_sec_per_km > 0 && l.avg_pace_sec_per_km < best.avg_pace_sec_per_km ? l : best))
+      : laps.reduce((best, l) => (l.avg_speed_kph > best.avg_speed_kph ? l : best));
   }
 
   const hrZoneDist = hrData && hrData.readings.length > 0
@@ -161,7 +169,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
       source: 'gps' as const,
       started_at: workout.startedAt.toISOString(),
       finished_at: finishedAt.toISOString(),
-      paused_duration_sec: workout.autoPausedDurationSec,
+      paused_duration_sec: workout.pausedDurationSec,
       scheduled_activity_id: workout.scheduledActivityId,
       notes: notes.trim() || undefined,
     };
@@ -243,7 +251,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
               value={`${formatDistanceKm(routeData.distance_km * 1000)} km`}
               colors={colors}
             />
-            <StatCard label="Time" value={formatTime(Math.round(totalElapsed))} colors={colors} />
+            <StatCard label="Time" value={formatTime(Math.floor(totalElapsed))} colors={colors} />
             {isRun && (
               <StatCard
                 label="Avg Pace"
@@ -298,13 +306,12 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
             {energyKJ > 0 && (
               <StatCard label="Energy" value={`${energyKJ}`} unit="kJ" colors={colors} />
             )}
-            {showMovingTime && (
-              <StatCard label="Moving Time" value={formatTime(Math.round(movingSec))} colors={colors} />
-            )}
             {vamMetersPerHour > 0 && (
               <StatCard label="VAM" value={`${vamMetersPerHour}`} unit="m/h" colors={colors} />
             )}
-            <StatCard label="Laps" value={`${workout.laps.length}`} colors={colors} />
+            {laps.length > 0 && (
+              <StatCard label="Laps" value={`${laps.length}`} colors={colors} />
+            )}
           </View>
 
           {/* HR Zone bar */}
@@ -353,7 +360,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
           )}
 
           {/* Lap splits */}
-          {workout.laps.length > 0 && (
+          {laps.length > 0 && (
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Lap Splits</Text>
               <View style={[styles.lapHeader, { borderBottomColor: colors.border }]}>
@@ -361,16 +368,16 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
                 <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Dist</Text>
                 <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>Time</Text>
                 <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>{isRun ? 'Pace' : 'Speed'}</Text>
-                {workout.laps.some((l) => l.avg_hr) && (
+                {lapsHaveHR && (
                   <Text style={[styles.lapCell, styles.lapCellLabel, { color: colors.textSecondary }]}>HR</Text>
                 )}
               </View>
               <FlatList
-                data={workout.laps}
+                data={laps}
                 keyExtractor={(item) => String(item.lap_number)}
                 scrollEnabled={false}
                 renderItem={({ item: lap }) => (
-                  <LapRow lap={lap} isRun={isRun} showHR={workout.laps.some((l) => l.avg_hr)} colors={colors} />
+                  <LapRow lap={lap} isRun={isRun} showHR={lapsHaveHR} colors={colors} />
                 )}
               />
             </View>
@@ -379,8 +386,8 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
           {/* Per-KM Splits (free) */}
           {splitsData && splitsData.splits.length > 0 && <SplitsCard data={splitsData} />}
 
-          {/* Premium Analytics */}
-          {effortData && (
+          {/* Pre-save effort preview — once saved, PostWorkoutReview shows the full server analytics */}
+          {effortData && !savedWorkoutId && (
             <PremiumStatsCard isPremium={userIsPremium} title="Analytics">
               <EffortScoreCard data={effortData} />
             </PremiumStatsCard>
@@ -405,6 +412,7 @@ export default function WorkoutSummaryScreen({ navigation }: any) {
               workoutId={savedWorkoutId}
               activityType={workout.activityType}
               scheduledActivityId={workout.scheduledActivityId}
+              hasSensorData
               onContinueInChat={() => {
                 requestOpenChat();
                 goHomeAndReset(navigation);

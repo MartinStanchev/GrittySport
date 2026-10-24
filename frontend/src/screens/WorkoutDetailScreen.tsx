@@ -7,22 +7,18 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { getActivityIcon, formatActivityType, EVENT_COLOR } from '../constants/activityIcons';
 import { formatDuration, formatFullDate, formatRelativeDay } from '../utils/dates';
-import { getWorkout, getLinkableActivities, linkWorkoutToActivity, getWorkoutAnalytics, deleteWorkout, pinAchievement } from '../services/api';
+import { savedWorkoutDurationSec } from '../utils/workoutDuration';
+import { getWorkout, getLinkableActivities, linkWorkoutToActivity, deleteWorkout, pinAchievement } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { canExportWorkout, workoutHasGPS, shareWorkoutExport, type ExportFormat } from '../services/workoutExport';
-import type { WorkoutAnalytics, GPSPoint, HRReading } from '../types/gps';
-import { formatPaceSecPerKm, formatSpeedKph, isRunSport, isCyclingSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories, cadenceUnit, computeCyclingDerivedStats } from '../services/gpsUtils';
+import type { GPSPoint, HRReading } from '../types/gps';
+import { formatPaceSecPerKm, formatSpeedKph, isRunSport, isCyclingSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories, cadenceUnit, computeCyclingDerivedStats, hasRecordedLaps } from '../services/gpsUtils';
 import { formatTime } from '../constants/workoutUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { isPremium } from '../utils/premium';
 import { HROverTimeChart, CadenceChart } from '../components/WorkoutCharts';
-import { PremiumStatsCard } from '../components/PremiumStatsCard';
-import { EffortScoreCard } from '../components/EffortScoreCard';
+import { WorkoutAnalyticsSection } from '../components/WorkoutAnalyticsSection';
 import { SplitsCard } from '../components/SplitsCard';
-import { ProgramAlignmentCard } from '../components/ProgramAlignmentCard';
-import { PRBadge } from '../components/PRBadge';
-import { CardiacEfficiencyCard } from '../components/CardiacEfficiencyCard';
-import { WeeklyTrendCard } from '../components/WeeklyTrendCard';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -170,7 +166,7 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   const summary = workout.recorded_data ?? {};
   const hrData = workout.heart_rate_data;
   const isRun = isRunSport(workout.activity_type);
-  const laps: any[] = route.laps ?? [];
+  const laps: any[] = hasRecordedLaps(route.laps) ? route.laps : [];
   const { user } = useAuth();
   const maxHR = user?.max_heart_rate ?? 185;
 
@@ -182,11 +178,7 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
     [points],
   );
 
-  const durationSec = route.duration_sec ?? (
-    workout.finished_at && workout.started_at
-      ? (new Date(workout.finished_at).getTime() - new Date(workout.started_at).getTime()) / 1000
-      : 0
-  );
+  const durationSec = savedWorkoutDurationSec(workout) ?? 0;
   const calories = useMemo(
     () => estimateCalories(workout.activity_type, durationSec, user?.weight_kg ?? 70),
     [workout.activity_type, durationSec, user?.weight_kg],
@@ -204,13 +196,11 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   }, [points, hrReadings]);
 
   const isCycling = isCyclingSport(workout.activity_type);
-  const { movingSec, vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
+  const { vamMetersPerHour, energyKJ } = computeCyclingDerivedStats({
     durationSec,
-    autoPausedSec: route.auto_paused_duration_sec,
     elevationGainM: isCycling ? Number(summary.elevation_gain_m ?? 0) : 0,
     avgPower: Number(summary.avg_power ?? 0),
   });
-  const showMovingTime = isCycling && (route.auto_paused_duration_sec ?? 0) > 0;
 
   const stats: StatItem[] = [
     { label: 'Distance', value: summary.distance_km ? Number(summary.distance_km).toFixed(2) : '', unit: 'km' },
@@ -223,7 +213,6 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
         ? { label: 'Top Speed', value: formatSpeedKph(maxSpeedKph), unit: 'km/h' }
         : { label: '', value: '' },
     { label: 'Elevation', value: summary.elevation_gain_m ? `+${Math.round(summary.elevation_gain_m)}` : '', unit: 'm' },
-    showMovingTime ? { label: 'Moving Time', value: formatTime(Math.round(movingSec)) } : { label: '', value: '' },
     vamMetersPerHour > 0 ? { label: 'VAM', value: `${vamMetersPerHour}`, unit: 'm/h' } : { label: '', value: '' },
     calories > 0 ? { label: 'Calories', value: `${calories}`, unit: 'kcal' } : { label: '', value: '' },
     energyKJ > 0 ? { label: 'Energy', value: `${energyKJ}`, unit: 'kJ' } : { label: '', value: '' },
@@ -286,11 +275,7 @@ function HROnlyDetail({ workout }: { workout: WorkoutResponse }) {
   const maxHR = user?.max_heart_rate ?? 185;
   const hrReadings: HRReading[] = useMemo(() => hrData?.readings ?? [], [hrData?.readings]);
 
-  const durationSec = workout.gps_route?.duration_sec ?? (
-    workout.finished_at && workout.started_at
-      ? (new Date(workout.finished_at).getTime() - new Date(workout.started_at).getTime()) / 1000
-      : 0
-  );
+  const durationSec = savedWorkoutDurationSec(workout) ?? 0;
   const effortData = useMemo(
     () => hrReadings.length >= 2 ? computeEffortScore(hrReadings, maxHR, durationSec) : null,
     [hrReadings, maxHR, durationSec],
@@ -405,7 +390,6 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
   const userIsPremium = isPremium(user);
   const [workout, setWorkout] = useState<WorkoutResponse | null>(null);
-  const [analytics, setAnalytics] = useState<WorkoutAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [linkSheetVisible, setLinkSheetVisible] = useState(false);
@@ -416,18 +400,11 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
   const shareSheet = useAnimatedSheet(setShareSheetVisible);
 
   const loadWorkout = useCallback(() => {
-    const promises: [Promise<WorkoutResponse>, Promise<WorkoutAnalytics | null>] = [
-      getWorkout(workoutId),
-      userIsPremium ? getWorkoutAnalytics(workoutId).catch(() => null) : Promise.resolve(null),
-    ];
-    Promise.all(promises)
-      .then(([w, a]) => {
-        setWorkout(w);
-        if (a) setAnalytics(a);
-      })
+    getWorkout(workoutId)
+      .then(setWorkout)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [workoutId, userIsPremium]);
+  }, [workoutId]);
 
   useEffect(() => { loadWorkout(); }, [loadWorkout]);
 
@@ -537,21 +514,12 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
 
   const icon = getActivityIcon(workout.activity_type);
   const label = formatActivityType(workout.activity_type);
-  const duration = formatDuration(workout.started_at, workout.finished_at);
+  const duration = formatDuration(savedWorkoutDurationSec(workout));
   const date = formatFullDate(workout.started_at);
   const badge = SOURCE_BADGES[workout.source] ?? null;
 
   const hasGPSOrHR = !!(workout.gps_route && (workout.gps_route as any).points?.length > 0)
     || !!workout.heart_rate_data?.readings?.length;
-  const hasAnalyticsContent = analytics && (
-    analytics.effort_score > 0 ||
-    analytics.program_alignment ||
-    (analytics.personal_records && analytics.personal_records.length > 0) ||
-    analytics.trend ||
-    analytics.cardiac_efficiency ||
-    analytics.weekly_trend
-  );
-  const showPremiumAnalytics = userIsPremium ? !!hasAnalyticsContent : hasGPSOrHR;
 
   return (
     <>
@@ -584,57 +552,11 @@ export default function WorkoutDetailScreen({ route, navigation }: Props) {
       <TypeSpecificDetail workout={workout} />
 
       {/* Premium Analytics */}
-      {showPremiumAnalytics && (
-        <PremiumStatsCard isPremium={userIsPremium} title="Analytics">
-          {analytics && (
-            <>
-              {analytics.effort_score > 0 && (
-                <EffortScoreCard data={{ score: analytics.effort_score, label: analytics.effort_label }} />
-              )}
-
-              {analytics.cardiac_efficiency && (
-                <CardiacEfficiencyCard data={analytics.cardiac_efficiency} />
-              )}
-
-              {analytics.program_alignment && (
-                <ProgramAlignmentCard data={analytics.program_alignment} />
-              )}
-
-              {analytics.personal_records && analytics.personal_records.length > 0 && (
-                <View style={styles.prSection}>
-                  <Text style={[styles.prSectionTitle, { color: colors.textPrimary }]}>Personal Records</Text>
-                  {analytics.personal_records.map((pr) => (
-                    <View key={pr.category} style={styles.prRow}>
-                      <PRBadge />
-                      <View style={styles.prInfo}>
-                        <Text style={[styles.prCategory, { color: colors.textPrimary }]}>{pr.category}</Text>
-                        {pr.formatted_value ? (
-                          <Text style={[styles.prValue, { color: colors.textSecondary }]}>
-                            {pr.formatted_value}
-                            {pr.improvement_pct != null && pr.improvement_pct > 0
-                              ? ` (+${pr.improvement_pct.toFixed(1)}%)`
-                              : ''}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {analytics.weekly_trend && (
-                <WeeklyTrendCard data={analytics.weekly_trend} />
-              )}
-
-              {!analytics.weekly_trend && analytics.trend && (
-                <Text style={[styles.trendText, { color: colors.textSecondary }]}>
-                  {analytics.trend.comparison_text}
-                </Text>
-              )}
-            </>
-          )}
-        </PremiumStatsCard>
-      )}
+      <WorkoutAnalyticsSection
+        workoutId={workout.id}
+        showUpsell={hasGPSOrHR}
+        refreshKey={workout.scheduled_activity_id}
+      />
 
       {/* Notes */}
       {workout.notes ? (
@@ -960,40 +882,6 @@ const styles = StyleSheet.create({
   lapCellLabel: {
     fontSize: 11,
     fontFamily: Fonts.bodySemiBold,
-  },
-
-  // PR section
-  prSection: {
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  prSectionTitle: {
-    fontSize: 14,
-    fontFamily: Fonts.bodySemiBold,
-  },
-  prRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  prInfo: {
-    flex: 1,
-  },
-  prCategory: {
-    fontSize: 13,
-    fontFamily: Fonts.bodyMedium,
-  },
-  prValue: {
-    fontSize: 12,
-    fontFamily: Fonts.body,
-    fontVariant: ['tabular-nums'] as any,
-    marginTop: 1,
-  },
-  trendText: {
-    fontSize: 13,
-    fontFamily: Fonts.body,
-    marginTop: 8,
   },
 
   // Link button

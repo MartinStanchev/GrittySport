@@ -1,8 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatPaceSecPerKm } from '../services/gpsUtils';
 import type { SplitsAnalysis } from '../types/gps';
+
+// Long workouts (e.g. a 100 km ride) would otherwise render one row per km.
+const COLLAPSED_SPLIT_COUNT = 10;
 
 interface SplitsCardProps {
   data: SplitsAnalysis;
@@ -10,16 +14,19 @@ interface SplitsCardProps {
 
 export function SplitsCard({ data }: SplitsCardProps) {
   const { colors } = useTheme();
+  const [expanded, setExpanded] = useState(false);
 
   if (data.splits.length === 0) return null;
 
   const maxPace = Math.max(...data.splits.map((s) => s.paceSecPerKm));
+  const collapsible = data.splits.length > COLLAPSED_SPLIT_COUNT;
+  const visibleSplits = collapsible && !expanded ? data.splits.slice(0, COLLAPSED_SPLIT_COUNT) : data.splits;
 
   return (
     <View>
       <Text style={[styles.title, { color: colors.textPrimary }]}>Per-KM Splits</Text>
 
-      {data.splits.map((split) => {
+      {visibleSplits.map((split) => {
         const isFastest = split.km === data.fastestSplitKm;
         const isSlowest = split.km === data.slowestSplitKm;
         const barWidth = maxPace > 0 ? (split.paceSecPerKm / maxPace) * 100 : 0;
@@ -37,6 +44,15 @@ export function SplitsCard({ data }: SplitsCardProps) {
           </View>
         );
       })}
+
+      {collapsible && (
+        <Pressable onPress={() => setExpanded((v) => !v)} hitSlop={8} style={styles.toggleRow}>
+          <Text style={[styles.toggleText, { color: colors.primary }]}>
+            {expanded ? 'Show less' : `Show all ${data.splits.length} splits`}
+          </Text>
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.primary} />
+        </Pressable>
+      )}
 
       <View style={styles.summaryRow}>
         {data.isNegativeSplit ? (
@@ -70,7 +86,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   kmLabel: {
-    width: 22,
+    width: 28,
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'right',
@@ -91,6 +107,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  toggleText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   summaryRow: {
     flexDirection: 'row',

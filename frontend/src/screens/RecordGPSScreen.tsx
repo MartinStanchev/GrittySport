@@ -42,6 +42,7 @@ import { cadenceService } from '../services/cadenceService';
 import HRSensorModal from '../components/HRSensorModal';
 import { useHRAutoConnect } from '../hooks/useHRAutoConnect';
 import type { CadenceReading } from '../types/gps';
+import { activeElapsedSec, closePause } from '../utils/workoutDuration';
 import {
   formatLiveWorkoutType,
   getGPSQualityState,
@@ -189,17 +190,19 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     setPreviewPosition({ latitude: coordinate.latitude, longitude: coordinate.longitude });
   }, []);
 
-  const startedAtMs = workout?.startedAt?.getTime();
-  const pausedDurationSec = workout?.autoPausedDurationSec ?? 0;
-
+  // Live timer: active (unpaused) time from the shared helper, so it freezes on any pause
+  // (manual or auto) and always matches the summary, saved duration and avg pace/speed.
+  const isLive = recordingState === 'recording' || recordingState === 'paused';
   useEffect(() => {
-    if (!startedAtMs || recordingState !== 'recording') return;
-    const interval = setInterval(() => {
-      const rawElapsed = (Date.now() - startedAtMs) / 1000;
-      setElapsed(Math.floor(rawElapsed - pausedDurationSec));
-    }, 1000);
+    if (!isLive) return;
+    const tick = () => {
+      const active = gpsWorkoutRef.current;
+      if (active) setElapsed(Math.floor(activeElapsedSec(active, Date.now())));
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [pausedDurationSec, recordingState, startedAtMs]);
+  }, [isLive]);
 
   // Drains everything the background location task buffered and folds it through the
   // pure GPS reducer. Runs both live (one reading at a time) and on foreground resume,
@@ -252,6 +255,15 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     };
   }, [drainLocations]);
 
+  // Writes `gpsWorkoutRef` synchronously (like drainLocations) so a location drain that
+  // runs before the next render folds onto this update instead of overwriting it.
+  const commitGPSUpdate = useCallback((updates: Partial<ActiveGPSWorkout>) => {
+    const gpsWorkout = gpsWorkoutRef.current;
+    if (!gpsWorkout) return;
+    gpsWorkoutRef.current = { ...gpsWorkout, ...updates };
+    updateGPSWorkout(updates);
+  }, [updateGPSWorkout]);
+
   const handleStart = useCallback(async () => {
     const displayType = formatLiveWorkoutType(activityType);
     const result = await locationTracking.start();
@@ -275,35 +287,34 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         const avg = Math.round(
           cadenceReadingsRef.current.reduce((sum, reading) => sum + reading.spm, 0) / cadenceReadingsRef.current.length,
         );
-        updateGPSWorkout({ cadenceReadings: cadenceReadingsRef.current, currentCadence: spm, avgCadence: avg });
+        commitGPSUpdate({ cadenceReadings: cadenceReadingsRef.current, currentCadence: spm, avgCadence: avg });
       });
     }
-  }, [activityType, scheduledActivityId, showCadence, startGPSWorkout, updateGPSWorkout]);
+  }, [activityType, scheduledActivityId, showCadence, startGPSWorkout, updateGPSWorkout, commitGPSUpdate]);
 
   const handlePause = useCallback(() => {
+    // Only from recording — an auto-pause that fired mid hold-to-pause must keep its start.
+    if (gpsWorkoutRef.current?.recordingState !== 'recording') return;
     // Manual pause: mark it non-auto so the reducer won't auto-resume it.
-    updateGPSWorkout({
+    commitGPSUpdate({
       recordingState: 'paused',
       autoPaused: false,
-      lastAutoPauseStart: Date.now(),
+      lastPauseStart: Date.now(),
       movingPointCount: 0,
     });
-  }, [updateGPSWorkout]);
+  }, [commitGPSUpdate]);
 
   const handleResume = useCallback(() => {
     const gpsWorkout = gpsWorkoutRef.current;
     if (!gpsWorkout) return;
-    const pausedSince = gpsWorkout.lastAutoPauseStart ?? Date.now();
-    const additionalPause = (Date.now() - pausedSince) / 1000;
-    updateGPSWorkout({
+    commitGPSUpdate({
+      ...closePause(gpsWorkout, Date.now()),
       recordingState: 'recording',
       autoPaused: false,
-      autoPausedDurationSec: gpsWorkout.autoPausedDurationSec + additionalPause,
-      lastAutoPauseStart: null,
       slowPointCount: 0,
       movingPointCount: 0,
     });
-  }, [updateGPSWorkout]);
+  }, [commitGPSUpdate]);
 
   const handleStop = useCallback(() => {
     Alert.alert('Finish Workout?', 'Are you sure you want to finish this workout?', [
@@ -314,33 +325,32 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
         onPress: () => {
           void locationTracking.stop();
           cadenceService.stop();
+          const gpsWorkout = gpsWorkoutRef.current;
+          if (!gpsWorkout) return;
           const now = new Date();
-          let autoPaused = gpsWorkoutRef.current?.autoPausedDurationSec ?? 0;
-          if (gpsWorkoutRef.current?.lastAutoPauseStart) {
-            autoPaused += (Date.now() - gpsWorkoutRef.current.lastAutoPauseStart) / 1000;
-          }
-          updateGPSWorkout({ recordingState: 'stopped', finishedAt: now, autoPausedDurationSec: autoPaused });
+          // Fold a pause still open at Finish into the total so it isn't counted as active.
+          commitGPSUpdate({ ...closePause(gpsWorkout, now.getTime()), recordingState: 'stopped', finishedAt: now });
           navigation.navigate('WorkoutSummary');
         },
       },
     ]);
-  }, [navigation, updateGPSWorkout]);
+  }, [navigation, commitGPSUpdate]);
 
   const handleManualLap = useCallback(() => {
     const gpsWorkout = gpsWorkoutRef.current;
-    if (!gpsWorkout || gpsWorkout.points.length === 0) return;
+    // Need at least one new point since the last lap, or the lap would be empty.
+    if (!gpsWorkout || gpsWorkout.points.length - 1 <= gpsWorkout.lapStartIndex) return;
     const lap = triggerLap(
       gpsWorkout.points,
       gpsWorkout.lapStartIndex,
       gpsWorkout.laps,
       gpsWorkout.hrReadings,
     );
-    updateGPSWorkout({
+    commitGPSUpdate({
       laps: [...gpsWorkout.laps, lap],
       lapStartIndex: gpsWorkout.points.length - 1,
-      lapStartDistanceM: gpsWorkout.totalDistanceM,
     });
-  }, [updateGPSWorkout]);
+  }, [commitGPSUpdate]);
 
   const handleDiscard = useCallback(() => {
     if (!gpsWorkoutRef.current) {
@@ -371,13 +381,13 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
     hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
     hrSumRef.current += bpm;
     const avg = Math.round(hrSumRef.current / hrReadingsRef.current.length);
-    updateGPSWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
-  }, [updateGPSWorkout]);
+    commitGPSUpdate({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
+  }, [commitGPSUpdate]);
 
   const handleHRConnected = useCallback((deviceName: string) => {
     setPreviewDeviceName(deviceName);
-    updateGPSWorkout({ hrDeviceName: deviceName });
-  }, [updateGPSWorkout]);
+    commitGPSUpdate({ hrDeviceName: deviceName });
+  }, [commitGPSUpdate]);
 
   const handleHRModalClose = useCallback(() => {
     setHRModalVisible(false);
@@ -602,7 +612,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       label: 'Lap',
       value: resolveMetricValue('lap'),
       accent: getMetricAccent('lap'),
-      support: workout?.laps.length ? `${workout.laps.length} complete` : 'Auto-lap each km',
+      support: workout?.laps.length ? `${workout.laps.length} complete` : 'Tap Lap to split',
     },
     {
       label: 'GPS Points',

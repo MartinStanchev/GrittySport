@@ -52,7 +52,8 @@ export interface ActiveWorkout {
   currentHR: number | null;
   avgHR: number | null;
   hrDeviceName?: string;
-  // Pause tracking — total paused seconds and timestamp (ms) of the current pause if any
+  // Pause tracking (see utils/workoutDuration) — total paused seconds and timestamp (ms)
+  // of the current pause if any
   pausedDurationSec: number;
   lastPauseStart: number | null;
 }
@@ -76,10 +77,10 @@ export interface ActiveGPSWorkout {
   // Collected data
   points: GPSPoint[];
   hrReadings: HRReading[];
+  // Only laps the user pressed Lap for — the remainder is closed into a final lap on save
   laps: Lap[];
-  // Current lap tracking
+  // Index of the point that ended the previous lap (start of the current lap)
   lapStartIndex: number;
-  lapStartDistanceM: number;
   // Live metrics
   totalDistanceM: number;
   elevationGainM: number;
@@ -93,9 +94,12 @@ export interface ActiveGPSWorkout {
   cadenceReadings: CadenceReading[];
   currentCadence: number | null;
   avgCadence: number | null;
-  // Pause tracking
-  autoPausedDurationSec: number;
-  lastAutoPauseStart: number | null;
+  // Pause tracking (see utils/workoutDuration) — manual and auto pauses both count
+  pausedDurationSec: number;
+  lastPauseStart: number | null;
+  // pausedDurationSec as of the last appended point — the delta becomes the next point's
+  // paused_before_sec (folded by the GPS reducer)
+  pausedSecAtLastPoint: number;
   // True when the current pause was triggered automatically (vs. a manual Pause tap);
   // only auto-pauses are eligible for auto-resume.
   autoPaused: boolean;
@@ -114,13 +118,13 @@ export type WorkoutMode = 'manual' | 'gps';
 // Fields that are initialised automatically when a GPS workout is started
 type GPSWorkoutInitFields =
   | 'recordingState' | 'points' | 'hrReadings' | 'laps'
-  | 'lapStartIndex' | 'lapStartDistanceM'
+  | 'lapStartIndex'
   | 'totalDistanceM' | 'elevationGainM'
   | 'currentPaceSecPerKm' | 'avgPaceSecPerKm'
   | 'currentSpeedKph' | 'avgSpeedKph'
   | 'currentHR' | 'avgHR'
   | 'cadenceReadings' | 'currentCadence' | 'avgCadence'
-  | 'autoPausedDurationSec' | 'lastAutoPauseStart' | 'autoPaused'
+  | 'pausedDurationSec' | 'lastPauseStart' | 'pausedSecAtLastPoint' | 'autoPaused'
   | 'slowPointCount' | 'movingPointCount'
   | 'hrDeviceName' | 'workoutNotes';
 
@@ -201,7 +205,6 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       hrReadings: [],
       laps: [],
       lapStartIndex: 0,
-      lapStartDistanceM: 0,
       totalDistanceM: 0,
       elevationGainM: 0,
       currentPaceSecPerKm: 0,
@@ -213,8 +216,9 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
       cadenceReadings: [],
       currentCadence: null,
       avgCadence: null,
-      autoPausedDurationSec: 0,
-      lastAutoPauseStart: null,
+      pausedDurationSec: 0,
+      lastPauseStart: null,
+      pausedSecAtLastPoint: 0,
       autoPaused: false,
       slowPointCount: 0,
       movingPointCount: 0,

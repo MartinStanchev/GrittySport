@@ -6,6 +6,9 @@ export interface GPSPoint {
   speed: number | null; // m/s
   timestamp: number; // Unix ms
   distance_from_prev: number; // haversine metres from previous point (0 for first)
+  // Seconds the recording was paused between the previous point and this one (live
+  // recordings only). Subtracted from the leg's time so laps and splits exclude pauses.
+  paused_before_sec?: number;
 }
 
 export interface HRReading {
@@ -41,7 +44,6 @@ export interface GPSRouteData {
   max_power?: number;
   points: GPSPoint[];
   laps: Lap[];
-  auto_paused_duration_sec: number;
 }
 
 // Stored in heart_rate_data JSONB column

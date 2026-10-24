@@ -2,13 +2,14 @@ import type { ActiveGPSWorkout } from '../contexts/WorkoutContext';
 import type { GPSPoint } from '../types/gps';
 import {
   haversineMetres,
-  rollingPaceSecPerKm,
+  currentPaceSecPerKm,
   currentSpeedKph,
   avgPaceSecPerKm,
   avgSpeedKph,
   computeElevationGain,
-  triggerLap,
+  activeSecBetween,
 } from './gpsUtils';
+import { activeElapsedSec, closePause } from '../utils/workoutDuration';
 
 export const MAX_ACCURACY_METRES = 50;
 // Looser than MAX_ACCURACY_METRES — applied only while auto-paused (see applyGPSPoint).
@@ -17,7 +18,6 @@ export const AUTO_PAUSE_SPEED_THRESHOLD = 0.5; // m/s
 export const AUTO_PAUSE_POINT_COUNT = 5; // ~5s of near-stillness before auto-pausing
 export const AUTO_RESUME_DISTANCE_M = 10; // displacement from the pause spot that counts as moving
 export const AUTO_RESUME_POINT_COUNT = 3; // consecutive moving readings before auto-resuming
-export const AUTO_LAP_DISTANCE_M = 1000;
 
 /** A single raw location reading, as delivered by either the live or background watcher. */
 export interface RawLocation {
@@ -83,13 +83,17 @@ export function applyGPSPoint(
   const prevPoint = points.length > 0 ? points[points.length - 1] : null;
   if (prevPoint) {
     newPoint.distance_from_prev = haversineMetres(prevPoint, newPoint);
+    // Pauses closed since the previous point fall inside this leg; record them so laps and
+    // splits can subtract them (see activeSecBetween).
+    const legPausedSec = workout.pausedDurationSec - workout.pausedSecAtLastPoint;
+    if (legPausedSec > 0) newPoint.paused_before_sec = legPausedSec;
   }
 
   const allPoints = [...points, newPoint];
   const newDistanceM = workout.totalDistanceM + newPoint.distance_from_prev;
 
   // Speed-based auto-pause: pause after a run of near-stationary points.
-  const timeDeltaSec = prevPoint ? (newPoint.timestamp - prevPoint.timestamp) / 1000 : 0;
+  const timeDeltaSec = prevPoint ? activeSecBetween(allPoints, allPoints.length - 2, allPoints.length - 1) : 0;
   const computedSpeedMs =
     prevPoint && timeDeltaSec > 0.5 ? newPoint.distance_from_prev / timeDeltaSec : null;
 
@@ -102,7 +106,7 @@ export function applyGPSPoint(
         ...workout,
         recordingState: 'paused',
         autoPaused: true,
-        lastAutoPauseStart: newPoint.timestamp,
+        lastPauseStart: newPoint.timestamp,
         slowPointCount: 0,
         movingPointCount: 0,
       };
@@ -111,18 +115,7 @@ export function applyGPSPoint(
     slowPointCount = 0;
   }
 
-  // Auto-lap every kilometre.
-  let laps = workout.laps;
-  let lapStartIndex = workout.lapStartIndex;
-  let lapStartDistanceM = workout.lapStartDistanceM;
-  if (newDistanceM - lapStartDistanceM >= AUTO_LAP_DISTANCE_M) {
-    laps = [...laps, triggerLap(allPoints, lapStartIndex, laps, workout.hrReadings)];
-    lapStartIndex = allPoints.length - 1;
-    lapStartDistanceM = newDistanceM;
-  }
-
-  const totalSec =
-    (newPoint.timestamp - workout.startedAt.getTime()) / 1000 - workout.autoPausedDurationSec;
+  const totalSec = activeElapsedSec(workout, newPoint.timestamp);
   // Elevation smoothing is O(n); recompute periodically rather than every point.
   const elevationGainM =
     allPoints.length % 10 === 0 ? computeElevationGain(allPoints) : workout.elevationGainM;
@@ -131,14 +124,12 @@ export function applyGPSPoint(
     ...workout,
     points: allPoints,
     totalDistanceM: newDistanceM,
-    currentPaceSecPerKm: rollingPaceSecPerKm(allPoints),
+    currentPaceSecPerKm: currentPaceSecPerKm(allPoints),
     avgPaceSecPerKm: avgPaceSecPerKm(newDistanceM, totalSec),
     currentSpeedKph: currentSpeedKph(allPoints),
     avgSpeedKph: avgSpeedKph(newDistanceM, totalSec),
     elevationGainM,
-    laps,
-    lapStartIndex,
-    lapStartDistanceM,
+    pausedSecAtLastPoint: workout.pausedDurationSec,
     slowPointCount,
     movingPointCount: 0,
   };
@@ -173,15 +164,11 @@ function detectAutoResume(workout: ActiveGPSWorkout, loc: RawLocation): ActiveGP
 
   // Sustained movement: credit the paused gap, flip back to recording, and fold this
   // reading through the normal path so the track reconnects from where they stopped.
-  const pausedGapSec = workout.lastAutoPauseStart
-    ? (loc.timestamp - workout.lastAutoPauseStart) / 1000
-    : 0;
   const resumed: ActiveGPSWorkout = {
     ...workout,
+    ...closePause(workout, loc.timestamp),
     recordingState: 'recording',
     autoPaused: false,
-    lastAutoPauseStart: null,
-    autoPausedDurationSec: workout.autoPausedDurationSec + pausedGapSec,
     slowPointCount: 0,
     movingPointCount: 0,
   };

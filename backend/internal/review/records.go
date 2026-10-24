@@ -57,7 +57,7 @@ func DetectPersonalRecords(ctx context.Context, pool *pgxpool.Pool, workout *mod
 	familyTypes := activityTypesInFamily(family)
 	rows, err := pool.Query(ctx,
 		`SELECT gps_route, recorded_data, heart_rate_data,
-				EXTRACT(EPOCH FROM (finished_at - started_at)) as duration_sec
+				GREATEST(0, EXTRACT(EPOCH FROM (finished_at - started_at)) - paused_duration_sec) as duration_sec
 		 FROM workouts
 		 WHERE user_id = $1 AND activity_type = ANY($2) AND id != $3
 		 ORDER BY started_at DESC LIMIT 50`,

@@ -527,6 +527,7 @@ export default function LogActivityScreen({ navigation }: Props) {
           <PostWorkoutReview
             workoutId={savedWorkoutId}
             activityType={selectedType!}
+            hasSensorData={false}
             onContinueInChat={() => {
               requestOpenChat();
               goHomeAndReset(navigation);

@@ -36,6 +36,7 @@ import {
   avgPaceSecPerKm,
   avgSpeedKph,
   cadenceUnit,
+  hasRecordedLaps,
 } from '../services/gpsUtils';
 import { saveWorkoutWithFallback } from '../services/syncService';
 import { useProgram } from '../contexts/ProgramContext';
@@ -475,7 +476,7 @@ function WorkoutPreview({
         )}
 
         {/* Laps table */}
-        {workout.laps.length > 0 && (
+        {hasRecordedLaps(workout.laps) && (
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             <Text style={[styles.cardTitle, { color: colors.textSecondary }]}>Laps</Text>
             <View style={[styles.lapHeader, { borderBottomColor: colors.border }]}>
@@ -522,6 +523,7 @@ function WorkoutPreview({
             workoutId={savedWorkoutId}
             activityType={activityType}
             scheduledActivityId={scheduledActivityId}
+            hasSensorData={workout.points.length > 0 || workout.hrReadings.length > 0}
             onContinueInChat={() => {
               requestOpenChat();
               goHomeAndReset(navigation);

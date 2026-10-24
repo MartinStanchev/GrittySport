@@ -20,7 +20,6 @@ function baseWorkout(overrides: Partial<ActiveGPSWorkout> = {}): ActiveGPSWorkou
     hrReadings: [],
     laps: [],
     lapStartIndex: 0,
-    lapStartDistanceM: 0,
     totalDistanceM: 0,
     elevationGainM: 0,
     currentPaceSecPerKm: 0,
@@ -32,8 +31,9 @@ function baseWorkout(overrides: Partial<ActiveGPSWorkout> = {}): ActiveGPSWorkou
     cadenceReadings: [],
     currentCadence: null,
     avgCadence: null,
-    autoPausedDurationSec: 0,
-    lastAutoPauseStart: null,
+    pausedDurationSec: 0,
+    lastPauseStart: null,
+    pausedSecAtLastPoint: 0,
     autoPaused: false,
     slowPointCount: 0,
     movingPointCount: 0,
@@ -79,6 +79,16 @@ describe('applyGPSPoint', () => {
     // First point has no predecessor, the next two add distance.
     expect(result.points[0].distance_from_prev).toBe(0);
     expect(result.points[1].distance_from_prev).toBeGreaterThan(0);
+  });
+
+  it('never creates laps on its own — laps only come from the Lap button', () => {
+    // ~7 m per reading → 200 readings is well over a kilometre.
+    let w = baseWorkout();
+    for (let i = 0; i < 200; i++) w = applyGPSPoint(w, reading(i));
+
+    expect(w.totalDistanceM).toBeGreaterThan(1000);
+    expect(w.laps).toEqual([]);
+    expect(w.lapStartIndex).toBe(0);
   });
 
   it('replaying a buffered batch matches feeding readings one at a time', () => {
@@ -152,6 +162,53 @@ describe('applyGPSPoint', () => {
     expect(w.recordingState).toBe('recording');
     expect(w.autoPaused).toBe(false);
     expect(w.movingPointCount).toBe(0);
+  });
+
+  it('credits the auto-paused gap to pausedDurationSec on auto-resume', () => {
+    let w = stationaryUntilPaused();
+    expect(w.lastPauseStart).toBe(START_MS + AUTO_PAUSE_POINT_COUNT * 1000);
+
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT; i++) {
+      w = applyGPSPoint(w, reading(i + AUTO_PAUSE_POINT_COUNT));
+    }
+
+    // Paused at reading AUTO_PAUSE_POINT_COUNT, resumed on reading +AUTO_RESUME_POINT_COUNT.
+    expect(w.pausedDurationSec).toBeCloseTo(AUTO_RESUME_POINT_COUNT);
+    expect(w.lastPauseStart).toBeNull();
+  });
+
+  it('records the paused gap on the first point after auto-resume only', () => {
+    let w = stationaryUntilPaused();
+    const pointsBeforeResume = w.points.length;
+    for (let i = 1; i <= AUTO_RESUME_POINT_COUNT + 2; i++) {
+      w = applyGPSPoint(w, reading(i + AUTO_PAUSE_POINT_COUNT));
+    }
+
+    const pausedOnPoints = w.points.map((p) => p.paused_before_sec ?? 0);
+    expect(pausedOnPoints[pointsBeforeResume]).toBeCloseTo(w.pausedDurationSec);
+    expect(pausedOnPoints.reduce((s, v) => s + v, 0)).toBeCloseTo(w.pausedDurationSec);
+    expect(w.pausedSecAtLastPoint).toBe(w.pausedDurationSec);
+  });
+
+  it('records a manual pause closed between points on the next point', () => {
+    let w = baseWorkout();
+    for (let i = 0; i <= 3; i++) w = applyGPSPoint(w, reading(i));
+    // A 30 s manual pause, already folded in by Resume (closePause) before the next fix.
+    w = { ...w, pausedDurationSec: 30 };
+    const next = applyGPSPoint(w, { ...reading(4), timestamp: START_MS + 34_000 });
+
+    expect(next.points[4].paused_before_sec).toBe(30);
+    expect(next.points.slice(0, 4).every((p) => p.paused_before_sec === undefined)).toBe(true);
+  });
+
+  it('computes live avg speed/pace over active time only, excluding earlier pauses', () => {
+    // Started 60 s before the first reading, all of it paused → active time == reading index.
+    let w = baseWorkout({ startedAt: new Date(START_MS - 60_000), pausedDurationSec: 60 });
+    for (let i = 0; i <= 10; i++) w = applyGPSPoint(w, reading(i));
+
+    const activeSec = 10;
+    expect(w.avgSpeedKph).toBeCloseTo((w.totalDistanceM / 1000) / (activeSec / 3600), 6);
+    expect(w.avgPaceSecPerKm).toBeCloseTo((activeSec / w.totalDistanceM) * 1000, 6);
   });
 
   it('does not auto-resume when the setting is off', () => {

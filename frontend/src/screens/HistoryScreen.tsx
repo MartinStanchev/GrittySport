@@ -12,6 +12,7 @@ import type { WorkoutResponse } from '../services/api';
 import { getCachedRecentWorkouts } from '../services/cachedReads';
 import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
 import { formatDuration, formatShortDate } from '../utils/dates';
+import { savedWorkoutDurationSec } from '../utils/workoutDuration';
 import { pickWorkoutFile } from '../services/workoutFileParser';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
@@ -127,7 +128,7 @@ function WorkoutRow({ workout, colors }: { workout: WorkoutResponse; colors: The
         </View>
         <View style={styles.rowRight}>
           <Text style={[styles.rowDuration, { color: colors.textPrimary }]}>
-            {formatDuration(workout.started_at, workout.finished_at)}
+            {formatDuration(savedWorkoutDurationSec(workout))}
           </Text>
           {stat ? <Text style={[styles.rowStat, { color: colors.textSecondary }]}>{stat}</Text> : null}
         </View>

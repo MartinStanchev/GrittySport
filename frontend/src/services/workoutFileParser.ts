@@ -145,6 +145,10 @@ export function buildFileSavePayload(
 ): SaveWorkoutInput {
   const startedAt = result.startTime ?? new Date();
   const finishedAt = result.endTime ?? startedAt;
+  // Health sources report an active (moving) duration shorter than the wall-clock span;
+  // save the gap as paused time so the saved duration/pace match the preview.
+  const wallClockSec = (finishedAt.getTime() - startedAt.getTime()) / 1000;
+  const durationSec = result.durationSec > 0 ? Math.min(result.durationSec, wallClockSec) : wallClockSec;
 
   const { routeData, summaryData, hrData } = buildFinalGPSPayload({
     activityType,
@@ -154,9 +158,7 @@ export function buildFileSavePayload(
     cadenceReadings: result.cadenceReadings.length > 0 ? result.cadenceReadings : undefined,
     powerReadings: result.powerReadings.length > 0 ? result.powerReadings : undefined,
     totalDistanceM: result.totalDistanceM,
-    autoPausedDurationSec: 0,
-    startedAt,
-    finishedAt,
+    durationSec,
   });
 
   const recordedData = summaryData as Record<string, any>;
@@ -170,6 +172,7 @@ export function buildFileSavePayload(
     source: result.sourceFormat,
     started_at: startedAt.toISOString(),
     finished_at: finishedAt.toISOString(),
+    paused_duration_sec: Math.max(0, wallClockSec - durationSec),
     gps_route: routeData as Record<string, any>,
     heart_rate_data: hrData as Record<string, any> | undefined,
     notes: notes?.trim() || undefined,

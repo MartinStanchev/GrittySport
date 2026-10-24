@@ -21,6 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { ThemeColors } from '../constants/colors';
 import { Fonts } from '../constants/fonts';
 import { formatTime } from '../constants/workoutUtils';
+import { activeElapsedSec, closePause } from '../utils/workoutDuration';
 import { getActivity } from '../services/api';
 import { saveWorkoutWithFallback } from '../services/syncService';
 import { formatActivityType, isGPSActivity } from '../constants/activityIcons';
@@ -804,18 +805,11 @@ export default function RecordManualScreen() {
       (activeWorkout?.hrReadings.length ?? 0) > 0,
   });
 
-  // Elapsed timer — derived from startedAt minus paused time (frozen while paused)
+  // Elapsed timer — active (unpaused) time from the shared helper, frozen while paused
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording') return;
-    const tick = () => {
-      const totalMs = Date.now() - activeWorkout.startedAt.getTime();
-      let pausedMs = activeWorkout.pausedDurationSec * 1000;
-      if (activeWorkout.lastPauseStart != null) {
-        pausedMs += Date.now() - activeWorkout.lastPauseStart;
-      }
-      setElapsed(Math.max(0, Math.floor((totalMs - pausedMs) / 1000)));
-    };
+    const tick = () => setElapsed(Math.floor(activeElapsedSec(activeWorkout, Date.now())));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
@@ -986,25 +980,14 @@ export default function RecordManualScreen() {
 
   function handleResume() {
     if (!activeWorkout?.lastPauseStart) return;
-    const additionalPause = (Date.now() - activeWorkout.lastPauseStart) / 1000;
-    updateWorkout({
-      pausedDurationSec: activeWorkout.pausedDurationSec + additionalPause,
-      lastPauseStart: null,
-    });
+    updateWorkout(closePause(activeWorkout, Date.now()));
   }
 
   function handleFinishWorkout() {
     if (!activeWorkout) return;
     // Flush any in-progress pause into the total before transitioning to summary
-    const extraPause = activeWorkout.lastPauseStart
-      ? (Date.now() - activeWorkout.lastPauseStart) / 1000
-      : 0;
-    updateWorkout({
-      phase: 'summary',
-      finishedAt: new Date(),
-      pausedDurationSec: activeWorkout.pausedDurationSec + extraPause,
-      lastPauseStart: null,
-    });
+    const finishedAt = new Date();
+    updateWorkout({ ...closePause(activeWorkout, finishedAt.getTime()), phase: 'summary', finishedAt });
   }
 
   async function handleSave() {
@@ -1062,11 +1045,7 @@ export default function RecordManualScreen() {
 
   const phase = !activeWorkout ? 'type-select' : activeWorkout.phase;
   const elapsedSeconds = activeWorkout?.phase === 'summary' && activeWorkout.finishedAt
-    ? Math.max(
-        0,
-        Math.floor((activeWorkout.finishedAt.getTime() - activeWorkout.startedAt.getTime()) / 1000)
-          - Math.floor(activeWorkout.pausedDurationSec),
-      )
+    ? Math.floor(activeElapsedSec(activeWorkout, activeWorkout.finishedAt.getTime()))
     : elapsed;
   const isPaused = activeWorkout?.lastPauseStart != null;
 

@@ -20,6 +20,7 @@ import {
   triggerWorkoutReview,
   type LinkableActivity,
 } from '../services/api';
+import { WorkoutAnalyticsSection } from './WorkoutAnalyticsSection';
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 15; // 15 * 2s = 30s
@@ -51,6 +52,8 @@ interface Props {
   workoutId: string;
   activityType: string;
   scheduledActivityId?: string;
+  /** Workout has GPS or HR data — free users then see the locked analytics card. */
+  hasSensorData: boolean;
   onContinueInChat: () => void;
   onSkipReview?: () => void;
 }
@@ -59,6 +62,7 @@ export function PostWorkoutReview({
   workoutId,
   activityType,
   scheduledActivityId,
+  hasSensorData,
   onContinueInChat,
   onSkipReview,
 }: Props) {
@@ -69,6 +73,8 @@ export function PostWorkoutReview({
   const [linkLookupDone, setLinkLookupDone] = useState(!!scheduledActivityId);
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
+  // Set once linked in this panel; refetches analytics so program alignment appears.
+  const [linkedActivityId, setLinkedActivityId] = useState<string | null>(null);
   const reviewTriggered = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(0.4)).current;
@@ -135,6 +141,7 @@ export function PostWorkoutReview({
     setLinking(true);
     try {
       await linkWorkoutToActivity(workoutId, selectedActivityId);
+      setLinkedActivityId(selectedActivityId);
     } catch {
       // Non-critical — proceed regardless
     }
@@ -177,6 +184,12 @@ export function PostWorkoutReview({
 
   return (
     <View style={styles.container}>
+      <WorkoutAnalyticsSection
+        workoutId={workoutId}
+        showUpsell={hasSensorData}
+        refreshKey={linkedActivityId}
+      />
+
       <View style={styles.header}>
         <View style={[styles.avatar, { backgroundColor: colors.primary + '1A' }]}>
           <Text style={[styles.avatarText, { color: colors.primary }]}>G</Text>

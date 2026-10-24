@@ -616,6 +616,8 @@ export interface WorkoutResponse {
   source: string;
   started_at: string;
   finished_at?: string;
+  // Total paused seconds; active duration = finished_at - started_at - paused_duration_sec.
+  paused_duration_sec: number;
   gps_route?: Record<string, any>;
   heart_rate_data?: Record<string, any>;
   notes?: string;
@@ -633,7 +635,8 @@ export interface SaveWorkoutInput {
   started_at: string;
   finished_at?: string;
   // Total paused seconds, so the backend duration matches the elapsed timer shown
-  // during recording (which excludes pauses). Omitted/0 for imports.
+  // during recording (which excludes pauses). For imports, the gap between the
+  // wall-clock span and the source's active duration.
   paused_duration_sec?: number;
   gps_route?: Record<string, any>;
   heart_rate_data?: Record<string, any>;

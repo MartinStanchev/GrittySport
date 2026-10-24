@@ -87,6 +87,32 @@ describe('buildFileSavePayload', () => {
     expect(payload.source).toBe('csv');
   });
 
+  it('saves the gap between wall-clock span and active duration as paused time', () => {
+    // e.g. HealthKit: 60 min start→end, 50 min active.
+    const result: WorkoutFileParseResult = {
+      ...emptyParseResult('Test', 'run', 'apple_health'),
+      startTime: new Date('2024-06-01T08:00:00Z'),
+      endTime: new Date('2024-06-01T09:00:00Z'),
+      totalDistanceM: 10000,
+      durationSec: 3000,
+    };
+
+    const payload = buildFileSavePayload(result, 'run');
+    expect(payload.paused_duration_sec).toBe(600);
+    expect(payload.gps_route?.duration_sec).toBe(3000);
+    expect(payload.gps_route?.avg_pace_sec_per_km).toBeCloseTo(300, 6);
+  });
+
+  it('saves no paused time when the source has no separate active duration', () => {
+    const result = emptyParseResult('Test', 'run', 'gpx');
+    result.startTime = new Date('2024-06-01T08:00:00Z');
+    result.endTime = new Date('2024-06-01T09:00:00Z');
+
+    const payload = buildFileSavePayload(result, 'run');
+    expect(payload.paused_duration_sec).toBe(0);
+    expect(payload.gps_route?.duration_sec).toBe(3600);
+  });
+
   it('omits notes when empty', () => {
     const result = emptyParseResult();
     result.startTime = new Date();

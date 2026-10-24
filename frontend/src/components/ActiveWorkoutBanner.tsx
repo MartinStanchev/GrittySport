@@ -7,6 +7,7 @@ import { formatTime } from '../constants/workoutUtils';
 import { useWorkout } from '../contexts/WorkoutContext';
 import { navigationRef } from '../navigation/navigationRef';
 import { formatDistanceKm } from '../services/gpsUtils';
+import { activeElapsedSec } from '../utils/workoutDuration';
 
 export function ActiveWorkoutBanner() {
   const { colors } = useTheme();
@@ -28,14 +29,7 @@ export function ActiveWorkoutBanner() {
   // Manual workout timer — frozen while paused
   useEffect(() => {
     if (!activeWorkout || activeWorkout.phase !== 'recording') return;
-    const tick = () => {
-      const totalMs = Date.now() - activeWorkout.startedAt.getTime();
-      let pausedMs = activeWorkout.pausedDurationSec * 1000;
-      if (activeWorkout.lastPauseStart != null) {
-        pausedMs += Date.now() - activeWorkout.lastPauseStart;
-      }
-      setElapsed(Math.max(0, Math.floor((totalMs - pausedMs) / 1000)));
-    };
+    const tick = () => setElapsed(Math.floor(activeElapsedSec(activeWorkout, Date.now())));
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);

@@ -1,6 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 import type { WorkoutResponse } from './api';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
+import { savedWorkoutDurationSec } from '../utils/workoutDuration';
 
 // Lazy-load expo-sharing so a missing native module (e.g. on a stale dev client
 // built before this package was added) doesn't crash the app at startup. The
@@ -19,6 +20,8 @@ interface ExportInputs {
   laps: Lap[];
   startedAtMs: number;
   finishedAtMs: number;
+  /** Active (unpaused) seconds of the whole workout. */
+  activeDurationSec: number;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -149,7 +152,9 @@ function collectInputs(workout: WorkoutResponse): ExportInputs {
     ? new Date(workout.finished_at).getTime()
     : startedAtMs + (route.duration_sec ?? 0) * 1000;
 
-  return { points, hrReadings, cadenceReadings, laps, startedAtMs, finishedAtMs };
+  const activeDurationSec = savedWorkoutDurationSec(workout) ?? route.duration_sec ?? 0;
+
+  return { points, hrReadings, cadenceReadings, laps, startedAtMs, finishedAtMs, activeDurationSec };
 }
 
 // ── GPX trackpoint ─────────────────────────────────────────────────────────────
@@ -176,17 +181,33 @@ function renderGPXTrackpoint(
 
 // ── TCX rendering ──────────────────────────────────────────────────────────────
 
+interface TCXLapDef {
+  startMs: number;
+  endMs: number;
+  /** Active seconds — excludes pauses where the source knows them. */
+  totalTimeSec: number;
+  distanceM: number;
+  avgHR?: number;
+  maxHR?: number;
+}
+
 function renderTCXLaps(inputs: ExportInputs): string {
-  const lapDefs: { startMs: number; endMs: number; distanceM: number; avgHR?: number; maxHR?: number }[] = [];
+  const lapDefs: TCXLapDef[] = [];
 
   if (inputs.laps.length > 0) {
     for (const lap of inputs.laps) {
-      lapDefs.push({ startMs: lap.start_time, endMs: lap.end_time, distanceM: lap.distance_m, avgHR: lap.avg_hr });
+      lapDefs.push({
+        startMs: lap.start_time,
+        endMs: lap.end_time,
+        totalTimeSec: lap.duration_sec,
+        distanceM: lap.distance_m,
+        avgHR: lap.avg_hr,
+      });
     }
 
-    // Stored laps only cover recording-time auto/manual laps; anything recorded after the
-    // last lap's end (e.g. the final partial km, or a manual lap pressed early) is otherwise
-    // silently dropped. Append a synthetic tail lap covering that remainder, if any exists.
+    // Stored laps may not reach the end of the workout (e.g. HR readings after the last GPS
+    // point, or file laps that stop early); anything after the last lap's end would otherwise
+    // be silently dropped. Append a synthetic tail lap covering that remainder, if any exists.
     const lastEndMs = lapDefs[lapDefs.length - 1].endMs;
     const tailPoints = inputs.points.filter((p) => p.timestamp > lastEndMs);
     const tailHR = inputs.hrReadings.filter((r) => r.timestamp > lastEndMs);
@@ -197,7 +218,7 @@ function renderTCXLaps(inputs: ExportInputs): string {
       const tailEndMs = inputs.finishedAtMs > lastEndMs ? inputs.finishedAtMs : fallbackEndMs;
       const distanceM = tailPoints.reduce((s, p) => s + (p.distance_from_prev || 0), 0);
       // avg/max HR for the tail are derived by renderTCXLap itself from readings in-range.
-      lapDefs.push({ startMs: lastEndMs, endMs: tailEndMs, distanceM });
+      lapDefs.push({ startMs: lastEndMs, endMs: tailEndMs, totalTimeSec: Math.max(0, (tailEndMs - lastEndMs) / 1000), distanceM });
     }
   } else {
     const distanceM = inputs.points.length > 0
@@ -207,6 +228,7 @@ function renderTCXLaps(inputs: ExportInputs): string {
     lapDefs.push({
       startMs: inputs.startedAtMs,
       endMs: inputs.finishedAtMs,
+      totalTimeSec: inputs.activeDurationSec,
       distanceM,
       avgHR: avg,
       maxHR: max,
@@ -226,13 +248,12 @@ function renderTCXLaps(inputs: ExportInputs): string {
 }
 
 function renderTCXLap(
-  lap: { startMs: number; endMs: number; distanceM: number; avgHR?: number; maxHR?: number },
+  lap: TCXLapDef,
   inputs: ExportInputs,
   hrIndex: TimeIndex,
   cadIndex: TimeIndex,
   prevEndMs: number | null,
 ): string {
-  const totalTimeSec = Math.max(0, (lap.endMs - lap.startMs) / 1000);
   const inRange = (t: number) => (prevEndMs === null ? t >= lap.startMs : t > prevEndMs) && t <= lap.endMs;
   const lapPoints = inputs.points.filter((p) => inRange(p.timestamp));
   const lapHRReadings = inputs.hrReadings.filter((r) => inRange(r.timestamp));
@@ -248,7 +269,7 @@ function renderTCXLap(
 
   const lines = [
     `<Lap StartTime="${isoTime(lap.startMs)}">`,
-    `  <TotalTimeSeconds>${fmt(totalTimeSec, 1)}</TotalTimeSeconds>`,
+    `  <TotalTimeSeconds>${fmt(lap.totalTimeSec, 1)}</TotalTimeSeconds>`,
     `  <DistanceMeters>${fmt(lap.distanceM, 2)}</DistanceMeters>`,
     `  <Calories>0</Calories>`,
   ];

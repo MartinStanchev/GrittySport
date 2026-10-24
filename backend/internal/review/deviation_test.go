@@ -200,6 +200,29 @@ func TestComputeKmSplits(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("excludes paused time recorded on a leg", func(t *testing.T) {
+		// 10 x 100m legs at 30s each; the 5th leg spans a 600s pause.
+		points := []GPSPoint{{Timestamp: 0}}
+		var ts int64
+		for i := 1; i <= 10; i++ {
+			p := GPSPoint{DistanceFromPrev: 100}
+			ts += 30_000
+			if i == 5 {
+				ts += 600_000
+				p.PausedBeforeSec = 600
+			}
+			p.Timestamp = ts
+			points = append(points, p)
+		}
+		splits := computeKmSplitsFromPoints(points)
+		if len(splits) != 1 {
+			t.Fatalf("expected 1 split, got %d", len(splits))
+		}
+		if splits[0].DurationSec != 300 {
+			t.Errorf("split duration = %.1f, want 300", splits[0].DurationSec)
+		}
+	})
 }
 
 func TestActivityTypeFamily(t *testing.T) {

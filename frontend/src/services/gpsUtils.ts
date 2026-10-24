@@ -15,22 +15,49 @@ export function haversineMetres(p1: GPSPoint, p2: GPSPoint): number {
 
 // --- Pace & Speed ---
 
-export function rollingPaceSecPerKm(points: GPSPoint[], windowSize = 10): number {
-  if (points.length < 2) return 0;
-  const window = points.slice(-windowSize);
-  const distM = window.reduce((s, p) => s + p.distance_from_prev, 0);
-  const durMs = window[window.length - 1].timestamp - window[0].timestamp;
-  if (distM < 1 || durMs <= 0) return 0;
-  return (durMs / 1000 / distM) * 1000; // sec/km
+/**
+ * Live pace/speed window. ~15 s keeps typical GPS jitter (3–5 m per fix) to a small fraction
+ * of the distance covered (≈45 m at 3 m/s running), while still reacting to pace changes
+ * within a few seconds. Time-based rather than point-count-based because fix spacing varies
+ * with speed (the watcher uses a 5 m distance filter) and with background batching.
+ */
+export const CURRENT_SPEED_WINDOW_MS = 15_000;
+/** Below this span the window is too short to give a meaningful reading (e.g. just after resume). */
+export const CURRENT_SPEED_MIN_SPAN_MS = 3_000;
+/** A gap between consecutive points longer than this is a pause or signal loss — never span it.
+ * 20 s keeps very slow movement readable (the 5 m distance filter spaces fixes ~12 s apart at 0.4 m/s). */
+export const CURRENT_SPEED_MAX_GAP_MS = 20_000;
+
+/**
+ * Distance (sum of the same per-point haversine legs the totals/summary use) and duration
+ * over the most recent ~CURRENT_SPEED_WINDOW_MS of contiguous points. Walks back from the
+ * last point until the window is covered or a pause-sized gap is hit; the leg that spans a
+ * gap is excluded. Returns null when the contiguous span is shorter than the minimum.
+ */
+function recentMovement(points: GPSPoint[]): { distM: number; durMs: number } | null {
+  if (points.length < 2) return null;
+  const last = points.length - 1;
+  const cutoff = points[last].timestamp - CURRENT_SPEED_WINDOW_MS;
+  let start = last;
+  let distM = 0;
+  while (start > 0 && points[start].timestamp > cutoff) {
+    if (points[start].timestamp - points[start - 1].timestamp > CURRENT_SPEED_MAX_GAP_MS) break;
+    distM += points[start].distance_from_prev;
+    start--;
+  }
+  const durMs = points[last].timestamp - points[start].timestamp;
+  if (durMs < CURRENT_SPEED_MIN_SPAN_MS || distM < 1) return null;
+  return { distM, durMs };
 }
 
-export function currentSpeedKph(points: GPSPoint[], windowSize = 5): number {
-  if (points.length < 2) return 0;
-  const window = points.slice(-windowSize);
-  const distM = window.reduce((s, p) => s + p.distance_from_prev, 0);
-  const durMs = window[window.length - 1].timestamp - window[0].timestamp;
-  if (distM < 1 || durMs <= 0) return 0;
-  return (distM / 1000) / (durMs / 1000 / 3600); // km/h
+export function currentPaceSecPerKm(points: GPSPoint[]): number {
+  const m = recentMovement(points);
+  return m ? (m.durMs / 1000 / m.distM) * 1000 : 0; // sec/km
+}
+
+export function currentSpeedKph(points: GPSPoint[]): number {
+  const m = recentMovement(points);
+  return m ? (m.distM / 1000) / (m.durMs / 1000 / 3600) : 0; // km/h
 }
 
 export function avgPaceSecPerKm(totalDistanceM: number, durationSec: number): number {
@@ -70,6 +97,17 @@ export function computeElevationGain(points: GPSPoint[]): number {
 
 // --- Laps ---
 
+/**
+ * Active seconds between two point indices: wall-clock minus the pauses recorded on the
+ * legs in between (`paused_before_sec`). Laps and km splits both use it, so neither
+ * counts time the recording was paused — matching the workout's single timer.
+ */
+export function activeSecBetween(points: GPSPoint[], fromIndex: number, toIndex: number): number {
+  let pausedSec = 0;
+  for (let i = fromIndex + 1; i <= toIndex; i++) pausedSec += points[i].paused_before_sec ?? 0;
+  return Math.max(0, (points[toIndex].timestamp - points[fromIndex].timestamp) / 1000 - pausedSec);
+}
+
 export function triggerLap(
   points: GPSPoint[],
   lapStartIndex: number,
@@ -84,7 +122,7 @@ export function triggerLap(
   const distM = lapPoints.slice(1).reduce((s, p) => s + p.distance_from_prev, 0);
   const startTime = lapPoints[0]?.timestamp ?? Date.now();
   const endTime = lapPoints[lapPoints.length - 1]?.timestamp ?? Date.now();
-  const durSec = (endTime - startTime) / 1000;
+  const durSec = lapPoints.length > 0 ? activeSecBetween(points, lapStartIndex, points.length - 1) : 0;
   const pace = distM > 0 && durSec > 0 ? (durSec / distM) * 1000 : 0;
   const speed = distM > 0 && durSec > 0 ? (distM / 1000) / (durSec / 3600) : 0;
   const elevGain = computeElevationGain(lapPoints);
@@ -106,6 +144,29 @@ export function triggerLap(
     avg_hr: avgHR,
     elevation_gain_m: elevGain,
   };
+}
+
+/**
+ * Laps are only recorded when the user presses Lap, so the stretch after the last press
+ * (from `lapStartIndex`) is not a lap yet. Close it into a final lap so the laps cover the
+ * whole workout. No laps (the user never pressed Lap) stays empty.
+ */
+export function closeFinalLap(
+  points: GPSPoint[],
+  laps: Lap[],
+  lapStartIndex: number,
+  hrReadings: HRReading[],
+): Lap[] {
+  if (laps.length === 0 || lapStartIndex >= points.length - 1) return laps;
+  return [...laps, triggerLap(points, lapStartIndex, laps, hrReadings)];
+}
+
+/**
+ * Whether a workout has laps worth listing. A single lap just spans the whole workout
+ * (e.g. a device file with one implicit lap), so it needs at least two.
+ */
+export function hasRecordedLaps(laps: Lap[] | undefined | null): laps is Lap[] {
+  return (laps?.length ?? 0) > 1;
 }
 
 // --- HR Zones ---
@@ -233,15 +294,13 @@ export function cadenceUnit(activityType: string): 'rpm' | 'spm' {
   return isCyclingSport(activityType) ? 'rpm' : 'spm';
 }
 
-/** Derived cycling stats: moving time, VAM (m/h), energy (kJ). Returns 0s when inputs are missing. */
+/** Derived cycling stats: VAM (m/h), energy (kJ). Returns 0s when inputs are missing. */
 export function computeCyclingDerivedStats(params: {
   durationSec: number;
-  autoPausedSec?: number;
   elevationGainM?: number;
   avgPower?: number;
-}): { movingSec: number; vamMetersPerHour: number; energyKJ: number } {
-  const { durationSec, autoPausedSec = 0, elevationGainM = 0, avgPower = 0 } = params;
-  const movingSec = Math.max(0, durationSec - autoPausedSec);
+}): { vamMetersPerHour: number; energyKJ: number } {
+  const { durationSec, elevationGainM = 0, avgPower = 0 } = params;
   const vamMetersPerHour =
     elevationGainM > 0 && durationSec > 0
       ? Math.round((elevationGainM * 3600) / durationSec)
@@ -250,7 +309,7 @@ export function computeCyclingDerivedStats(params: {
     avgPower > 0 && durationSec > 0
       ? Math.round((avgPower * durationSec) / 1000)
       : 0;
-  return { movingSec, vamMetersPerHour, energyKJ };
+  return { vamMetersPerHour, energyKJ };
 }
 
 // --- Downsampling ---
@@ -383,7 +442,7 @@ export function computeKmSplits(
       const km = splits.length + 1;
       const startTs = points[splitStart].timestamp;
       const endTs = points[i].timestamp;
-      const durationSec = (endTs - startTs) / 1000;
+      const durationSec = activeSecBetween(points, splitStart, i);
       const paceSecPerKm = durationSec > 0 ? (durationSec / splitDistAccum) * 1000 : 0;
       const elevGain = computeElevationGain(points.slice(splitStart, i + 1));
 
@@ -447,20 +506,18 @@ export function buildFinalGPSPayload(params: {
   cadenceReadings?: CadenceReading[];
   powerReadings?: PowerReading[];
   totalDistanceM: number;
-  autoPausedDurationSec: number;
-  startedAt: Date;
-  finishedAt: Date;
+  /** Active (unpaused) seconds — the recording's single duration (see utils/workoutDuration). */
+  durationSec: number;
   hrDeviceName?: string;
 }): FinalGPSPayload {
   const {
     activityType, points, laps, hrReadings, cadenceReadings, powerReadings,
-    totalDistanceM, autoPausedDurationSec, startedAt, finishedAt, hrDeviceName,
+    totalDistanceM, durationSec, hrDeviceName,
   } = params;
 
-  const totalSec = (finishedAt.getTime() - startedAt.getTime()) / 1000 - autoPausedDurationSec;
   const elevGain = computeElevationGain(points);
-  const pace = avgPaceSecPerKm(totalDistanceM, totalSec);
-  const speed = avgSpeedKph(totalDistanceM, totalSec);
+  const pace = avgPaceSecPerKm(totalDistanceM, durationSec);
+  const speed = avgSpeedKph(totalDistanceM, durationSec);
 
   const avgHR =
     hrReadings.length > 0
@@ -486,16 +543,6 @@ export function buildFinalGPSPayload(params: {
       ? Math.max(...powerReadings.map((r) => r.watts))
       : undefined;
 
-  // Best lap = fastest pace (run) or fastest speed (cycling)
-  const bestLapPace =
-    laps.length > 0
-      ? Math.min(...laps.filter((l) => l.avg_pace_sec_per_km > 0).map((l) => l.avg_pace_sec_per_km))
-      : 0;
-  const bestLapSpeed =
-    laps.length > 0
-      ? Math.max(...laps.map((l) => l.avg_speed_kph))
-      : 0;
-
   let sport: string;
   if (isRunSport(activityType)) {
     sport = 'run';
@@ -508,7 +555,7 @@ export function buildFinalGPSPayload(params: {
   const routeData: GPSRouteData = {
     sport,
     distance_km: totalDistanceM / 1000,
-    duration_sec: totalSec,
+    duration_sec: durationSec,
     avg_pace_sec_per_km: pace,
     avg_speed_kph: speed,
     elevation_gain_m: elevGain,
@@ -520,13 +567,12 @@ export function buildFinalGPSPayload(params: {
     max_power: maxPow,
     points,
     laps,
-    auto_paused_duration_sec: autoPausedDurationSec,
   };
 
   const summaryData: GPSSummaryData = {
     distance_km: totalDistanceM / 1000,
-    avg_pace_sec_per_km: isRunSport(activityType) ? pace : bestLapPace,
-    avg_speed_kph: isCyclingSport(activityType) ? speed : bestLapSpeed,
+    avg_pace_sec_per_km: pace,
+    avg_speed_kph: speed,
     elevation_gain_m: elevGain,
     avg_hr: avgHR,
     max_hr: maxHR,

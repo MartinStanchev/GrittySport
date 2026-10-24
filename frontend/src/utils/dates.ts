@@ -25,13 +25,12 @@ export function mondayOf(d: Date): Date {
 }
 
 /**
- * Format a duration between two ISO timestamps as a human-readable string.
- * Returns "Xh Ym", "Xm Ys", or "Xs".
+ * Format a duration in seconds as a human-readable string.
+ * Returns "Xh Ym", "Xm Ys", "Xs", or "—" when there is no duration.
  */
-export function formatDuration(startedAt: string, finishedAt?: string): string {
-  if (!finishedAt) return '—';
-  const ms = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
-  const totalSec = Math.floor(ms / 1000);
+export function formatDuration(seconds: number | null): string {
+  if (seconds == null) return '—';
+  const totalSec = Math.floor(seconds);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;

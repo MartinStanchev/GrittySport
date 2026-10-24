@@ -8,6 +8,7 @@ import { type WorkoutResponse } from '../services/api';
 import { getRecentWorkoutsCached } from '../services/cachedReads';
 import { getActivityIcon, formatActivityType } from '../constants/activityIcons';
 import { formatDuration, formatRelativeDate } from '../utils/dates';
+import { savedWorkoutDurationSec } from '../utils/workoutDuration';
 
 interface LastWorkoutCardProps {
   onPress: (workoutId: string) => void;
@@ -26,7 +27,7 @@ export function LastWorkoutCard({ onPress }: LastWorkoutCardProps) {
 
   if (!workout) return null;
 
-  const duration = formatDuration(workout.started_at, workout.finished_at);
+  const duration = formatDuration(savedWorkoutDurationSec(workout));
   const icon = getActivityIcon(workout.activity_type);
 
   return (

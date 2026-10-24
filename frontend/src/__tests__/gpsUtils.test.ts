@@ -1,11 +1,13 @@
 import {
   haversineMetres,
-  rollingPaceSecPerKm,
+  currentPaceSecPerKm,
   currentSpeedKph,
   avgPaceSecPerKm,
   avgSpeedKph,
   computeElevationGain,
   triggerLap,
+  closeFinalLap,
+  hasRecordedLaps,
   formatPaceSecPerKm,
   formatSpeedKph,
   formatDistanceKm,
@@ -19,6 +21,7 @@ import {
   computeEffortScore,
   getEffortColor,
   computeKmSplits,
+  activeSecBetween,
 } from '../services/gpsUtils';
 import type { GPSPoint, HRReading, CadenceReading } from '../types/gps';
 
@@ -32,7 +35,18 @@ function pt(lat: number, lng: number, opts: Partial<GPSPoint> = {}): GPSPoint {
     speed: opts.speed ?? null,
     timestamp: opts.timestamp ?? 0,
     distance_from_prev: opts.distance_from_prev ?? 0,
+    ...(opts.paused_before_sec != null && { paused_before_sec: opts.paused_before_sec }),
   };
+}
+
+// Helper: shift every point from `index` on by a pause of `pauseSec`, recording it on the
+// first point after the pause — what the GPS reducer does on resume.
+function withPause(points: GPSPoint[], index: number, pauseSec: number): GPSPoint[] {
+  return points.map((p, i) => {
+    if (i < index) return p;
+    const shifted = { ...p, timestamp: p.timestamp + pauseSec * 1000 };
+    return i === index ? { ...shifted, paused_before_sec: pauseSec } : shifted;
+  });
 }
 
 // Helper: build a straight-line route of N points, each `stepM` metres apart
@@ -85,50 +99,33 @@ describe('haversineMetres', () => {
   });
 });
 
-// ─── rollingPaceSecPerKm ───────────────────────────────────────────────────
+// Helper: point with only timestamp + leg distance (lat/lng unused by live pace/speed).
+function leg(timestamp: number, distance_from_prev: number): GPSPoint {
+  return pt(52, 4, { timestamp, distance_from_prev });
+}
 
-describe('rollingPaceSecPerKm', () => {
+// ─── currentPaceSecPerKm ───────────────────────────────────────────────────
+
+describe('currentPaceSecPerKm', () => {
   it('returns 0 for a single point', () => {
-    expect(rollingPaceSecPerKm([pt(0, 0)])).toBe(0);
+    expect(currentPaceSecPerKm([pt(0, 0)])).toBe(0);
   });
 
   it('returns 0 when distance is too small', () => {
-    // Two points at same location, 1 s apart → 0 m
-    const points = [
-      pt(52, 4, { timestamp: 0, distance_from_prev: 0 }),
-      pt(52, 4, { timestamp: 1000, distance_from_prev: 0 }),
-    ];
-    expect(rollingPaceSecPerKm(points)).toBe(0);
+    expect(currentPaceSecPerKm([leg(0, 0), leg(5000, 0)])).toBe(0);
   });
 
-  it('computes correct pace for 100 m in 60 s → 10:00 /km', () => {
-    // 100 m in 60 000 ms → 600 s/km
-    const points: GPSPoint[] = [
-      { lat: 52, lng: 4, altitude: null, accuracy: 5, speed: null, timestamp: 0, distance_from_prev: 0 },
-      { lat: 52, lng: 4, altitude: null, accuracy: 5, speed: null, timestamp: 60000, distance_from_prev: 100 },
-    ];
-    expect(rollingPaceSecPerKm(points)).toBeCloseTo(600, 0);
+  it('computes 10:00 /km for 10 m every 6 s', () => {
+    const points = [leg(0, 0)];
+    for (let t = 6; t <= 60; t += 6) points.push(leg(t * 1000, 10));
+    expect(currentPaceSecPerKm(points)).toBeCloseTo(600, 5);
   });
 
-  it('uses only the last windowSize points', () => {
-    // 11 points, first 10 move slowly, last 2 move fast
-    // With window=10, should see mostly the fast segment
-    const slow = straightRoute(9, 10, 10000); // 10 m per 10 s = 1 m/s = 1000 s/km
-    // Append a fast point 1000 m from the last slow point in 100 ms
-    const lastSlow = slow[slow.length - 1];
-    const fastPt: GPSPoint = {
-      lat: lastSlow.lat,
-      lng: lastSlow.lng + 1000 / 68600,
-      altitude: null,
-      accuracy: 5,
-      speed: null,
-      timestamp: lastSlow.timestamp + 100,
-      distance_from_prev: 1000,
-    };
-    const allPoints = [...slow, fastPt];
-    // window=2: only last 2 points = 1000 m in 0.1 s → very fast
-    const pace = rollingPaceSecPerKm(allPoints, 2);
-    expect(pace).toBeLessThan(1); // way below 1 s/km
+  it('agrees with currentSpeedKph over the same window', () => {
+    const points = straightRoute(30, 3, 1000); // 3 m/s
+    const pace = currentPaceSecPerKm(points);
+    expect(pace).toBeCloseTo(3600 / currentSpeedKph(points), 6);
+    expect(Math.abs(pace - 1000 / 3) / (1000 / 3)).toBeLessThan(0.01); // straightRoute's lng scale is approximate
   });
 });
 
@@ -140,12 +137,54 @@ describe('currentSpeedKph', () => {
   });
 
   it('computes ~3.6 km/h for 1 m/s', () => {
-    // 5 m in 5 000 ms = 1 m/s = 3.6 km/h
-    const points: GPSPoint[] = [
-      { lat: 52, lng: 4, altitude: null, accuracy: 5, speed: null, timestamp: 0, distance_from_prev: 0 },
-      { lat: 52, lng: 4, altitude: null, accuracy: 5, speed: null, timestamp: 5000, distance_from_prev: 5 },
-    ];
-    expect(currentSpeedKph(points)).toBeCloseTo(3.6, 1);
+    expect(currentSpeedKph([leg(0, 0), leg(5000, 5)])).toBeCloseTo(3.6, 1);
+  });
+
+  it('returns 0 when the available span is shorter than the minimum', () => {
+    expect(currentSpeedKph([leg(0, 0), leg(1000, 3), leg(2000, 3)])).toBe(0);
+  });
+
+  it('uses a time window, not a point count', () => {
+    // 60 s at 1 m/s, then 20 s at 3 m/s, 1 point per second.
+    const points = [leg(0, 0)];
+    for (let t = 1; t <= 60; t++) points.push(leg(t * 1000, 1));
+    for (let t = 61; t <= 80; t++) points.push(leg(t * 1000, 3));
+    // Window covers only the last 15 s of fast running → 10.8 km/h.
+    expect(currentSpeedKph(points)).toBeCloseTo(10.8, 5);
+  });
+
+  it('extends the window back to cover at least the full window when fixes are sparse', () => {
+    // Fixes every 4 s at 2 m/s: cutoff at 16 s, window starts at the 12 s point (span 20 s).
+    const points = [leg(0, 0)];
+    for (let t = 4; t <= 32; t += 4) points.push(leg(t * 1000, 8));
+    expect(currentSpeedKph(points)).toBeCloseTo(7.2, 5);
+  });
+
+  it('smooths single-fix GPS jitter far better than a short window', () => {
+    // Steady 3 m/s with one fix jumping 6 m ahead at the end.
+    const points = [leg(0, 0)];
+    for (let t = 1; t <= 29; t++) points.push(leg(t * 1000, 3));
+    points.push(leg(30000, 9));
+    // (14 × 3 + 9) m / 15 s = 3.4 m/s = 12.24 km/h, vs ~16 km/h over the last 4 s.
+    expect(currentSpeedKph(points)).toBeCloseTo(12.24, 5);
+  });
+
+  it('does not span a pause gap', () => {
+    // Moving at 2 m/s, then a 60 s pause (with a resume jump leg), then 5 s at 2 m/s.
+    const points = [leg(0, 0)];
+    for (let t = 1; t <= 20; t++) points.push(leg(t * 1000, 2));
+    points.push(leg(80000, 30)); // first point after resume, leg spans the pause
+    for (let t = 81; t <= 85; t++) points.push(leg(t * 1000, 2));
+    // Only the 5 s after resume count: 10 m / 5 s = 2 m/s = 7.2 km/h.
+    expect(currentSpeedKph(points)).toBeCloseTo(7.2, 5);
+  });
+
+  it('returns 0 right after resuming until the minimum span is reached', () => {
+    const points = [leg(0, 0)];
+    for (let t = 1; t <= 20; t++) points.push(leg(t * 1000, 2));
+    points.push(leg(80000, 30));
+    points.push(leg(81000, 2));
+    expect(currentSpeedKph(points)).toBe(0);
   });
 });
 
@@ -284,6 +323,16 @@ describe('triggerLap', () => {
     const totalDist = points.slice(1).reduce((s, p) => s + p.distance_from_prev, 0);
     expect(lap1.distance_m + lap2.distance_m).toBeCloseTo(totalDist, 6);
   });
+
+  it('excludes paused time so lap time and pace match the active timer', () => {
+    // 4 x 100m legs at 30s each, with a 5-minute pause between points 2 and 3.
+    const points = withPause(straightRoute(5, 100, 30000), 3, 300);
+    const lap = triggerLap(points, 0, [], []);
+    expect(lap.duration_sec).toBeCloseTo(120, 6);
+    expect(lap.avg_pace_sec_per_km).toBeCloseTo((120 / lap.distance_m) * 1000, 6);
+    // Wall-clock bounds are kept for HR windowing / export.
+    expect(lap.end_time - lap.start_time).toBe(420_000);
+  });
 });
 
 // ─── Formatting helpers ────────────────────────────────────────────────────
@@ -327,9 +376,6 @@ describe('formatDistanceKm', () => {
 
 describe('buildFinalGPSPayload', () => {
   it('builds a valid payload from a short route', () => {
-    const startedAt = new Date(0);
-    const finishedAt = new Date(600_000); // 10 minutes
-
     const points = straightRoute(10, 100, 60000); // 10 points, 100 m apart, 1 min each
     // Compute distance
     let totalDistanceM = 0;
@@ -346,9 +392,7 @@ describe('buildFinalGPSPayload', () => {
       laps: [],
       hrReadings,
       totalDistanceM,
-      autoPausedDurationSec: 0,
-      startedAt,
-      finishedAt,
+      durationSec: 600, // 10 minutes
     });
 
     expect(result.routeData.sport).toBe('run');
@@ -367,26 +411,29 @@ describe('buildFinalGPSPayload', () => {
       laps: [],
       hrReadings: [],
       totalDistanceM: 100,
-      autoPausedDurationSec: 0,
-      startedAt: new Date(0),
-      finishedAt: new Date(30_000),
+      durationSec: 30,
     });
     expect(result.hrData).toBeNull();
     expect(result.routeData.sport).toBe('cycling');
   });
 
-  it('subtracts autoPausedDurationSec from total time', () => {
-    const result = buildFinalGPSPayload({
-      activityType: 'run',
-      points: straightRoute(2, 500, 400_000),
-      laps: [],
-      hrReadings: [],
-      totalDistanceM: 500,
-      autoPausedDurationSec: 100, // 100 s paused
-      startedAt: new Date(0),
-      finishedAt: new Date(400_000), // 400 s total
-    });
-    expect(result.routeData.duration_sec).toBe(300); // 400 - 100
+  it('derives avg pace and speed from the given active duration for every sport', () => {
+    for (const activityType of ['run', 'cycling', 'hike']) {
+      const result = buildFinalGPSPayload({
+        activityType,
+        points: straightRoute(2, 1000, 300_000),
+        laps: [],
+        hrReadings: [],
+        totalDistanceM: 1000,
+        durationSec: 300, // e.g. 400 s wall clock minus a 100 s pause
+      });
+      expect(result.routeData.duration_sec).toBe(300);
+      expect(result.routeData.avg_pace_sec_per_km).toBeCloseTo(300);
+      expect(result.routeData.avg_speed_kph).toBeCloseTo(12);
+      // recorded_data carries the same overall averages (not a best-lap figure)
+      expect(result.summaryData.avg_pace_sec_per_km).toBeCloseTo(300);
+      expect(result.summaryData.avg_speed_kph).toBeCloseTo(12);
+    }
   });
 });
 
@@ -694,6 +741,16 @@ describe('computeKmSplits', () => {
     expect(result.isNegativeSplit).toBe(true);
   });
 
+  it('excludes paused time from a split spanning a pause', () => {
+    // 10 x 100m legs at 30s each = 300s for the km, plus a 10-minute pause mid-split.
+    const route = straightRoute(11, 100, 30000).map((p, i) => ({ ...p, distance_from_prev: i === 0 ? 0 : 100 }));
+    const points = withPause(route, 5, 600);
+    const { splits } = computeKmSplits(points);
+    expect(splits).toHaveLength(1);
+    expect(splits[0].durationSec).toBeCloseTo(300, 6);
+    expect(splits[0].paceSecPerKm).toBeCloseTo(300, 0);
+  });
+
   it('includes HR data in splits when provided', () => {
     const points = straightRoute(21, 100, 30000);
     const hrReadings: HRReading[] = points.map((p) => ({ bpm: 140, timestamp: p.timestamp }));
@@ -702,5 +759,94 @@ describe('computeKmSplits', () => {
     for (const s of result.splits) {
       expect(s.avgHR).toBe(140);
     }
+  });
+});
+
+// ─── closeFinalLap / hasRecordedLaps ──────────────────────────────────────
+
+describe('closeFinalLap', () => {
+  it('leaves an empty lap list empty (user never pressed Lap)', () => {
+    const points = straightRoute(10, 100, 1000);
+    expect(closeFinalLap(points, [], 0, [])).toEqual([]);
+  });
+
+  it('closes the stretch after the last manual lap into a final lap', () => {
+    const points = straightRoute(10, 100, 1000);
+    // User pressed Lap at point index 3 (the reducer then sets lapStartIndex = 3).
+    const lap1 = triggerLap(points.slice(0, 4), 0, [], []);
+    const laps = closeFinalLap(points, [lap1], 3, []);
+
+    expect(laps).toHaveLength(2);
+    expect(laps[1].lap_number).toBe(2);
+    expect(laps[1].start_time).toBe(points[3].timestamp);
+    expect(laps[1].end_time).toBe(points[9].timestamp);
+    const total = points.reduce((s, p) => s + p.distance_from_prev, 0);
+    expect(laps[0].distance_m + laps[1].distance_m).toBeCloseTo(total, 6);
+  });
+
+  it('excludes paused time from the closed final lap', () => {
+    const points = withPause(straightRoute(10, 100, 1000), 6, 120);
+    const lap1 = triggerLap(points.slice(0, 4), 0, [], []);
+    const laps = closeFinalLap(points, [lap1], 3, []);
+    expect(laps[1].duration_sec).toBeCloseTo(6, 6);
+  });
+
+  it('is a no-op when the last lap already ends at the last point', () => {
+    const points = straightRoute(6, 100, 1000);
+    const lap1 = triggerLap(points.slice(0, 3), 0, [], []);
+    const lap2 = triggerLap(points, 2, [lap1], []);
+    const laps = [lap1, lap2];
+    expect(closeFinalLap(points, laps, 5, [])).toBe(laps);
+  });
+});
+
+describe('hasRecordedLaps', () => {
+  const points = straightRoute(6, 100, 1000);
+  const lap = triggerLap(points, 0, [], []);
+
+  it('is false for missing, empty or single whole-workout laps', () => {
+    expect(hasRecordedLaps(undefined)).toBe(false);
+    expect(hasRecordedLaps(null)).toBe(false);
+    expect(hasRecordedLaps([])).toBe(false);
+    expect(hasRecordedLaps([lap])).toBe(false);
+  });
+
+  it('is true for two or more laps', () => {
+    expect(hasRecordedLaps([lap, { ...lap, lap_number: 2 }])).toBe(true);
+  });
+});
+
+describe('buildFinalGPSPayload laps', () => {
+  const points = straightRoute(10, 100, 1000);
+  const base = {
+    activityType: 'cycling',
+    points,
+    hrReadings: [] as HRReading[],
+    totalDistanceM: points.reduce((s, p) => s + p.distance_from_prev, 0),
+    durationSec: 9,
+  };
+
+  it('stores no laps when there are none', () => {
+    expect(buildFinalGPSPayload({ ...base, laps: [] }).routeData.laps).toEqual([]);
+  });
+
+  it('stores laps as given — an imported lap that ends early is not extended', () => {
+    // Imports reach this path too; only live recordings close a final lap (closeFinalLap).
+    const lap1 = triggerLap(points.slice(0, 4), 0, [], []);
+    expect(buildFinalGPSPayload({ ...base, laps: [lap1] }).routeData.laps).toEqual([lap1]);
+  });
+});
+
+describe('activeSecBetween', () => {
+  it('is wall-clock time when nothing was paused', () => {
+    const points = straightRoute(5, 100, 1000);
+    expect(activeSecBetween(points, 1, 4)).toBe(3);
+  });
+
+  it('subtracts pauses recorded on legs inside the range only', () => {
+    const points = withPause(straightRoute(6, 100, 1000), 3, 60);
+    expect(activeSecBetween(points, 0, 5)).toBeCloseTo(5, 6);
+    // The pause sits on the leg into point 3, so a range starting at 3 excludes it.
+    expect(activeSecBetween(points, 3, 5)).toBeCloseTo(2, 6);
   });
 });

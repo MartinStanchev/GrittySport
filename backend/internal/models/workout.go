@@ -33,11 +33,12 @@ func (w *Workout) EffectiveDurationSec() float64 {
 	if w.FinishedAt == nil {
 		return 0
 	}
-	sec := w.FinishedAt.Sub(w.StartedAt).Seconds() - w.PausedDurationSec
-	if sec < 0 {
-		return 0
-	}
-	return sec
+	return ActiveDurationSec(w.StartedAt, *w.FinishedAt, w.PausedDurationSec)
+}
+
+// ActiveDurationSec is finishedAt - startedAt minus paused seconds, floored at 0.
+func ActiveDurationSec(startedAt, finishedAt time.Time, pausedSec float64) float64 {
+	return max(0, finishedAt.Sub(startedAt).Seconds()-pausedSec)
 }
 
 type WorkoutListFilter struct {
