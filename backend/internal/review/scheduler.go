@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
-	"github.com/grittyfitness/api/internal/notifications"
+	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/usage"
 )
 
@@ -115,7 +115,7 @@ func (c *MissedWorkoutChecker) checkUser(ctx context.Context, userID string, loc
 		     SELECT 1 FROM workouts wo
 		     WHERE wo.scheduled_activity_id = sa.id
 		   )`,
-		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
+		userID, dayOfWeek, today, models.PassiveActivityTypes,
 	)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to query missed activities")

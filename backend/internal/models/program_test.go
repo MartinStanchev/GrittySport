@@ -66,7 +66,7 @@ func TestWeekToResponse_NormalizesToMonday(t *testing.T) {
 		},
 	}
 
-	resp := w.ToResponse(programStart)
+	resp := w.ToResponse(programStart, false)
 
 	if resp.StartDate != "2026-02-23" {
 		t.Errorf("WeekResponse.StartDate = %s, want 2026-02-23", resp.StartDate)
@@ -96,7 +96,7 @@ func TestWeekToResponse_FallbackFromProgramStart(t *testing.T) {
 		},
 	}
 
-	resp := w.ToResponse(programStart)
+	resp := w.ToResponse(programStart, false)
 
 	// Week 2: programStart + 7 = March 2 (Monday), already Monday
 	if resp.StartDate != "2026-03-02" {
@@ -135,7 +135,7 @@ func TestWeekToResponse_SundayActivity(t *testing.T) {
 		},
 	}
 
-	resp := w.ToResponse(programStart)
+	resp := w.ToResponse(programStart, false)
 
 	// Sunday: Monday Feb 23 + 6 = March 1
 	if resp.Activities[0].Date != "2026-03-01" {

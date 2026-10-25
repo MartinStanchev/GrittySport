@@ -52,7 +52,7 @@ All running sessions use `activity_type: "run"` (or `"indoor_run"` for treadmill
 
 **Simple runs** (easy, long, tempo, fartlek) — flat format:
 ```json
-{"distance": "8km", "pace": "5:30/km", "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}
+{"distance_m": 8000, "pace_sec_per_km": 330, "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}
 ```
 
 **Structured workouts** (intervals, hill repeats, strides) — use `sets` array:
@@ -60,15 +60,23 @@ All running sessions use `activity_type: "run"` (or `"indoor_run"` for treadmill
 {
   "warmup": "1.5km easy",
   "sets": [
-    {"reps": 6, "distance": "800m", "pace": "3:40/km", "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}
+    {"reps": 6, "distance_m": 800, "pace_sec_per_km": 220, "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}
   ],
   "cooldown": "1.5km easy",
-  "total_distance": "10km"
+  "total_distance_m": 10000
 }
 ```
 
 More examples:
-- Hill repeats: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "200m", "effort": "Hard uphill", "rpe": 8, "rest": "jog down"}], "cooldown": "1.5km easy"}`
-- Strides after easy run: `{"distance": "8km", "pace": "5:30/km", "effort": "Easy with strides", "rpe": 6, "sets": [{"reps": 6, "distance": "100m", "effort": "Near-sprint", "rpe": 9, "rest": "60s walk"}]}`
-- Tempo: `{"distance": "10km", "pace": "4:45/km", "effort": "Comfortably hard — 15-20s/km slower than 5K pace", "rpe": 7}`
-- Long run: `{"distance": "16km", "pace": "6:00/km", "effort": "Easy — conversational throughout", "rpe": 6}`
+- Hill repeats: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance_m": 200, "effort": "Hard uphill", "rpe": 8, "rest": "jog down"}], "cooldown": "1.5km easy"}`
+- Strides after easy run: `{"distance_m": 8000, "pace_sec_per_km": 330, "effort": "Easy with strides", "rpe": 6, "sets": [{"reps": 6, "distance_m": 100, "effort": "Near-sprint", "rpe": 9, "rest": "60s walk"}]}`
+- Tempo: `{"distance_m": 10000, "pace_sec_per_km": 285, "effort": "Comfortably hard — 15-20s/km slower than 5K pace", "rpe": 7}`
+- Long run: `{"distance_m": 16000, "pace_sec_per_km": 360, "effort": "Easy — conversational throughout", "rpe": 6}`
+
+## Progression Rules
+- **Long run**: the main volume lever. `{"field": "distance_m", "percent": 10, "max": 32000}` or a fixed `{"field": "distance_m", "step": 1500, "max": 30000}`. Set `max` to the phase's peak long run.
+- **Easy runs**: hold steady, or grow gently (`"percent": 5`) for beginners building frequency.
+- **Intervals**: add reps at the same pace, e.g. `{"field": "reps", "set_index": 0, "step": 1, "max": 8}`. Don't progress reps and pace in the same phase.
+- **Tempo**: grow the tempo block, e.g. `{"field": "distance_m", "step": 1000, "max": 12000}`.
+- Keep the total weekly distance increase ≤10% — check the weekly totals in `week_by_week`.
+- Beginners: 5-10% per week with a deload every 3rd week. Experienced runners: 10% with a deload every 4th week.

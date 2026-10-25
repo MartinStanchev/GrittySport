@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -20,16 +21,16 @@ type Program struct {
 }
 
 type ProgramResponse struct {
-	ID              string     `json:"id"`
-	Name            string     `json:"name"`
-	Sport           *string    `json:"sport,omitempty"`
-	GoalDescription *string    `json:"goal_description,omitempty"`
-	StartDate       string     `json:"start_date"`
-	EndDate         *string    `json:"end_date,omitempty"`
-	Status          string     `json:"status"`
-	CreatedBy       string     `json:"created_by"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Sport           *string   `json:"sport,omitempty"`
+	GoalDescription *string   `json:"goal_description,omitempty"`
+	StartDate       string    `json:"start_date"`
+	EndDate         *string   `json:"end_date,omitempty"`
+	Status          string    `json:"status"`
+	CreatedBy       string    `json:"created_by"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (p *Program) ToResponse() ProgramResponse {
@@ -112,28 +113,31 @@ type Phase struct {
 	OrderIndex int        `json:"order_index"`
 	StartDate  *time.Time `json:"start_date,omitempty"`
 	EndDate    *time.Time `json:"end_date,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	Weeks      []Week     `json:"weeks,omitempty"`
+	PhaseLoad
+	CreatedAt time.Time `json:"created_at"`
+	Weeks     []Week    `json:"weeks,omitempty"`
 }
 
 type PhaseResponse struct {
-	ID         string         `json:"id"`
-	Name       string         `json:"name"`
-	OrderIndex int            `json:"order_index"`
-	StartDate  *string        `json:"start_date,omitempty"`
-	EndDate    *string        `json:"end_date,omitempty"`
-	Weeks      []WeekResponse `json:"weeks"`
+	ID         string  `json:"id"`
+	Name       string  `json:"name"`
+	OrderIndex int     `json:"order_index"`
+	StartDate  *string `json:"start_date,omitempty"`
+	EndDate    *string `json:"end_date,omitempty"`
+	PhaseLoad
+	Weeks []WeekResponse `json:"weeks"`
 }
 
 func (p *Phase) ToResponse(programStart time.Time) PhaseResponse {
 	weekResponses := make([]WeekResponse, len(p.Weeks))
 	for i, w := range p.Weeks {
-		weekResponses[i] = w.ToResponse(programStart)
+		weekResponses[i] = w.ToResponse(programStart, p.IsDeload(i+1))
 	}
 	resp := PhaseResponse{
 		ID:         p.ID,
 		Name:       p.Name,
 		OrderIndex: p.OrderIndex,
+		PhaseLoad:  p.PhaseLoad,
 		Weeks:      weekResponses,
 	}
 	if p.StartDate != nil {
@@ -160,10 +164,11 @@ type WeekResponse struct {
 	ID         string                      `json:"id"`
 	WeekNumber int                         `json:"week_number"`
 	StartDate  string                      `json:"start_date"`
+	IsDeload   bool                        `json:"is_deload,omitempty"`
 	Activities []ScheduledActivityResponse `json:"activities"`
 }
 
-func (w *Week) ToResponse(programStart time.Time) WeekResponse {
+func (w *Week) ToResponse(programStart time.Time, isDeload bool) WeekResponse {
 	var raw time.Time
 	if w.StartDate != nil {
 		raw = *w.StartDate
@@ -180,6 +185,7 @@ func (w *Week) ToResponse(programStart time.Time) WeekResponse {
 		ID:         w.ID,
 		WeekNumber: w.WeekNumber,
 		StartDate:  weekMonday.Format("2006-01-02"),
+		IsDeload:   isDeload,
 		Activities: actResponses,
 	}
 }
@@ -193,19 +199,25 @@ type ScheduledActivity struct {
 	Notes           *string         `json:"notes,omitempty"`
 	OrderIndex      int             `json:"order_index"`
 	LinkedWorkoutID *string         `json:"linked_workout_id,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	IsOverride      bool            `json:"is_override"`
+	// Progression rules of the series this activity was generated from
+	// (empty for one-off activities and individually edited instances).
+	Progression []ProgressionRule `json:"progression,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
 type ScheduledActivityResponse struct {
-	ID              string          `json:"id"`
-	DayOfWeek       int             `json:"day_of_week"`
-	Date            string          `json:"date"`
-	ActivityType    string          `json:"activity_type"`
-	Prescription    json.RawMessage `json:"prescription"`
-	Notes           *string         `json:"notes,omitempty"`
-	OrderIndex      int             `json:"order_index"`
-	LinkedWorkoutID *string         `json:"linked_workout_id,omitempty"`
+	ID              string            `json:"id"`
+	DayOfWeek       int               `json:"day_of_week"`
+	Date            string            `json:"date"`
+	ActivityType    string            `json:"activity_type"`
+	Prescription    json.RawMessage   `json:"prescription"`
+	Notes           *string           `json:"notes,omitempty"`
+	OrderIndex      int               `json:"order_index"`
+	LinkedWorkoutID *string           `json:"linked_workout_id,omitempty"`
+	IsOverride      bool              `json:"is_override,omitempty"`
+	Progression     []ProgressionRule `json:"progression,omitempty"`
 }
 
 // DowOffset converts a JS-convention day_of_week (0=Sun, 1=Mon…6=Sat) to a
@@ -233,34 +245,12 @@ func (a *ScheduledActivity) ToResponseWithDate(weekStart time.Time) ScheduledAct
 		Notes:           a.Notes,
 		OrderIndex:      a.OrderIndex,
 		LinkedWorkoutID: a.LinkedWorkoutID,
+		IsOverride:      a.IsOverride,
+		Progression:     a.Progression,
 	}
 }
 
 // Input types for creating/updating programs
-
-type SaveProgramInput struct {
-	Name            string           `json:"name"`
-	Sport           string           `json:"sport"`
-	GoalDescription string           `json:"goal_description"`
-	StartDate       string           `json:"start_date"`
-	EndDate         string           `json:"end_date"`
-	Phases          []SavePhaseInput `json:"phases"`
-	CreatedBy       string           `json:"created_by,omitempty"`
-}
-
-type SavePhaseInput struct {
-	Name       string          `json:"name"`
-	OrderIndex int             `json:"order_index"`
-	StartDate  string          `json:"start_date"`
-	EndDate    string          `json:"end_date"`
-	Weeks      []SaveWeekInput `json:"weeks"`
-}
-
-type SaveWeekInput struct {
-	WeekNumber int                 `json:"week_number"`
-	StartDate  string              `json:"start_date"`
-	Activities []SaveActivityInput `json:"activities"`
-}
 
 type SaveActivityInput struct {
 	DayOfWeek    int             `json:"day_of_week"`
@@ -302,6 +292,25 @@ func IsValidEditAction(action string) bool {
 	return false
 }
 
+// ValidatePayload checks an edit's prescription and progression rules before
+// the proposal reaches the user. Rules without a prescription in the same edit
+// are re-checked against the series when applied.
+func (e ProgramEdit) ValidatePayload() error {
+	if err := ValidatePrescription(e.ActivityType, e.Prescription); err != nil {
+		return err
+	}
+	if e.Progression == nil {
+		return nil
+	}
+	if e.Action != "update_activity" && e.Action != "add_activity" {
+		return fmt.Errorf("progression only applies to update_activity and add_activity")
+	}
+	if e.ActivityID != "" || e.WeekID != "" {
+		return fmt.Errorf("progression applies across weeks — use day_of_week instead of activity_id/week_id")
+	}
+	return ValidateProgression(*e.Progression, e.Prescription)
+}
+
 // ProgramEdit is a unified edit action for modifying saved programs.
 // The Action field determines which other fields are relevant.
 type ProgramEdit struct {
@@ -322,6 +331,9 @@ type ProgramEdit struct {
 	Prescription json.RawMessage `json:"prescription,omitempty"`
 	// Notes
 	Notes *string `json:"notes,omitempty"`
+	// Progression rules (update_activity / add_activity across weeks). Omit to
+	// keep the series' current rules; an empty list removes progression.
+	Progression *[]ProgressionRule `json:"progression,omitempty"`
 	// Limit to a specific phase (0-based)
 	PhaseIndex *int `json:"phase_index,omitempty"`
 	// Filter by activity type when multiple exist on the same day
@@ -332,9 +344,10 @@ type ProgramEdit struct {
 
 // ActivitySnapshot is a lightweight summary of an activity's current state.
 type ActivitySnapshot struct {
-	ActivityType string          `json:"activity_type"`
-	Prescription json.RawMessage `json:"prescription,omitempty"`
-	Notes        *string         `json:"notes,omitempty"`
+	ActivityType string            `json:"activity_type"`
+	Prescription json.RawMessage   `json:"prescription,omitempty"`
+	Notes        *string           `json:"notes,omitempty"`
+	Progression  []ProgressionRule `json:"progression,omitempty"`
 }
 
 // CriterionSnapshot captures the old value of a criterion.

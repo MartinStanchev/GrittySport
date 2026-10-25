@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/grittyfitness/api/internal/models"
 )
 
 // DeviationMetrics holds deviation percentages between prescribed and actual workout metrics.
@@ -200,15 +202,15 @@ func ComputeRunDeviation(prescription map[string]any, recordedData json.RawMessa
 		return dm
 	}
 
-	prescribedDist := floatFromMap(prescription, "distance_km")
-	actualDist := floatFromMap(recorded, "distance_km")
+	prescribedDist := models.PrescribedDistanceM(prescription) / 1000
+	actualDist := models.RecordedDistanceM(recorded) / 1000
 	if prescribedDist > 0 && actualDist > 0 {
 		d := ((actualDist - prescribedDist) / prescribedDist) * 100
 		d = math.Round(d*10) / 10
 		dm.DistanceDeviationPct = &d
 	}
 
-	prescribedPace := floatFromMap(prescription, "target_pace_sec_per_km")
+	prescribedPace := floatFromMap(prescription, "pace_sec_per_km")
 	actualPace := floatFromMap(recorded, "avg_pace_sec_per_km")
 	if prescribedPace > 0 && actualPace > 0 {
 		// Lower pace = faster, so positive deviation means faster
@@ -243,7 +245,7 @@ func ComputeStrengthDeviation(prescription map[string]any, recordedData json.Raw
 func ComputeGenericDeviation(prescription map[string]any, recordedData json.RawMessage, durationSec float64) DeviationMetrics {
 	var dm DeviationMetrics
 
-	prescribedMin := floatFromMap(prescription, "duration_minutes")
+	prescribedMin := models.PrescribedDurationSec(prescription) / 60
 	if prescribedMin > 0 && durationSec > 0 {
 		actualMin := durationSec / 60
 		d := ((actualMin - prescribedMin) / prescribedMin) * 100
@@ -255,6 +257,8 @@ func ComputeGenericDeviation(prescription map[string]any, recordedData json.RawM
 }
 
 // computeVolume calculates total volume (sets × reps × weight) from exercises.
+// Recorded workouts log a sets array with per-set weight; prescriptions give
+// set/rep counts and weight_kg directly on the exercise.
 func computeVolume(data map[string]any) float64 {
 	exercises, ok := data["exercises"]
 	if !ok {
@@ -283,11 +287,10 @@ func computeVolume(data map[string]any) float64 {
 				total += reps * weight
 			}
 		}
-		// If no sets array, try sets/reps/weight as direct fields (prescription format)
 		if len(sets) == 0 {
 			numSets := floatFromAny(exMap["sets"])
 			reps := floatFromAny(exMap["reps"])
-			weight := floatFromAny(exMap["weight"])
+			weight := floatFromAny(exMap["weight_kg"])
 			if numSets > 0 && reps > 0 && weight > 0 {
 				total += numSets * reps * weight
 			}

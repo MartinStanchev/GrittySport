@@ -191,13 +191,13 @@ func (s *WorkoutService) populateCompletionStatus(ctx context.Context, workouts 
 			workouts[i].CompletionStatus = "completed"
 			continue
 		}
-		workouts[i].CompletionStatus = evaluateCompletion(workouts[i].RecordedData, prescription, workouts[i].ActivityType)
+		workouts[i].CompletionStatus = evaluateCompletion(workouts[i].RecordedData, prescription, workouts[i].ActivityType, workouts[i].EffectiveDurationSec())
 	}
 }
 
 // evaluateCompletion compares recorded data against prescription.
 // Returns "met_targets" if >= 80% of key metrics met, "below_targets" otherwise.
-func evaluateCompletion(recorded, prescription json.RawMessage, activityType string) string {
+func evaluateCompletion(recorded, prescription json.RawMessage, activityType string, durationSec float64) string {
 	var rec map[string]any
 	var presc map[string]any
 	if err := json.Unmarshal(recorded, &rec); err != nil {
@@ -210,48 +210,28 @@ func evaluateCompletion(recorded, prescription json.RawMessage, activityType str
 		return "completed"
 	}
 
+	// Each metric is a (prescribed, actual) pair; prescribed 0 = not planned.
+	var metrics [][2]float64
 	t := strings.ToLower(activityType)
-	metricKeys := []string{"duration_minutes", "distance_km"}
 	if strings.Contains(t, "strength") || strings.Contains(t, "weight") {
-		metricKeys = []string{"exercises"}
-	} else if strings.Contains(t, "swim") {
-		metricKeys = []string{"duration_minutes", "distance_m"}
+		pEx, _ := presc["exercises"].([]any)
+		rEx, _ := rec["exercises"].([]any)
+		metrics = append(metrics, [2]float64{float64(len(pEx)), float64(len(rEx))})
+	} else {
+		metrics = append(metrics,
+			[2]float64{models.PrescribedDistanceM(presc), models.RecordedDistanceM(rec)},
+			[2]float64{models.PrescribedDurationSec(presc), durationSec},
+		)
 	}
 
-	checked := 0
-	met := 0
-	for _, key := range metricKeys {
-		pVal, pOk := presc[key]
-		rVal, rOk := rec[key]
-		if !pOk {
+	checked, met := 0, 0
+	for _, m := range metrics {
+		if m[0] <= 0 {
 			continue
 		}
 		checked++
-		if !rOk {
-			continue
-		}
-		// Special case: exercises — compare count
-		if key == "exercises" {
-			pExArr, pIsArr := pVal.([]any)
-			rExArr, rIsArr := rVal.([]any)
-			if pIsArr && rIsArr && len(pExArr) > 0 {
-				ratio := float64(len(rExArr)) / float64(len(pExArr))
-				if ratio >= 0.8 {
-					met++
-				}
-			} else {
-				met++ // can't compare, assume met
-			}
-			continue
-		}
-		pNum, pOkN := toFloat(pVal)
-		rNum, rOkN := toFloat(rVal)
-		if pOkN && rOkN && pNum > 0 {
-			if rNum/pNum >= 0.8 {
-				met++
-			}
-		} else {
-			met++ // can't compare numerically, assume met
+		if m[1]/m[0] >= 0.8 {
+			met++
 		}
 	}
 
@@ -262,19 +242,6 @@ func evaluateCompletion(recorded, prescription json.RawMessage, activityType str
 		return "met_targets"
 	}
 	return "below_targets"
-}
-
-func toFloat(v any) (float64, bool) {
-	switch n := v.(type) {
-	case float64:
-		return n, true
-	case int:
-		return float64(n), true
-	case json.Number:
-		f, err := n.Float64()
-		return f, err == nil
-	}
-	return 0, false
 }
 
 func (s *WorkoutService) Delete(ctx context.Context, workoutID, userID string) error {

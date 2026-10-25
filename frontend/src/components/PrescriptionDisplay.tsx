@@ -2,19 +2,31 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import type { ThemeColors } from '../constants/colors';
+import { fieldLabel, formatPrescriptionField as fmt, hasSets, type Rx } from '../utils/prescription';
 
 interface Props {
   activityType: string;
-  prescription: Record<string, any>;
+  prescription: Rx;
 }
 
-function LabeledRow({ label, value, colors }: { label: string; value: string | number | undefined; colors: ThemeColors }) {
-  if (value === undefined || value === null || value === '') return null;
+function LabeledRow({ label, value, colors }: { label: string; value: string | undefined; colors: ThemeColors }) {
+  if (!value) return null;
   return (
     <View style={[styles.row, { borderBottomColor: colors.border }]}>
       <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>
-      <Text style={[styles.value, { color: colors.textPrimary }]}>{String(value)}</Text>
+      <Text style={[styles.value, { color: colors.textPrimary }]}>{value}</Text>
     </View>
+  );
+}
+
+/** Renders labeled rows for the given [label, key] pairs, skipping absent fields. */
+function FieldRows({ rx, fields, colors }: { rx: Rx; fields: [string, string][]; colors: ThemeColors }) {
+  return (
+    <>
+      {fields.map(([label, key]) => (
+        <LabeledRow key={key} label={label} value={fmt(rx, key)} colors={colors} />
+      ))}
+    </>
   );
 }
 
@@ -27,16 +39,26 @@ function EffortBadge({ effort, colors }: { effort?: string; colors: ThemeColors 
   );
 }
 
-function SetCard({ set, index, fields, colors }: { set: any; index: number; fields: { key: string; label: string }[]; colors: ThemeColors }) {
+function Pill({ text, colors }: { text: string | undefined; colors: ThemeColors }) {
+  if (!text) return null;
+  return <Text style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>{text}</Text>;
+}
+
+function SetCard({ set, index, colors }: { set: Rx; index: number; colors: ThemeColors }) {
+  const rest = fmt(set, 'rest_sec') ?? fmt(set, 'rest');
   return (
     <View style={[styles.setCard, { backgroundColor: colors.surfaceAlt }]}>
       <Text style={[styles.setNumber, { color: colors.textSecondary }]}>Set {index + 1}</Text>
       <View style={styles.setDetails}>
-        {set.reps && <Text style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>{set.reps}x</Text>}
-        {fields.map(({ key, label }) =>
-          set[key] ? <Text key={key} style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>{label}: {set[key]}</Text> : null,
-        )}
-        {set.rpe && <Text style={[styles.setPill, { color: colors.textSecondary, backgroundColor: colors.background }]}>RPE {set.rpe}</Text>}
+        <Pill text={set.reps ? `${set.reps}x` : undefined} colors={colors} />
+        <Pill text={fmt(set, 'distance_m')} colors={colors} />
+        <Pill text={fmt(set, 'duration_sec')} colors={colors} />
+        <Pill text={fmt(set, 'type')} colors={colors} />
+        <Pill text={fmt(set, 'pace_sec_per_km') ?? fmt(set, 'pace_sec_per_100m')} colors={colors} />
+        <Pill text={fmt(set, 'power_w')} colors={colors} />
+        <Pill text={fmt(set, 'intensity')} colors={colors} />
+        <Pill text={rest ? `Rest: ${rest}` : undefined} colors={colors} />
+        <Pill text={set.rpe ? `RPE ${set.rpe}` : undefined} colors={colors} />
       </View>
       {set.effort && <Text style={[styles.inlineEffort, { color: colors.primary }]}>{set.effort}</Text>}
       {set.description && <Text style={[styles.setDescription, { color: colors.textSecondary }]}>{set.description}</Text>}
@@ -44,200 +66,111 @@ function SetCard({ set, index, fields, colors }: { set: any; index: number; fiel
   );
 }
 
-function WarmupCooldown({ warmup, cooldown, colors }: { warmup?: string; cooldown?: string; colors: ThemeColors }) {
+function TextSection({ title, text, colors }: { title: string; text?: string; colors: ThemeColors }) {
+  if (!text) return null;
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
+      <Text style={[styles.sectionText, { color: colors.textPrimary }]}>{text}</Text>
+    </View>
+  );
+}
+
+/** Warmup → sets → cooldown → totals, shared by run, swim and cycling sessions. */
+function StructuredDisplay({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
+  const sets: Rx[] = rx.sets;
+  return (
+    <View>
+      <TextSection title="Warmup" text={rx.warmup} colors={colors} />
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
+        {sets.map((set, i) => (
+          <SetCard key={i} set={set} index={i} colors={colors} />
+        ))}
+      </View>
+      <TextSection title="Cooldown" text={rx.cooldown} colors={colors} />
+      <FieldRows rx={rx} fields={[['Total Distance', 'total_distance_m'], ['Duration', 'duration_sec']]} colors={colors} />
+    </View>
+  );
+}
+
+function EnduranceDisplay({ rx, fields, colors }: { rx: Rx; fields: [string, string][]; colors: ThemeColors }) {
+  if (hasSets(rx)) return <StructuredDisplay rx={rx} colors={colors} />;
+  return (
+    <View>
+      <FieldRows rx={rx} fields={[...fields, ['RPE', 'rpe']]} colors={colors} />
+      <EffortBadge effort={rx.effort} colors={colors} />
+    </View>
+  );
+}
+
+const RUN_FIELDS: [string, string][] = [['Distance', 'distance_m'], ['Pace', 'pace_sec_per_km'], ['HR Zone', 'heart_rate_zone'], ['Terrain', 'terrain'], ['Duration', 'duration_sec']];
+const SWIM_FIELDS: [string, string][] = [['Distance', 'distance_m'], ['Stroke', 'stroke'], ['Pace', 'pace_sec_per_100m'], ['Duration', 'duration_sec']];
+const CYCLING_FIELDS: [string, string][] = [['Distance', 'distance_m'], ['Duration', 'duration_sec'], ['Intensity', 'intensity'], ['Power', 'power_w'], ['Cadence', 'cadence']];
+
+function ExerciseCard({ ex, index, colors }: { ex: Rx; index: number; colors: ThemeColors }) {
+  const rest = fmt(ex, 'rest_sec');
+  return (
+    <View style={[styles.exerciseCard, { backgroundColor: colors.surfaceAlt }]}>
+      <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${index + 1}`}</Text>
+      <View style={styles.exerciseDetails}>
+        <Pill text={ex.sets ? `${ex.sets} sets` : undefined} colors={colors} />
+        <Pill text={ex.reps ? `${ex.reps} reps` : undefined} colors={colors} />
+        <Pill text={fmt(ex, 'weight_kg')} colors={colors} />
+        <Pill text={fmt(ex, 'duration_sec')} colors={colors} />
+        <Pill text={ex.rpe ? `RPE ${ex.rpe}` : undefined} colors={colors} />
+        <Pill text={rest ? `Rest: ${rest}` : undefined} colors={colors} />
+      </View>
+      {ex.effort && <Text style={[styles.inlineEffort, { color: colors.primary }]}>{ex.effort}</Text>}
+      {ex.description && <Text style={[styles.exerciseDescription, { color: colors.textPrimary }]}>{ex.description}</Text>}
+      {ex.notes && <Text style={[styles.exerciseNotes, { color: colors.textSecondary }]}>{ex.notes}</Text>}
+    </View>
+  );
+}
+
+function ExerciseList({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
+  const exercises: Rx[] = Array.isArray(rx.exercises) ? rx.exercises : [];
   return (
     <>
-      {warmup && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Warmup</Text>
-          <Text style={[styles.sectionText, { color: colors.textPrimary }]}>{warmup}</Text>
-        </View>
-      )}
-      {cooldown && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Cooldown</Text>
-          <Text style={[styles.sectionText, { color: colors.textPrimary }]}>{cooldown}</Text>
-        </View>
-      )}
+      {exercises.map((ex, i) => (
+        <ExerciseCard key={i} ex={ex} index={i} colors={colors} />
+      ))}
     </>
   );
 }
 
-function RunDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
-  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
-
-  if (sets.length > 0) {
-    return (
-      <View>
-        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} colors={colors} />
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
-          {sets.map((set: any, i: number) => (
-            <SetCard key={i} set={set} index={i} colors={colors} fields={[
-              { key: 'distance', label: 'Dist' },
-              { key: 'pace', label: 'Pace' },
-              { key: 'rest', label: 'Rest' },
-            ]} />
-          ))}
-        </View>
-        <LabeledRow label="Total Distance" value={prescription.total_distance} colors={colors} />
-      </View>
-    );
-  }
-
+function StrengthDisplay({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
   return (
     <View>
-      <LabeledRow label="Distance" value={prescription.distance} colors={colors} />
-      <LabeledRow label="Pace" value={prescription.pace} colors={colors} />
-      <LabeledRow label="HR Zone" value={prescription.heart_rate_zone} colors={colors} />
-      <LabeledRow label="Terrain" value={prescription.terrain} colors={colors} />
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
-      <EffortBadge effort={prescription.effort} colors={colors} />
+      <ExerciseList rx={rx} colors={colors} />
+      <LabeledRow label="Duration" value={fmt(rx, 'duration_sec')} colors={colors} />
     </View>
   );
 }
 
-function StrengthDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
-  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
+function MobilityDisplay({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
+  const hasExercises = Array.isArray(rx.exercises) && rx.exercises.length > 0;
   return (
     <View>
-      {!Array.isArray(prescription.exercises) && prescription.exercises && (
-        <LabeledRow label="Exercises" value={String(prescription.exercises)} colors={colors} />
-      )}
-      {exercises.map((ex: any, i: number) => (
-        <View key={i} style={[styles.exerciseCard, { backgroundColor: colors.surfaceAlt }]}>
-          <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
-          <View style={styles.exerciseDetails}>
-            {ex.sets && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.sets} sets</Text>}
-            {ex.reps && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.reps} reps</Text>}
-            {ex.weight && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.weight}</Text>}
-            {ex.rpe && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>RPE {ex.rpe}</Text>}
-            {ex.rest && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>Rest: {ex.rest}</Text>}
-          </View>
-          {ex.effort && <Text style={[styles.inlineEffort, { color: colors.primary }]}>{ex.effort}</Text>}
-          {ex.notes && <Text style={[styles.exerciseNotes, { color: colors.textSecondary }]}>{ex.notes}</Text>}
-        </View>
-      ))}
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-    </View>
-  );
-}
-
-function SwimDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
-  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
-
-  if (sets.length > 0) {
-    return (
-      <View>
-        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} colors={colors} />
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
-          {sets.map((set: any, i: number) => (
-            <SetCard key={i} set={set} index={i} colors={colors} fields={[
-              { key: 'distance', label: 'Dist' },
-              { key: 'type', label: 'Type' },
-              { key: 'pace', label: 'Pace' },
-              { key: 'rest', label: 'Rest' },
-            ]} />
-          ))}
-        </View>
-        <LabeledRow label="Total Distance" value={prescription.total_distance} colors={colors} />
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <LabeledRow label="Distance" value={prescription.distance} colors={colors} />
-      <LabeledRow label="Stroke" value={prescription.stroke} colors={colors} />
-      <LabeledRow label="Pace" value={prescription.pace} colors={colors} />
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
-      <EffortBadge effort={prescription.effort} colors={colors} />
-    </View>
-  );
-}
-
-function CyclingDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
-  const sets: any[] = Array.isArray(prescription.sets) ? prescription.sets : [];
-
-  if (sets.length > 0) {
-    return (
-      <View>
-        <WarmupCooldown warmup={prescription.warmup} cooldown={prescription.cooldown} colors={colors} />
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Sets</Text>
-          {sets.map((set: any, i: number) => (
-            <SetCard key={i} set={set} index={i} colors={colors} fields={[
-              { key: 'duration', label: 'Duration' },
-              { key: 'intensity', label: 'Intensity' },
-              { key: 'rest', label: 'Rest' },
-            ]} />
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <LabeledRow label="Distance" value={prescription.distance} colors={colors} />
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-      <LabeledRow label="Intensity" value={prescription.intensity} colors={colors} />
-      <LabeledRow label="Cadence" value={prescription.cadence} colors={colors} />
-      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
-      <EffortBadge effort={prescription.effort} colors={colors} />
-    </View>
-  );
-}
-
-function MobilityDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
-  const exercises: any[] = Array.isArray(prescription.exercises) ? prescription.exercises : [];
-  return (
-    <View>
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-      <LabeledRow label="Style" value={prescription.style} colors={colors} />
-      <LabeledRow label="Focus" value={prescription.focus} colors={colors} />
-      <LabeledRow label="RPE" value={prescription.rpe} colors={colors} />
-      {prescription.instructions && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Instructions</Text>
-          <Text style={[styles.sectionText, { color: colors.textPrimary }]}>{prescription.instructions}</Text>
-        </View>
-      )}
-      {exercises.length > 0 && (
+      <FieldRows rx={rx} fields={[['Duration', 'duration_sec'], ['Style', 'style'], ['Focus', 'focus'], ['RPE', 'rpe']]} colors={colors} />
+      <TextSection title="Instructions" text={rx.instructions} colors={colors} />
+      {hasExercises && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Exercises</Text>
-          {exercises.map((ex: any, i: number) => (
-            <View key={i} style={[styles.exerciseCard, { backgroundColor: colors.surfaceAlt }]}>
-              <Text style={[styles.exerciseName, { color: colors.textPrimary }]}>{ex.name || `Exercise ${i + 1}`}</Text>
-              <View style={styles.exerciseDetails}>
-                {ex.duration && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.duration}</Text>}
-                {ex.sets && <Text style={[styles.exerciseDetail, { color: colors.textSecondary, backgroundColor: colors.background }]}>{ex.sets} sets</Text>}
-              </View>
-              {ex.description && <Text style={[styles.exerciseDescription, { color: colors.textPrimary }]}>{ex.description}</Text>}
-              {ex.notes && <Text style={[styles.exerciseNotes, { color: colors.textSecondary }]}>{ex.notes}</Text>}
-            </View>
-          ))}
+          <ExerciseList rx={rx} colors={colors} />
         </View>
       )}
     </View>
   );
 }
 
-function DrillDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
+function DrillDisplay({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
   return (
     <View>
-      <LabeledRow label="Drill" value={prescription.drill_name || prescription.name} colors={colors} />
-      <LabeledRow label="Duration" value={prescription.duration} colors={colors} />
-      <LabeledRow label="Focus" value={prescription.focus_area || prescription.focus} colors={colors} />
-      {prescription.description && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Description</Text>
-          <Text style={[styles.sectionText, { color: colors.textPrimary }]}>{prescription.description}</Text>
-        </View>
-      )}
+      <LabeledRow label="Drill" value={rx.drill_name || rx.name} colors={colors} />
+      <LabeledRow label="Duration" value={fmt(rx, 'duration_sec')} colors={colors} />
+      <LabeledRow label="Focus" value={rx.focus_area || rx.focus} colors={colors} />
+      <TextSection title="Description" text={rx.description} colors={colors} />
     </View>
   );
 }
@@ -251,14 +184,14 @@ function RestDisplay({ colors }: { colors: ThemeColors }) {
   );
 }
 
-function GenericDisplay({ prescription, colors }: { prescription: Record<string, any>; colors: ThemeColors }) {
+function GenericDisplay({ rx, colors }: { rx: Rx; colors: ThemeColors }) {
   return (
     <View>
-      {Object.entries(prescription).map(([key, value]) => (
+      {Object.keys(rx).map((key) => (
         <LabeledRow
           key={key}
-          label={key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-          value={typeof value === 'object' ? JSON.stringify(value) : String(value)}
+          label={fieldLabel(key)}
+          value={fmt(rx, key)}
           colors={colors}
         />
       ))}
@@ -266,25 +199,25 @@ function GenericDisplay({ prescription, colors }: { prescription: Record<string,
   );
 }
 
-export function PrescriptionDisplay({ activityType, prescription }: Props) {
+export function PrescriptionDisplay({ activityType, prescription: rx }: Props) {
   const { colors } = useTheme();
 
-  if (!prescription || Object.keys(prescription).length === 0) {
+  if (!rx || Object.keys(rx).length === 0) {
     return <Text style={[styles.empty, { color: colors.textSecondary }]}>No prescription details</Text>;
   }
 
   const type = activityType.toLowerCase().replace(/\s+/g, '_');
 
   if (type.includes('rest')) return <RestDisplay colors={colors} />;
-  if (type.includes('run') || type.includes('jog')) return <RunDisplay prescription={prescription} colors={colors} />;
-  if (type.includes('strength') || type.includes('weight')) return <StrengthDisplay prescription={prescription} colors={colors} />;
-  if (type.includes('swim')) return <SwimDisplay prescription={prescription} colors={colors} />;
-  if (type.includes('cycl') || type.includes('bike')) return <CyclingDisplay prescription={prescription} colors={colors} />;
+  if (type.includes('run') || type.includes('jog')) return <EnduranceDisplay rx={rx} fields={RUN_FIELDS} colors={colors} />;
+  if (type.includes('strength') || type.includes('weight')) return <StrengthDisplay rx={rx} colors={colors} />;
+  if (type.includes('swim')) return <EnduranceDisplay rx={rx} fields={SWIM_FIELDS} colors={colors} />;
+  if (type.includes('cycl') || type.includes('bike')) return <EnduranceDisplay rx={rx} fields={CYCLING_FIELDS} colors={colors} />;
   if (type.includes('mobility') || type.includes('recovery') || type.includes('yoga') || type.includes('stretch'))
-    return <MobilityDisplay prescription={prescription} colors={colors} />;
-  if (type.includes('drill')) return <DrillDisplay prescription={prescription} colors={colors} />;
+    return <MobilityDisplay rx={rx} colors={colors} />;
+  if (type.includes('drill')) return <DrillDisplay rx={rx} colors={colors} />;
 
-  return <GenericDisplay prescription={prescription} colors={colors} />;
+  return <GenericDisplay rx={rx} colors={colors} />;
 }
 
 const styles = StyleSheet.create({
@@ -362,13 +295,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-  },
-  exerciseDetail: {
-    fontSize: 13,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    overflow: 'hidden',
   },
   exerciseDescription: {
     fontSize: 13,

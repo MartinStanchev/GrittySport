@@ -52,7 +52,7 @@ Ask the user whether they prefer Indoor or Outdoor and include a mix of those if
 
 **Endurance rides** — flat format:
 ```json
-{"duration": "2h", "intensity": "Zone 2", "cadence": "85-95 RPM", "effort": "Easy endurance, conversational", "rpe": 6}
+{"duration_sec": 7200, "intensity": "Zone 2", "cadence": "85-95 RPM", "effort": "Easy endurance, conversational", "rpe": 6}
 ```
 
 **Structured workouts** (sweet spot, threshold, VO2max, sprints) — use `sets` array:
@@ -60,13 +60,21 @@ Ask the user whether they prefer Indoor or Outdoor and include a mix of those if
 {
   "warmup": "15min Zone 2",
   "sets": [
-    {"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}
+    {"reps": 2, "duration_sec": 1200, "intensity": "88-93% FTP", "power_w": 225, "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}
   ],
   "cooldown": "10min easy"
 }
 ```
 
 More examples:
-- VO2max: `{"warmup": "15min progressive", "sets": [{"reps": 5, "duration": "4min", "intensity": "106-120% FTP", "effort": "VO2max — very hard", "rpe": 9, "rest": "3min easy"}], "cooldown": "10min easy"}`
-- Sprints: `{"warmup": "20min Zone 2", "sets": [{"reps": 8, "duration": "30s", "intensity": "all-out", "effort": "Maximum sprint", "rpe": 10, "rest": "4min easy"}], "cooldown": "10min easy"}`
-- Threshold: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "95-105% FTP", "effort": "Threshold — sustainable hard", "rpe": 8, "rest": "5min easy"}], "cooldown": "10min easy"}`
+- VO2max: `{"warmup": "15min progressive", "sets": [{"reps": 5, "duration_sec": 240, "intensity": "106-120% FTP", "effort": "VO2max — very hard", "rpe": 9, "rest": "3min easy"}], "cooldown": "10min easy", "duration_sec": 3600}`
+- Sprints: `{"warmup": "20min Zone 2", "sets": [{"reps": 8, "duration_sec": 30, "intensity": "all-out", "effort": "Maximum sprint", "rpe": 10, "rest": "4min easy"}], "cooldown": "10min easy", "duration_sec": 4200}`
+- Threshold: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration_sec": 1200, "intensity": "95-105% FTP", "effort": "Threshold — sustainable hard", "rpe": 8, "rest": "5min easy"}], "cooldown": "10min easy", "duration_sec": 4200}`
+
+Include a top-level `duration_sec` with the whole session length on structured rides so weekly totals are accurate.
+
+## Progression Rules
+- **Endurance ride**: grow time in the saddle, e.g. `{"field": "duration_sec", "step": 900, "max": 14400}` (+15 min/week) or `"percent": 10`.
+- **Sweet spot / threshold**: lengthen the intervals, e.g. `{"field": "duration_sec", "set_index": 0, "step": 300, "max": 1800}`, or add a rep (`{"field": "reps", "set_index": 0, "step": 1, "max": 4}`) — not both.
+- **VO2max**: add reps (`"step": 1`, `max` 6-8) rather than lengthening efforts.
+- Keep weekly hours growing ≤10% per week and deload every 3rd-4th week.

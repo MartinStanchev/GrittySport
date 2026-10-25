@@ -84,19 +84,6 @@ export function getActivityIcon(type: string): keyof typeof Ionicons.glyphMap {
   return 'fitness-outline';
 }
 
-export function formatPrescriptionSummary(prescription: Record<string, any>): string {
-  if (!prescription) return '';
-  if (prescription.distance && prescription.pace) {
-    return `${prescription.distance} at ${prescription.pace}`;
-  }
-  if (prescription.distance) return prescription.distance;
-  if (prescription.exercises && Array.isArray(prescription.exercises)) {
-    return `${prescription.exercises.length} exercises`;
-  }
-  if (prescription.duration) return prescription.duration;
-  return '';
-}
-
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -219,7 +206,7 @@ const INTENSITY_KEYWORDS: [string, number][] = [
 // RPE-style 0–10 inputs are halved. Falls back to a sensible default per sport
 // so the apex chart and month heatmap always have something to render.
 export function getIntensityLevel(prescription: Record<string, any> | undefined, activityType: string): number {
-  const raw = prescription?.intensity;
+  const raw = prescription?.intensity ?? prescription?.rpe;
   if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
     const str = String(raw).toLowerCase();
     const numMatch = str.match(/(\d+(?:\.\d+)?)/);
@@ -250,15 +237,4 @@ export function dominantActivity(activities: { prescription?: Record<string, any
   return activities.reduce((a, b) =>
     getIntensityLevel(a.prescription, a.activity_type) >= getIntensityLevel(b.prescription, b.activity_type) ? a : b,
   );
-}
-
-// Pull a short duration / distance string for a row subtitle. Returns an empty
-// array if the prescription has neither — caller can fall back to the type label.
-export function prescriptionPrimaryStats(prescription: Record<string, any> | undefined): string[] {
-  if (!prescription) return [];
-  const stats: string[] = [];
-  if (prescription.duration) stats.push(String(prescription.duration));
-  const distance = prescription.distance || prescription.total_distance;
-  if (distance) stats.push(String(distance));
-  return stats;
 }

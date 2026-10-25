@@ -10,6 +10,8 @@
 - Increase training load by no more than 10% per week (volume or intensity, not both simultaneously).
 - Every 3-4 weeks, include a **deload week**: reduce volume by 30-40%, maintain intensity. This prevents overtraining and allows adaptation.
 - For beginners: increase volume first, add intensity later. For advanced athletes: manipulate intensity more than volume.
+- Express this in the program with `progression` rules on the key sessions of a phase plus the phase's `deload_weeks` / `deload_pct` — the weeks are computed for you. Within-phase progression ramps the volume; across phases, raise intensity and start the next phase from where the previous one ended.
+- Not every session progresses: progress 1-3 key sessions per week (long run, main lift, key interval set) and keep the rest stable.
 
 ## Weekly Structure Principles
 - Hard days hard, easy days easy. Never schedule two high-intensity sessions back-to-back.

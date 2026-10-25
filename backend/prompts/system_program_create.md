@@ -74,7 +74,7 @@ After you have enough information, generate the program **phase by phase**. Do N
 
 ### Step 1: Save each phase
 
-Call `save_draft_phase` once per phase. Typical programs have 3-5 phases (e.g., Base, Build, Peak, Taper). Each call provides one phase with its `template_week` — a single Mon-Sun activity pattern that repeats for `duration_weeks`.
+Call `save_draft_phase` once per phase. Typical programs have 3-5 phases (e.g., Base, Build, Peak, Taper). Each call provides one phase with its `template_week` — a single Mon-Sun activity pattern that repeats for `duration_weeks`. The template's prescriptions are **week 1** of the phase; `progression` rules and `deload_weeks` turn it into a progressive block (see "Progressive overload" below).
 
 Call phases in order (`order_index` 0, 1, 2, ...). Example:
 ```json
@@ -84,15 +84,21 @@ Call phases in order (`order_index` 0, 1, 2, ...). Example:
   "start_date": "2026-03-02",
   "end_date": "2026-03-29",
   "duration_weeks": 4,
+  "deload_weeks": [4],
+  "deload_pct": 35,
   "template_week": {
     "activities": [
-      {"day_of_week": 1, "activity_type": "run", "notes": "Easy recovery pace, flat route", "prescription": {"distance": "5km", "pace": "6:00/km", "effort": "Easy", "rpe": 5}},
-      {"day_of_week": 3, "activity_type": "strength_training", "notes": "Full body compound movements", "prescription": {"exercises": [{"name": "Squat", "sets": 3, "reps": 10, "rpe": 7}]}},
-      {"day_of_week": 5, "activity_type": "run", "notes": "Long run — steady aerobic", "prescription": {"distance": "10km", "pace": "6:15/km", "effort": "Conversational", "rpe": 6}}
+      {"day_of_week": 1, "activity_type": "run", "notes": "Easy recovery pace, flat route", "prescription": {"distance_m": 5000, "pace_sec_per_km": 360, "effort": "Easy", "rpe": 5}},
+      {"day_of_week": 3, "activity_type": "strength_training", "notes": "Full body compound movements", "prescription": {"exercises": [{"name": "Squat", "sets": 3, "reps": 10, "weight_kg": 60, "rpe": 7}]},
+       "progression": [{"field": "weight_kg", "exercise": "Squat", "step": 2.5}]},
+      {"day_of_week": 5, "activity_type": "run", "notes": "Long run — steady aerobic", "prescription": {"distance_m": 10000, "pace_sec_per_km": 375, "effort": "Conversational", "rpe": 6},
+       "progression": [{"field": "distance_m", "percent": 10, "max": 14000}]}
     ]
   }
 }
 ```
+
+Each `save_draft_phase` response contains `week_by_week`: the computed weekly totals and the value of every progression rule per week (deload weeks marked `*`). Check it against the user's level, and start the next phase from where this one ends.
 
 ### Activity types
 
@@ -165,19 +171,35 @@ Steps:
 
 If only one phase needs changes, only update that phase. If the change applies across all phases (e.g., "move Friday to Saturday"), update all of them.
 
+### Progressive overload
+
+Don't repeat identical weeks. Within each training phase, progress 1-3 key sessions (long run, main lifts, the key interval set) with `progression` rules on the template activity, and schedule deloads with the phase's `deload_weeks`:
+
+- A rule progresses one numeric value: `field` is `distance_m`, `duration_sec`, `reps`, `sets` or `weight_kg`. Target the top-level prescription (no target), one exercise (`"exercise": "<exact exercise name>"`), or one interval set (`"set_index": 0`). `reps` needs an exercise or set_index; `sets` needs an exercise.
+- Use `percent` (compounding, max 15) **or** `step` (fixed amount in the field's unit per week). Add `max` to cap it and `round` for sensible numbers (2.5 for barbell kg, 500 for meters).
+- Rules apply once per week starting from week 2. Deload weeks (`deload_weeks`, 1-based within the phase) cut distance, duration, interval reps and set counts by `deload_pct` (default 35), keep pace/weight, and pause the ramp. Rest/mobility/yoga/recovery sessions are never cut.
+- Respect the athlete: weekly volume growth ≤10% (beginners 5-10%), deload every 3rd-4th week, never progress volume and intensity of the same session in one phase. Taper and peaking phases usually have no progression rules — write their exact values.
+- Load the sport skill for the right rule patterns per sport.
+
 ### Prescription format
 
 The prescription field in each activity should be a JSON object. Use structured `sets` arrays for interval/structured workouts, flat fields for simple sessions.
+
+**All measurable values are plain numbers in metric base units** — never strings with units. The app formats them for display. Use these keys:
+- `distance_m` (meters), `total_distance_m` (whole session incl. warmup/cooldown), `duration_sec` (seconds), `pace_sec_per_km` (seconds per km, e.g. 330 = 5:30/km), `pace_sec_per_100m` (swimming), `power_w` (watts)
+- Strength exercises: `sets` (count), `reps`, `weight_kg`, `rest_sec`; holds use `duration_sec`
+- `reps` and `sets` are whole numbers. Descriptive context (zones, %FTP, %1RM, "400m jog" recoveries) goes in text fields: `effort`, `intensity`, `rest`, `warmup`, `cooldown`, `focus`, `description`.
+- Saving a phase fails if it uses `distance`, `pace`, `duration`, `weight` or string numbers — fix the keys and save again.
 
 When the user has provided performance benchmarks, calculate specific values from them and include an `effort` field describing the intensity context (e.g. "85% 1RM", "5K goal pace", "Sweet spot 220-232W"). When no benchmarks are available, use RPE or descriptive effort in the `effort` field instead (e.g. "RPE 7-8", "conversational pace").
 
 Always include an `rpe` field (integer 6-10) on every activity and on individual exercises/sets where applicable. This applies to ALL sports, not just strength. RPE helps the user gauge whether the prescribed intensity matched how it actually felt.
 
-- **Running (simple)**: `{"distance": "8km", "pace": "5:30/km", "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}`
-- **Running (structured)**: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance": "800m", "pace": "3:40/km", "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}], "cooldown": "1.5km easy", "total_distance": "10km"}`
-- **Strength**: `{"exercises": [{"name": "Squat", "sets": 4, "reps": 8, "weight": "85kg", "effort": "85% 1RM", "rpe": 8}]}`
-- **Swimming**: `{"warmup": "400m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "1:45/100m", "effort": "CSS pace", "rpe": 7, "rest": "10s"}], "cooldown": "200m easy", "total_distance": "2500m"}`
-- **Cycling (simple)**: `{"duration": "2h", "intensity": "Zone 2", "effort": "Easy endurance, conversational", "rpe": 6}`
-- **Cycling (structured)**: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration": "20min", "intensity": "88-93% FTP", "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}], "cooldown": "10min easy"}`
-- **Mobility**: `{"duration": "20min", "focus": "hips", "instructions": "Hold gently", "rpe": 3, "exercises": [{"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge"}]}`
-- **Yoga**: `{"duration": "30min", "style": "vinyasa", "focus": "recovery", "instructions": "Slow transitions", "rpe": 4}`
+- **Running (simple)**: `{"distance_m": 8000, "pace_sec_per_km": 330, "effort": "Easy — 60-90s/km slower than 5K pace", "rpe": 6}`
+- **Running (structured)**: `{"warmup": "1.5km easy", "sets": [{"reps": 6, "distance_m": 800, "pace_sec_per_km": 220, "effort": "5K goal pace", "rpe": 8, "rest": "400m jog"}], "cooldown": "1.5km easy", "total_distance_m": 10000}`
+- **Strength**: `{"exercises": [{"name": "Squat", "sets": 4, "reps": 8, "weight_kg": 85, "effort": "85% 1RM", "rpe": 8, "rest_sec": 150}]}`
+- **Swimming**: `{"warmup": "400m easy", "sets": [{"reps": 10, "distance_m": 100, "pace_sec_per_100m": 105, "effort": "CSS pace", "rpe": 7, "rest_sec": 10}], "cooldown": "200m easy", "total_distance_m": 2500}`
+- **Cycling (simple)**: `{"duration_sec": 7200, "intensity": "Zone 2", "effort": "Easy endurance, conversational", "rpe": 6}`
+- **Cycling (structured)**: `{"warmup": "15min Zone 2", "sets": [{"reps": 2, "duration_sec": 1200, "intensity": "88-93% FTP", "effort": "Sweet spot", "rpe": 7, "rest": "5min easy"}], "cooldown": "10min easy", "duration_sec": 4200}`
+- **Mobility**: `{"duration_sec": 1200, "focus": "hips", "instructions": "Hold gently", "rpe": 3, "exercises": [{"name": "Hip Flexor Stretch", "duration_sec": 60, "sets": 2, "notes": "each side", "description": "Half-kneeling lunge"}]}`
+- **Yoga**: `{"duration_sec": 1800, "style": "vinyasa", "focus": "recovery", "instructions": "Slow transitions", "rpe": 4}`

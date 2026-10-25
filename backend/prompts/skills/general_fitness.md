@@ -66,6 +66,11 @@
 - Day 5: Cardio + mobility
 
 ## Prescriptions
-- Strength: `{"exercises": [{"name": "Goblet Squat", "sets": 3, "reps": 12, "weight": "16kg", "rpe": 7, "rest": "90s"}, {"name": "Dumbbell Row", "sets": 3, "reps": 10, "weight": "12kg", "rpe": 7, "rest": "60s", "notes": "each arm"}, {"name": "Push-ups", "sets": 3, "reps": 10, "rpe": 7, "rest": "60s"}, {"name": "Plank", "sets": 3, "duration": "30s", "rpe": 6}]}`
-- Cardio: `{"duration": "30min", "effort": "Easy — conversational pace", "rpe": 5, "notes": "Walk, jog, bike, or swim — your choice"}`
-- HIIT: `{"warmup": "5min easy", "sets": [{"reps": 6, "duration": "30s", "effort": "All-out", "rpe": 9, "rest": "90s easy"}], "cooldown": "5min easy"}`
+- Strength: `{"exercises": [{"name": "Goblet Squat", "sets": 3, "reps": 12, "weight_kg": 16, "rpe": 7, "rest_sec": 90}, {"name": "Dumbbell Row", "sets": 3, "reps": 10, "weight_kg": 12, "rpe": 7, "rest_sec": 60, "notes": "each arm"}, {"name": "Push-ups", "sets": 3, "reps": 10, "rpe": 7, "rest_sec": 60}, {"name": "Plank", "sets": 3, "duration_sec": 30, "rpe": 6}]}`
+- Cardio: `{"duration_sec": 1800, "effort": "Easy — conversational pace", "rpe": 5, "notes": "Walk, jog, bike, or swim — your choice"}`
+- HIIT: `{"warmup": "5min easy", "sets": [{"reps": 6, "duration_sec": 30, "effort": "All-out", "rpe": 9, "rest": "90s easy"}], "cooldown": "5min easy", "duration_sec": 1500}`
+
+## Progression Rules
+- Strength: reps first, then weight — e.g. `{"field": "reps", "exercise": "Push-ups", "step": 1, "max": 15}`, `{"field": "weight_kg", "exercise": "Goblet Squat", "step": 2, "round": 2}` (dumbbells come in 2 kg steps).
+- Cardio: `{"field": "duration_sec", "step": 300, "max": 3600}` (+5 min/week).
+- HIIT: add a rep every week or two (`{"field": "reps", "set_index": 0, "step": 1, "max": 10}`).

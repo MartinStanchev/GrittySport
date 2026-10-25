@@ -2,12 +2,14 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
+import type { ProgressionRule } from '../utils/prescription';
 
 export interface ActivityProposal {
   day_of_week: number;
   activity_type: string;
   prescription: any;
   notes?: string;
+  progression?: ProgressionRule[];
 }
 
 export interface TemplateWeek {
@@ -20,7 +22,26 @@ export interface PhaseProposal {
   start_date?: string;
   end_date?: string;
   duration_weeks: number;
+  deload_weeks?: number[];
+  deload_pct?: number;
   template_week: TemplateWeek;
+}
+
+/** Planned totals of one phase week (backend models.WeekLoad). */
+export interface WeekLoad {
+  week: number;
+  deload: boolean;
+  distance_m: number;
+  duration_sec: number;
+}
+
+/**
+ * How a phase plays out week by week. `activities[i][j]` holds the weekly
+ * values of rule j of `template_week.activities[i]`.
+ */
+export interface PhasePreview {
+  weeks: WeekLoad[];
+  activities: number[][][];
 }
 
 export interface ProgramProposalData {
@@ -30,6 +51,8 @@ export interface ProgramProposalData {
   start_date: string;
   end_date?: string;
   phases: PhaseProposal[];
+  /** Computed by the backend for Grit proposals; absent for manually created programs. */
+  phase_previews?: PhasePreview[];
 }
 
 interface ProgramProposalCardProps {

@@ -127,6 +127,7 @@ Full details for each change are in the `progress/` folder.
 | [reliable-forget-memory](progress/reliable-forget-memory.md) | `forget_memory` now works by `[id:…]` memory IDs, scrubs forgotten facts from past session summaries (async + daily retry), blocks re-extraction in pre-forget conversations, and memory is reassembled every chat turn |
 | [expo-sdk-58-upgrade](progress/expo-sdk-58-upgrade.md) | Expo SDK 54 → 58 (RN 0.88, TS 6): deps aligned + HealthKit 16 / Health Connect 4, splash → plugin, app.json cleanup (dead `backgroundModes`, dup permissions, SDK pins), R8 kept off, file import via `File` API with raw bytes, React Compiler lint rules warn-only for 23 legacy files |
 | [live-activity-dynamic-island](progress/live-activity-dynamic-island.md) | iOS Live Activity + Dynamic Island for GPS and manual workouts via `expo-widgets`: native-drawn pause-aware clock, live stats (5 s throttle), user-chosen compact metric (HR/pace/distance, Settings), `bluetooth-central` background mode for HR-only workouts |
+| [progressive-overload](progress/progressive-overload.md) | Progressive overload: numeric metric prescriptions (old string keys rejected, analytics fixed), per-activity progression rules (% or step, max) + phase deload weeks, `activity_series` materialized per week so edits only touch upcoming unrecorded weeks, proposal weekly-load preview, unit-aware prescription editor |
 
 ## Instructions for Agents
 

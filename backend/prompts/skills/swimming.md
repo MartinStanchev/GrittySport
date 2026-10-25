@@ -60,17 +60,24 @@ Always use structured `sets` array format:
 {
   "warmup": "400m easy",
   "sets": [
-    {"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rpe": 5, "rest": "15s"},
-    {"reps": 10, "distance": "100m", "pace": "1:45/100m", "effort": "CSS pace", "rpe": 7, "rest": "10s"}
+    {"reps": 4, "distance_m": 50, "type": "drill", "description": "catch-up drill", "rpe": 5, "rest_sec": 15},
+    {"reps": 10, "distance_m": 100, "pace_sec_per_100m": 105, "effort": "CSS pace", "rpe": 7, "rest_sec": 10}
   ],
   "cooldown": "200m easy",
-  "total_distance": "2500m"
+  "total_distance_m": 2500
 }
 ```
 
 Set `type` field values: `"drill"`, `"kick"`, `"pull"`, `"swim"` (default if omitted).
 
 More examples:
-- Threshold: `{"warmup": "500m easy", "sets": [{"reps": 10, "distance": "100m", "pace": "CSS", "effort": "CSS pace — threshold", "rpe": 7, "rest": "10s"}], "cooldown": "300m easy", "total_distance": "2500m"}`
-- Speed: `{"warmup": "500m easy", "sets": [{"reps": 8, "distance": "50m", "pace": "CSS-5s", "effort": "VO2max — fast", "rpe": 9, "rest": "30s"}], "cooldown": "300m easy", "total_distance": "1500m"}`
-- Drills + main: `{"warmup": "400m easy", "sets": [{"reps": 4, "distance": "50m", "type": "drill", "description": "catch-up drill", "rpe": 5, "rest": "15s"}, {"reps": 4, "distance": "50m", "type": "drill", "description": "fingertip drag", "rpe": 5, "rest": "15s"}, {"reps": 8, "distance": "50m", "effort": "Descend 1-4", "rpe": 7, "rest": "15s"}], "cooldown": "200m easy", "total_distance": "1500m"}`
+- Threshold: `{"warmup": "500m easy", "sets": [{"reps": 10, "distance_m": 100, "pace_sec_per_100m": 105, "effort": "CSS pace — threshold", "rpe": 7, "rest_sec": 10}], "cooldown": "300m easy", "total_distance_m": 2500}`
+- Speed: `{"warmup": "500m easy", "sets": [{"reps": 8, "distance_m": 50, "pace_sec_per_100m": 100, "effort": "CSS-5s — fast", "rpe": 9, "rest_sec": 30}], "cooldown": "300m easy", "total_distance_m": 1500}`
+- Drills + main: `{"warmup": "400m easy", "sets": [{"reps": 4, "distance_m": 50, "type": "drill", "description": "catch-up drill", "rpe": 5, "rest_sec": 15}, {"reps": 4, "distance_m": 50, "type": "drill", "description": "fingertip drag", "rpe": 5, "rest_sec": 15}, {"reps": 8, "distance_m": 50, "effort": "Descend 1-4", "rpe": 7, "rest_sec": 15}], "cooldown": "200m easy", "total_distance_m": 1500}`
+
+Always include `total_distance_m` (warmup + sets + cooldown) — it is kept in sync automatically when set reps progress.
+
+## Progression Rules
+- **Main set**: add reps at the same pace, e.g. `{"field": "reps", "set_index": 1, "step": 1, "max": 16}` on the CSS set.
+- **Endurance set**: lengthen the repeats, e.g. `{"field": "distance_m", "set_index": 0, "step": 100, "max": 800}`.
+- Drill sets usually stay flat. Grow weekly swim volume ≤10% per week.

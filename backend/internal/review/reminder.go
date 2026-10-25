@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
 
+	"github.com/grittyfitness/api/internal/models"
 	"github.com/grittyfitness/api/internal/notifications"
 )
 
@@ -112,7 +113,7 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date <= $3::date
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date + 6 >= $3::date
 		 LIMIT 1`,
-		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
+		userID, dayOfWeek, today, models.PassiveActivityTypes,
 	).Scan(&activityType, &count)
 	if err != nil {
 		return false // no activities today or already reminded
@@ -151,7 +152,7 @@ func (s *ReminderScheduler) sendReminder(ctx context.Context, userID string, loc
 		   AND sa.activity_type <> ALL($4::text[])
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date <= $3::date
 		   AND COALESCE(w.start_date, p.start_date + ((w.week_number-1)*7 || ' days')::interval)::date + 6 >= $3::date`,
-		userID, dayOfWeek, today, notifications.PassiveActivityTypes,
+		userID, dayOfWeek, today, models.PassiveActivityTypes,
 	)
 
 	return true

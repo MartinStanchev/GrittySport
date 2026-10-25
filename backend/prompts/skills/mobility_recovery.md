@@ -50,20 +50,22 @@ Roll each muscle group for 60-90 seconds. Pause on tender spots for 20-30s.
 **Mobility session** — with structured exercises:
 ```json
 {
-  "duration": "20min",
+  "duration_sec": 1200,
   "focus": "hips and hamstrings",
   "instructions": "Hold each stretch gently, breathe into the position",
   "exercises": [
-    {"name": "Hip Flexor Stretch", "duration": "60s", "sets": 2, "notes": "each side", "description": "Half-kneeling lunge position, push hips forward"},
-    {"name": "Foam Roll Quads", "duration": "90s"},
-    {"name": "Pigeon Pose", "duration": "60s", "sets": 2, "notes": "each side", "description": "Front shin parallel to mat, fold forward"}
+    {"name": "Hip Flexor Stretch", "duration_sec": 60, "sets": 2, "notes": "each side", "description": "Half-kneeling lunge position, push hips forward"},
+    {"name": "Foam Roll Quads", "duration_sec": 90},
+    {"name": "Pigeon Pose", "duration_sec": 60, "sets": 2, "notes": "each side", "description": "Front shin parallel to mat, fold forward"}
   ]
 }
 ```
 
 **Yoga**:
 ```json
-{"duration": "30min", "style": "vinyasa", "focus": "hips and hamstrings", "instructions": "Focus on slow transitions and deep breathing throughout"}
+{"duration_sec": 1800, "style": "vinyasa", "focus": "hips and hamstrings", "instructions": "Focus on slow transitions and deep breathing throughout"}
 ```
 
-**Active recovery**: `{"duration": "30min", "type": "active recovery", "notes": "Easy walk or gentle swim, keep HR below 60% max"}`
+**Active recovery**: `{"duration_sec": 1800, "type": "active recovery", "notes": "Easy walk or gentle swim, keep HR below 60% max"}`
+
+Mobility, yoga and recovery sessions don't need progression rules and are not cut in deload weeks.

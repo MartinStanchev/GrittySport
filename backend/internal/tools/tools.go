@@ -61,6 +61,29 @@ var ActivityTypes = []string{
 	"event",
 }
 
+const prescriptionDescription = "Activity details with numeric metric values: distance_m, duration_sec, pace_sec_per_km, pace_sec_per_100m, weight_kg, reps, rest_sec, rpe; structured sessions use a sets array, strength uses an exercises array"
+
+// progressionSchema describes week-over-week progression rules for a recurring activity.
+func progressionSchema() *genai.Schema {
+	return &genai.Schema{
+		Type:        genai.TypeArray,
+		Description: "Optional progressive overload: rules that grow one prescription value each non-deload week, starting from the prescription as week 1",
+		Items: &genai.Schema{
+			Type:     genai.TypeObject,
+			Required: []string{"field"},
+			Properties: map[string]*genai.Schema{
+				"field":     {Type: genai.TypeString, Description: "The prescription value to progress", Enum: models.ProgressionFields},
+				"exercise":  {Type: genai.TypeString, Description: "Strength: name of the exercise the rule applies to"},
+				"set_index": {Type: genai.TypeInteger, Description: "Structured sessions: 0-based index into the sets array"},
+				"percent":   {Type: genai.TypeNumber, Description: "Compounding increase per week in percent (max 15). Use percent OR step"},
+				"step":      {Type: genai.TypeNumber, Description: "Fixed increase per week in the field's unit (meters, seconds, reps, sets, kg). Use percent OR step"},
+				"max":       {Type: genai.TypeNumber, Description: "Cap the value never exceeds"},
+				"round":     {Type: genai.TypeNumber, Description: "Round to this multiple (e.g. 2.5 for kg, 500 for meters)"},
+			},
+		},
+	}
+}
+
 // phaseSchema returns the genai.Schema for a single phase used by save_draft_phase and update_draft_phase.
 func phaseSchema() map[string]*genai.Schema {
 	return map[string]*genai.Schema{
@@ -69,6 +92,12 @@ func phaseSchema() map[string]*genai.Schema {
 		"start_date":     {Type: genai.TypeString, Description: "Phase start date (YYYY-MM-DD)"},
 		"end_date":       {Type: genai.TypeString, Description: "Phase end date (YYYY-MM-DD)"},
 		"duration_weeks": {Type: genai.TypeInteger, Description: "Number of weeks this template repeats"},
+		"deload_weeks": {
+			Type:        genai.TypeArray,
+			Description: "1-based weeks within this phase that are deload weeks (volume cut, intensity kept, progression paused)",
+			Items:       &genai.Schema{Type: genai.TypeInteger},
+		},
+		"deload_pct": {Type: genai.TypeInteger, Description: "Volume reduction in deload weeks, in percent (10-60, default 35)"},
 		"template_week": {
 			Type:        genai.TypeObject,
 			Description: "A single week template (Mon-Sun) that repeats for duration_weeks",
@@ -82,9 +111,10 @@ func phaseSchema() map[string]*genai.Schema {
 						Properties: map[string]*genai.Schema{
 							"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
 							"activity_type": {Type: genai.TypeString, Description: "The activity type. Use notes for descriptive detail.", Enum: ActivityTypes},
-							"prescription":  {Type: genai.TypeObject, Description: "Activity details like distance, pace, sets, reps"},
+							"prescription":  {Type: genai.TypeObject, Description: prescriptionDescription},
 							"notes":         {Type: genai.TypeString, Description: "Descriptive context (e.g. Squat focus, Hill repeats, Upper body)"},
 							"order_index":   {Type: genai.TypeInteger},
+							"progression":   progressionSchema(),
 						},
 					},
 				},
@@ -105,6 +135,9 @@ func parsePhaseParams(params map[string]any) (models.TemplatePhaseInput, error) 
 	}
 	if phase.Name == "" || phase.DurationWeeks <= 0 {
 		return models.TemplatePhaseInput{}, fmt.Errorf("name and duration_weeks are required")
+	}
+	if err := phase.Prepare(); err != nil {
+		return models.TemplatePhaseInput{}, err
 	}
 	return phase, nil
 }
@@ -311,7 +344,8 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				"status":      "phase_saved",
 				"phase_name":  phase.Name,
 				"phase_count": count,
-				"message":     fmt.Sprintf("Phase '%s' saved (%d total). Continue with next phase or call propose_program when all phases are ready.", phase.Name, count),
+				"week_by_week": phase.ProgressionSummary(),
+				"message":     fmt.Sprintf("Phase '%s' saved (%d total). Check week_by_week, then continue with the next phase (start it where this one ends) or call propose_program when all phases are ready.", phase.Name, count),
 			}, nil
 		},
 	})
@@ -334,9 +368,10 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				return nil, err
 			}
 			return map[string]any{
-				"status":     "phase_updated",
-				"phase_name": phase.Name,
-				"message":    fmt.Sprintf("Phase '%s' (order_index %d) updated.", phase.Name, phase.OrderIndex),
+				"status":       "phase_updated",
+				"phase_name":   phase.Name,
+				"week_by_week": phase.ProgressionSummary(),
+				"message":      fmt.Sprintf("Phase '%s' (order_index %d) updated.", phase.Name, phase.OrderIndex),
 			}, nil
 		},
 	})
@@ -464,7 +499,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 	reg.Register(&Tool{
 		Name:        "confirm_program_save",
 		Modes:       []chat.Mode{chat.ModeProgramCreation},
-		Description: "Save the previously proposed program after the user has accepted it. Only call this after the user explicitly accepts the proposal. Template weeks are automatically expanded into individual weeks.",
+		Description: "Save the previously proposed program after the user has accepted it. Only call this after the user explicitly accepts the proposal. Template weeks are automatically expanded into individual weeks with progression and deloads applied.",
 		Parameters: &genai.Schema{
 			Type:       genai.TypeObject,
 			Properties: map[string]*genai.Schema{},
@@ -480,18 +515,17 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			}
 			defer proposals.Delete(userID)
 
-			var tmpl models.TemplateProgramInput
-			if err := json.Unmarshal(proposal.Program, &tmpl); err != nil {
+			var programInput models.TemplateProgramInput
+			if err := json.Unmarshal(proposal.Program, &programInput); err != nil {
 				return nil, fmt.Errorf("unmarshal template program: %w", err)
 			}
-			programInput := models.ExpandTemplatesToSaveInput(tmpl)
 
 			var criteriaInput []models.SaveCriterionInput
 			if err := json.Unmarshal(proposal.Criteria, &criteriaInput); err != nil {
 				return nil, fmt.Errorf("unmarshal criteria: %w", err)
 			}
 
-			result, err := programSvc.SaveProgramWithCriteria(ctx, userID, programInput, criteriaInput, proposal.DraftProgramID)
+			result, err := programSvc.SaveProgramWithCriteria(ctx, userID, programInput, "grit", criteriaInput, proposal.DraftProgramID)
 			if err != nil {
 				return nil, fmt.Errorf("save program: %w", err)
 			}
@@ -530,8 +564,9 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 							"day_of_week":          {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
 							"new_day":              {Type: genai.TypeInteger, Description: "For swap_day: the other day to swap with"},
 							"activity_type":        {Type: genai.TypeString, Description: "Activity type (add_activity, update_activity)", Enum: ActivityTypes},
-							"prescription":         {Type: genai.TypeObject, Description: "Prescription details"},
+							"prescription":         {Type: genai.TypeObject, Description: prescriptionDescription + ". Across weeks: the value for the next upcoming week"},
 							"notes":                {Type: genai.TypeString, Description: "Notes for the activity"},
+							"progression":          progressionSchema(),
 							"phase_index":          {Type: genai.TypeInteger, Description: "0-based phase index. Omit to apply to all phases."},
 							"activity_type_filter": {Type: genai.TypeString, Description: "Filter by activity type when multiple exist on the same day", Enum: ActivityTypes},
 							"criteria": {
@@ -580,6 +615,9 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			for i, e := range rawEdits {
 				if !models.IsValidEditAction(e.Action) {
 					return nil, fmt.Errorf("edit[%d]: unknown action %q — valid actions are: %s", i, e.Action, strings.Join(models.ValidEditActions, ", "))
+				}
+				if err := e.ValidatePayload(); err != nil {
+					return nil, fmt.Errorf("edit[%d]: %w", i, err)
 				}
 			}
 
@@ -667,7 +705,7 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 						Properties: map[string]*genai.Schema{
 							"day_of_week":   {Type: genai.TypeInteger, Description: "0=Sunday, 1=Monday, ..., 6=Saturday"},
 							"activity_type": {Type: genai.TypeString, Enum: ActivityTypes},
-							"prescription":  {Type: genai.TypeObject},
+							"prescription":  {Type: genai.TypeObject, Description: prescriptionDescription},
 							"notes":         {Type: genai.TypeString},
 							"order_index":   {Type: genai.TypeInteger},
 						},
@@ -689,7 +727,6 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 			if err := json.Unmarshal(activitiesRaw, &partialActivities); err != nil {
 				return nil, fmt.Errorf("unmarshal activities: %w", err)
 			}
-
 			var program models.TemplateProgramInput
 			if err := json.Unmarshal(proposal.Program, &program); err != nil {
 				return nil, fmt.Errorf("unmarshal program: %w", err)
@@ -707,6 +744,9 @@ func RegisterAllTools(reg *Registry, programSvc *services.ProgramService, userSv
 				EndDate:       thisMonday.AddDate(0, 0, 6).Format("2006-01-02"),
 				DurationWeeks: 1,
 				TemplateWeek:  models.TemplateWeek{Activities: partialActivities},
+			}
+			if err := partialPhase.Prepare(); err != nil {
+				return nil, fmt.Errorf("activities_this_week: %w", err)
 			}
 
 			for i := range program.Phases {

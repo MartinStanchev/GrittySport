@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { ACTIVITY_TYPES, formatActivityType, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
 import { Fonts } from '../constants/fonts';
+import { prescriptionPrimaryStats } from '../utils/prescription';
 import { PHASE_COLORS } from '../constants/sports';
 import { PrescriptionEditor } from '../components/PrescriptionEditor';
 import StepIndicator from '../components/StepIndicator';
@@ -241,7 +242,7 @@ export default function CreateProgramScheduleScreen({ navigation, route }: Props
                 <View style={styles.dayActivities}>
                   {dayActivities.map((act, actIdx) => {
                     const globalIdx = selectedPhase!.template_week.activities.indexOf(act);
-                    const detail = [act.prescription?.distance, act.prescription?.duration, act.prescription?.intensity]
+                    const detail = [...prescriptionPrimaryStats(act.prescription), act.prescription?.intensity]
                       .filter(Boolean)
                       .join(' · ');
                     return (

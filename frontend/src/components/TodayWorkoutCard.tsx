@@ -2,7 +2,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
-import { formatActivityType, getActivityIcon, formatPrescriptionSummary } from '../constants/activityIcons';
+import { formatActivityType, getActivityIcon } from '../constants/activityIcons';
+import { formatPrescriptionSummary } from '../utils/prescription';
 import type { UpcomingActivity, ProgramSummary } from '../services/api';
 
 interface TodayWorkoutCardProps {

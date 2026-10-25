@@ -198,8 +198,8 @@ func computeAlignment(ctx context.Context, pool *pgxpool.Pool, activityID string
 	hasData := false
 
 	// Distance
-	prescDist := floatFromMap(prescMap, "distance_km")
-	actDist := floatFromMap(recMap, "distance_km")
+	prescDist := models.PrescribedDistanceM(prescMap) / 1000
+	actDist := models.RecordedDistanceM(recMap) / 1000
 	if prescDist > 0 && actDist > 0 {
 		ad.PrescribedDistanceKm = &prescDist
 		ad.ActualDistanceKm = &actDist
@@ -209,7 +209,7 @@ func computeAlignment(ctx context.Context, pool *pgxpool.Pool, activityID string
 	}
 
 	// Pace
-	prescPace := floatFromMap(prescMap, "target_pace_sec_per_km")
+	prescPace := floatFromMap(prescMap, "pace_sec_per_km")
 	actPace := floatFromMap(recMap, "avg_pace_sec_per_km")
 	if prescPace > 0 && actPace > 0 {
 		ad.PrescribedPace = formatPace(prescPace)
@@ -220,7 +220,7 @@ func computeAlignment(ctx context.Context, pool *pgxpool.Pool, activityID string
 	}
 
 	// Duration
-	prescDur := floatFromMap(prescMap, "duration_minutes")
+	prescDur := models.PrescribedDurationSec(prescMap) / 60
 	if prescDur > 0 && workout.FinishedAt != nil {
 		actDur := workout.EffectiveDurationSec() / 60
 		ad.PrescribedDurationMin = &prescDur

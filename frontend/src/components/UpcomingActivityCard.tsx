@@ -1,7 +1,8 @@
 import { Pressable, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
-import { getActivityIcon, formatActivityType, formatPrescriptionSummary, formatActivityDate, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, formatActivityDate, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { formatPrescriptionSummary } from '../utils/prescription';
 import type { UpcomingActivity } from '../services/api';
 
 interface UpcomingActivityCardProps {

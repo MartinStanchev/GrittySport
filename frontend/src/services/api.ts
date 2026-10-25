@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import type { WorkoutAnalytics } from '../types/gps';
+import type { ProgressionRule } from '../utils/prescription';
 
 function resolveBaseUrl(): string {
   if (!__DEV__) return 'https://gritty-fitness-k9cj7.ondigitalocean.app';
@@ -413,12 +414,17 @@ export interface ScheduledActivityResponse {
   notes?: string;
   order_index: number;
   linked_workout_id?: string;
+  /** True when this week's instance was edited individually and no longer follows its series. */
+  is_override?: boolean;
+  /** Week-over-week progression of the recurring series this activity belongs to. */
+  progression?: ProgressionRule[];
 }
 
 export interface WeekResponse {
   id: string;
   week_number: number;
   start_date: string;
+  is_deload?: boolean;
   activities: ScheduledActivityResponse[];
 }
 
@@ -428,6 +434,8 @@ export interface PhaseResponse {
   order_index: number;
   start_date?: string;
   end_date?: string;
+  deload_weeks?: number[];
+  deload_pct?: number;
   weeks: WeekResponse[];
 }
 

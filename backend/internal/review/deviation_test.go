@@ -97,8 +97,8 @@ func TestEffortLabel(t *testing.T) {
 
 func TestComputeRunDeviation(t *testing.T) {
 	prescription := map[string]any{
-		"distance_km":            5.0,
-		"target_pace_sec_per_km": 330.0, // 5:30/km
+		"distance_m":      5000.0,
+		"pace_sec_per_km": 330.0, // 5:30/km
 	}
 
 	// Actual: 4.6km at 5:15/km pace
@@ -130,7 +130,7 @@ func TestComputeStrengthDeviation(t *testing.T) {
 				"name":   "Back Squat",
 				"sets":   4.0,
 				"reps":   5.0,
-				"weight": 100.0,
+				"weight_kg": 100.0,
 			},
 		},
 	}
@@ -158,7 +158,7 @@ func TestComputeStrengthDeviation(t *testing.T) {
 
 func TestComputeGenericDeviation(t *testing.T) {
 	prescription := map[string]any{
-		"duration_minutes": 30.0,
+		"duration_sec": 1800.0,
 	}
 
 	recorded := json.RawMessage(`{}`)

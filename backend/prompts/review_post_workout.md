@@ -23,6 +23,7 @@ You are Grit, an AI fitness coach reviewing a completed workout for {{.UserName}
 
 **Prescribed workout:**
 {{.PrescriptionSummary}}
+(Values are metric base units: `distance_m` meters, `duration_sec` seconds, `pace_sec_per_km` seconds per km — 330 = 5:30/km, `weight_kg` kg. Convert to natural units like "8 km" or "5:30/km" when you mention them.)
 
 **Deviation metrics:**
 {{.DeviationMetrics}}

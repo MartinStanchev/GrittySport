@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -82,10 +83,11 @@ func (h *ProgramHandler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	programInput := models.ExpandTemplatesToSaveInput(input)
-	programInput.CreatedBy = "user"
-
-	result, err := h.programService.SaveProgramWithCriteria(r.Context(), userID, programInput, nil)
+	result, err := h.programService.SaveProgramWithCriteria(r.Context(), userID, input, "user", nil, "")
+	if errors.Is(err, services.ErrInvalidInput) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create program")
 		return
@@ -334,8 +336,11 @@ func (h *ProgramHandler) CreateActivity(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "day_of_week must be 0-6")
 		return
 	}
-
 	activity, err := h.programService.CreateActivity(r.Context(), programID, weekID, userID, input)
+	if errors.Is(err, services.ErrInvalidInput) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create activity")
 		return
@@ -374,8 +379,11 @@ func (h *ProgramHandler) UpdateActivity(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "day_of_week must be 0-6")
 		return
 	}
-
 	updated, err := h.programService.UpdateActivity(r.Context(), programID, activityID, userID, input)
+	if errors.Is(err, services.ErrInvalidInput) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update activity")
 		return

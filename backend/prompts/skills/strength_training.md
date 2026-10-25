@@ -61,9 +61,17 @@
 - Supersets: Minimal rest between exercises, 60-90s between rounds.
 
 ## Prescriptions
-- Strength: `{"exercises": [{"name": "Back Squat", "sets": 4, "reps": 5, "weight": "85kg", "effort": "85% 1RM", "rpe": 8, "rest": "3min"}, {"name": "Bench Press", "sets": 4, "reps": 5, "weight": "72.5kg", "effort": "85% 1RM", "rpe": 8, "rest": "3min"}]}`
-- Hypertrophy: `{"exercises": [{"name": "Goblet Squat", "sets": 3, "reps": 12, "weight": "24kg", "effort": "70% 1RM", "rpe": 7}, {"name": "Romanian Deadlift", "sets": 3, "reps": 10, "weight": "60kg", "effort": "65% 1RM", "rpe": 8}]}`
-- Sport-specific: `{"exercises": [{"name": "Bulgarian Split Squat", "sets": 3, "reps": 10, "effort": "Bodyweight or light", "rpe": 7, "notes": "each leg"}, {"name": "Single-leg Calf Raise", "sets": 3, "reps": 15, "rpe": 6}, {"name": "Plank", "sets": 3, "duration": "45s", "rpe": 6}]}`
+- Strength: `{"exercises": [{"name": "Back Squat", "sets": 4, "reps": 5, "weight_kg": 85, "effort": "85% 1RM", "rpe": 8, "rest_sec": 180}, {"name": "Bench Press", "sets": 4, "reps": 5, "weight_kg": 72.5, "effort": "85% 1RM", "rpe": 8, "rest_sec": 180}]}`
+- Hypertrophy: `{"exercises": [{"name": "Goblet Squat", "sets": 3, "reps": 12, "weight_kg": 24, "effort": "70% 1RM", "rpe": 7}, {"name": "Romanian Deadlift", "sets": 3, "reps": 10, "weight_kg": 60, "effort": "65% 1RM", "rpe": 8}]}`
+- Sport-specific: `{"exercises": [{"name": "Bulgarian Split Squat", "sets": 3, "reps": 10, "effort": "Bodyweight or light", "rpe": 7, "notes": "each leg"}, {"name": "Single-leg Calf Raise", "sets": 3, "reps": 15, "rpe": 6}, {"name": "Plank", "sets": 3, "duration_sec": 45, "rpe": 6}]}`
+
+## Progression Rules
+Progression rules target one exercise by name (`"exercise"` must match the exercise's `name`).
+- **Linear load** (beginners, strength focus): `{"field": "weight_kg", "exercise": "Back Squat", "step": 2.5, "round": 2.5}`. Use 2.5 kg/week for upper body, 5 kg/week for lower body; cap with `max` at a realistic ceiling from the user's 1RM.
+- **Rep progression** (hypertrophy): `{"field": "reps", "exercise": "Goblet Squat", "step": 1, "max": 15}` — then the next phase raises the weight and resets reps.
+- **Volume** (adding sets): `{"field": "sets", "exercise": "Romanian Deadlift", "step": 1, "max": 5}` — at most one set per week.
+- Progress the main lifts; accessories can stay flat. Don't progress weight and reps of the same exercise in the same phase.
+- Deload weeks automatically cut each exercise's set count by the phase's `deload_pct` and keep the weight.
 
 ## How many exercises to choose
 

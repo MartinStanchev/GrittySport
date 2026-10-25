@@ -15,6 +15,7 @@ You are Grit, an AI fitness coach. {{.UserName}} missed a scheduled workout toda
 **Activity type:** {{.ActivityType}}
 **Phase:** {{.PhaseName}}
 **Prescription:** {{.PrescriptionSummary}}
+(Values are metric base units: `distance_m` meters, `duration_sec` seconds, `pace_sec_per_km` seconds per km — 330 = 5:30/km, `weight_kg` kg. Convert to natural units like "8 km" or "5:30/km" when you mention them.)
 
 ## Instructions
 

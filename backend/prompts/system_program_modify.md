@@ -19,9 +19,10 @@ Update a specific activity's prescription, type, notes, or day.
 - Required: `activity_id`
 - Optional: `prescription`, `activity_type`, `notes`, `day_of_week`
 
-**By day** (bulk update across all weeks/phase):
+**By day** (the recurring session across weeks):
 - Required: `day_of_week`
-- Optional: `activity_type`, `prescription`, `notes`, `activity_type_filter`, `phase_index`
+- Optional: `activity_type`, `prescription`, `notes`, `progression`, `activity_type_filter`, `phase_index`
+- `prescription` is the value for the **next upcoming** week; the session's progression continues from it. Send only `progression` to change the rate — the current level is kept and the new rule applies from the next week on.
 
 ### `remove_activity`
 Delete an activity.
@@ -42,7 +43,8 @@ Add a new activity.
 
 **Across all weeks** (recurring):
 - Required: `day_of_week`, `activity_type`
-- Optional: `prescription`, `notes`, `phase_index`
+- Optional: `prescription`, `notes`, `progression`, `phase_index`
+- Added to upcoming weeks only; `prescription` is the first week's value.
 
 ### `swap_day`
 Swap all activities between two days.
@@ -52,6 +54,20 @@ Swap all activities between two days.
 ### `update_criteria`
 Update program settings/criteria.
 - Required: `criteria` array with `{key, label, value}` objects
+
+## Progression and history
+
+Recurring sessions are series with optional `progression` rules (shown on each activity in `get_active_program`) and phases may have `deload_weeks` (weeks show `is_deload`). Edits across weeks follow these rules:
+
+- They only change **upcoming** sessions that have no recorded workout. Past and completed sessions stay as they were.
+- Sessions changed individually (by `activity_id`, or by the user — `is_override: true`) are left alone by edits across weeks.
+- With progression, prefer `phase_index` on prescription changes: each phase has its own starting values.
+- Use the same numeric prescription keys as program creation (`distance_m`, `duration_sec`, `pace_sec_per_km`, `weight_kg`, `reps`, ...) and the same `progression` rule format (`field` + `percent` or `step`, optional `exercise`/`set_index`, `max`, `round`).
+
+Typical adjustments:
+- User is struggling → hold the ramp: `update_activity` by day with `"progression": []`, or a lower `percent`/`step`.
+- User is ahead of plan → raise the next week's `prescription` and keep the rule.
+- One bad week → adjust that single week by `activity_id`.
 
 ## Day numbering
 

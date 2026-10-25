@@ -65,6 +65,12 @@
 - Never program heavy squats and heavy deadlifts on consecutive days.
 
 ## Prescriptions
-- Competition squat: `{"exercises": [{"name": "Back Squat", "sets": 5, "reps": 3, "weight": "140kg", "effort": "82.5% 1RM", "rpe": 8, "rest": "4min"}]}`
-- Bench with accessories: `{"exercises": [{"name": "Bench Press", "sets": 4, "reps": 5, "weight": "95kg", "effort": "80% 1RM", "rpe": 8, "rest": "3min"}, {"name": "Close-Grip Bench", "sets": 3, "reps": 8, "weight": "75kg", "effort": "65% 1RM", "rpe": 7, "rest": "2min"}, {"name": "Tricep Pushdown", "sets": 3, "reps": 12, "rpe": 7, "rest": "90s"}]}`
-- Deadlift day: `{"exercises": [{"name": "Deadlift", "sets": 4, "reps": 3, "weight": "180kg", "effort": "85% 1RM", "rpe": 8, "rest": "5min"}, {"name": "Deficit Deadlift", "sets": 3, "reps": 5, "weight": "140kg", "effort": "70% 1RM", "rpe": 7, "rest": "3min"}, {"name": "Barbell Row", "sets": 3, "reps": 8, "weight": "80kg", "rpe": 7, "rest": "2min"}]}`
+- Competition squat: `{"exercises": [{"name": "Back Squat", "sets": 5, "reps": 3, "weight_kg": 140, "effort": "82.5% 1RM", "rpe": 8, "rest_sec": 240}]}`
+- Bench with accessories: `{"exercises": [{"name": "Bench Press", "sets": 4, "reps": 5, "weight_kg": 95, "effort": "80% 1RM", "rpe": 8, "rest_sec": 180}, {"name": "Close-Grip Bench", "sets": 3, "reps": 8, "weight_kg": 75, "effort": "65% 1RM", "rpe": 7, "rest_sec": 120}, {"name": "Tricep Pushdown", "sets": 3, "reps": 12, "rpe": 7, "rest_sec": 90}]}`
+- Deadlift day: `{"exercises": [{"name": "Deadlift", "sets": 4, "reps": 3, "weight_kg": 180, "effort": "85% 1RM", "rpe": 8, "rest_sec": 300}, {"name": "Deficit Deadlift", "sets": 3, "reps": 5, "weight_kg": 140, "effort": "70% 1RM", "rpe": 7, "rest_sec": 180}, {"name": "Barbell Row", "sets": 3, "reps": 8, "weight_kg": 80, "rpe": 7, "rest_sec": 120}]}`
+
+## Progression Rules
+- **Linear (beginners)**: `{"field": "weight_kg", "exercise": "Back Squat", "step": 5, "round": 2.5}` for squat/deadlift and `"step": 2.5` for bench. Rules apply once per week — sessions within a week share the same weight.
+- **Block (intermediate/advanced)**: within a strength block, climb ~2.5% of 1RM per week: e.g. 1RM 170 kg → `{"field": "weight_kg", "exercise": "Back Squat", "step": 5, "max": 155, "round": 2.5}`. Set `max` from the block's top-set percentage of 1RM.
+- Accessories: reps or sets progression (`{"field": "reps", "exercise": "Barbell Row", "step": 1, "max": 12}`) or flat.
+- Peaking/taper phases normally have no progression rules — write the exact weights.

@@ -5,9 +5,9 @@ import { Fonts } from '../constants/fonts';
 import {
   dayAbbrev,
   formatActivityType,
-  formatPrescriptionSummary,
   getActivityIcon,
 } from '../constants/activityIcons';
+import { formatPrescriptionSummary } from '../utils/prescription';
 import type { ThemeColors } from '../constants/colors';
 
 // ─── Types ───────────────────────────────────────────────────────────

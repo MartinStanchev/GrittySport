@@ -5,7 +5,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { formatActivityType, getActivityIcon, WEEK_DAYS_MON_SUN } from '../constants/activityIcons';
+import { describeProgressionRange, formatDeload, formatPrescriptionSummary } from '../utils/prescription';
 import type { ProgramProposalData } from './ProgramProposalCard';
+import { WeeklyLoadBars } from './WeeklyLoadBars';
 
 interface ProposalReviewViewProps {
   data: ProgramProposalData;
@@ -21,13 +23,6 @@ interface ProposalReviewViewProps {
 }
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-
-function getPrescriptionDuration(prescription: any): string | null {
-  if (!prescription) return null;
-  if (prescription.duration) return prescription.duration;
-  if (prescription.time) return prescription.time;
-  return null;
-}
 
 export function ProposalReviewView({
   data,
@@ -117,6 +112,8 @@ export function ProposalReviewView({
         {data.phases.map((phase, idx) => {
           const isExpanded = expandedPhase === idx;
           const weekRange = getWeekRange(phase, idx);
+          const preview = data.phase_previews?.[idx];
+          const deload = formatDeload(phase.deload_weeks, phase.deload_pct);
 
           return (
             <View key={idx} style={[styles.phaseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -144,6 +141,10 @@ export function ProposalReviewView({
 
               {isExpanded && phase.template_week && (
                 <View style={[styles.phaseContent, { borderTopColor: colors.border }]}>
+                  {preview && <WeeklyLoadBars weeks={preview.weeks} />}
+                  {deload !== '' && (
+                    <Text style={[styles.deloadText, { color: colors.tertiary }]}>{deload}</Text>
+                  )}
                   {WEEK_DAYS_MON_SUN.map((dayIdx) => {
                     const dayActivities = phase.template_week.activities.filter((a) => a.day_of_week === dayIdx);
 
@@ -163,7 +164,8 @@ export function ProposalReviewView({
                       <View key={dayIdx} style={styles.dayGroup}>
                         {dayActivities.map((act, actIdx) => {
                           const icon = getActivityIcon(act.activity_type);
-                          const duration = getPrescriptionDuration(act.prescription);
+                          const summary = formatPrescriptionSummary(act.prescription);
+                          const tracks = preview?.activities[phase.template_week.activities.indexOf(act)];
                           const isRest = act.activity_type.toLowerCase().includes('rest');
                           return (
                             <View key={actIdx} style={styles.activityRow}>
@@ -182,11 +184,16 @@ export function ProposalReviewView({
                                     {act.notes}
                                   </Text>
                                 )}
-                                {duration && (
+                                {summary !== '' && (
                                   <Text style={[styles.activityDuration, { color: colors.textSecondary }]}>
-                                    {duration}
+                                    {summary}
                                   </Text>
                                 )}
+                                {act.progression?.map((rule, ruleIdx) => (
+                                  <Text key={ruleIdx} style={[styles.activityProgression, { color: colors.primary }]}>
+                                    {describeProgressionRange(rule, tracks?.[ruleIdx])}
+                                  </Text>
+                                ))}
                               </View>
                             </View>
                           );
@@ -395,6 +402,14 @@ const styles = StyleSheet.create({
   activityDuration: {
     fontSize: 12,
     fontFamily: Fonts.body,
+  },
+  activityProgression: {
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
+  },
+  deloadText: {
+    fontSize: 12,
+    fontFamily: Fonts.bodySemiBold,
   },
   restLabel: {
     fontSize: 14,

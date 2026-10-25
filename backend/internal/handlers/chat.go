@@ -424,7 +424,12 @@ func (h *ChatHandler) handleWithTools(r *http.Request, ws *wsWriter, userID, use
 			}
 		case "propose_program":
 			if proposal, ok := h.proposalStore.Get(userID); ok {
-				_ = ws.writeJSON(wsOutgoing{Type: "program_proposal", Data: proposal.Program})
+				var program models.TemplateProgramInput
+				if err := json.Unmarshal(proposal.Program, &program); err == nil {
+					if data, err := json.Marshal(models.NewProposalView(program)); err == nil {
+						_ = ws.writeJSON(wsOutgoing{Type: "program_proposal", Data: data})
+					}
+				}
 			}
 		case "edit_program":
 			if proposal, ok := h.proposalStore.Get(userID); ok {

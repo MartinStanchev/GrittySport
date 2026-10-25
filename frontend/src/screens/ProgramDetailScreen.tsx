@@ -21,7 +21,6 @@ import {
   getActivityColor,
   getIntensityLevel,
   intensityLabel,
-  prescriptionPrimaryStats,
   dominantActivity,
   formatActivityType,
   isManualActivity,
@@ -29,6 +28,7 @@ import {
   WEEK_DAYS_MON_SUN,
 } from '../constants/activityIcons';
 import { deleteProgram } from '../services/api';
+import { describeProgression, prescriptionDistanceM, prescriptionPrimaryStats } from '../utils/prescription';
 import { getProgramCached } from '../services/cachedReads';
 import type { ProgramDetail, ScheduledActivityResponse } from '../services/api';
 import type { ThemeColors } from '../constants/colors';
@@ -48,6 +48,7 @@ type FlatWeek = {
   weekNumber: number;
   phaseName: string;
   weekMonday: Date;
+  isDeload: boolean;
   activities: ScheduledActivityResponse[];
 };
 
@@ -166,6 +167,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
           weekNumber: week.week_number,
           phaseName: phase.name,
           weekMonday: new Date(week.start_date + 'T00:00:00'),
+          isDeload: week.is_deload ?? false,
           activities: week.activities,
         });
       }
@@ -590,11 +592,18 @@ type WeekNavProps = {
 function WeekNav({ week, canPrev, canNext, onPrev, onNext, colors }: WeekNavProps) {
   return (
     <View style={styles.weekNavWrap}>
-      {week.phaseName ? (
-        <Text style={[styles.phaseEyebrow, { color: colors.textSecondary }]}>
-          {week.phaseName.toUpperCase()}
-        </Text>
-      ) : null}
+      <View style={styles.phaseEyebrowRow}>
+        {week.phaseName ? (
+          <Text style={[styles.phaseEyebrow, { color: colors.textSecondary }]}>
+            {week.phaseName.toUpperCase()}
+          </Text>
+        ) : null}
+        {week.isDeload && (
+          <View style={[styles.deloadPill, { backgroundColor: alpha(colors.tertiary, 0.15) }]}>
+            <Text style={[styles.deloadPillText, { color: colors.tertiary }]}>DELOAD WEEK</Text>
+          </View>
+        )}
+      </View>
       <View style={styles.weekNavRow}>
         <Pressable
           onPress={onPrev}
@@ -842,6 +851,7 @@ function CompactWorkoutRow({ activity, today, onPress, onRecord, colors }: RowPr
     : intensityLabel(getIntensityLevel(activity.prescription, activity.activity_type));
   const allMeta = [...stats, intensity].filter(Boolean);
   const note = activity.notes?.trim() || activity.prescription?.description?.trim() || '';
+  const progression = (activity.progression ?? []).map(describeProgression).join(' · ');
   const showRecord = isManualActivity(activity.activity_type) && status !== 'completed' && status !== 'missed';
 
   const rowBg = status === 'completed' ? alpha(sportColor, 0.06) : colors.surface;
@@ -871,6 +881,14 @@ function CompactWorkoutRow({ activity, today, onPress, onRecord, colors }: RowPr
           <Text style={[styles.workoutMeta, { color: colors.textSecondary }]} numberOfLines={1}>
             {allMeta.join(' · ')}
           </Text>
+        )}
+        {progression !== '' && (
+          <View style={styles.progressionRow}>
+            <Ionicons name="trending-up" size={12} color={colors.primary} />
+            <Text style={[styles.progressionText, { color: colors.primary }]} numberOfLines={1}>
+              {progression}
+            </Text>
+          </View>
         )}
         {note ? (
           <Text style={[styles.workoutNotes, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -1097,8 +1115,8 @@ function buildMonthlyStats(
     if (d < monthStart || d > monthEnd) continue;
     for (const a of acts) {
       counts.set(a.activity_type, (counts.get(a.activity_type) || 0) + 1);
-      const dist = parseKmDistance(a.prescription);
-      if (dist !== null) totalKm += dist;
+      const distM = prescriptionDistanceM(a.prescription);
+      if (distM !== null) totalKm += distM / 1000;
     }
   }
 
@@ -1123,19 +1141,6 @@ function pluralizeActivityLabel(type: string, n: number): string {
   if (n === 1) return base;
   if (base.endsWith('s')) return base;
   return `${base}s`;
-}
-
-function parseKmDistance(prescription: Record<string, any> | undefined): number | null {
-  if (!prescription) return null;
-  const raw = prescription.distance || prescription.total_distance;
-  if (!raw) return null;
-  const match = String(raw).match(/(\d+(?:\.\d+)?)\s*(km|mi|m)?/i);
-  if (!match) return null;
-  const num = parseFloat(match[1]);
-  const unit = (match[2] || 'km').toLowerCase();
-  if (unit === 'mi') return num * 1.609;
-  if (unit === 'm') return num / 1000;
-  return num;
 }
 
 function toDateKey(d: Date): string {
@@ -1379,12 +1384,28 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 6,
   },
+  phaseEyebrowRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
   phaseEyebrow: {
     fontSize: 10,
     fontFamily: Fonts.bodySemiBold,
     letterSpacing: 1.6,
     textAlign: 'center',
-    marginBottom: 6,
+  },
+  deloadPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  deloadPillText: {
+    fontSize: 9,
+    fontFamily: Fonts.bodySemiBold,
+    letterSpacing: 1,
   },
   weekNavRow: {
     flexDirection: 'row',
@@ -1528,6 +1549,16 @@ const styles = StyleSheet.create({
   workoutMeta: {
     fontSize: 12,
     fontFamily: Fonts.body,
+  },
+  progressionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  progressionText: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontFamily: Fonts.bodySemiBold,
   },
   workoutNotes: {
     fontSize: 12,

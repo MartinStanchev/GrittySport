@@ -35,6 +35,7 @@ type ExportPayload struct {
 	Phases                 []map[string]any         `json:"phases"`
 	Weeks                  []map[string]any         `json:"weeks"`
 	ScheduledActivities    []map[string]any         `json:"scheduled_activities"`
+	ActivitySeries         []map[string]any         `json:"activity_series"`
 	ProgramCriteria        []map[string]any         `json:"program_criteria"`
 	Workouts               []map[string]any         `json:"workouts"`
 	ChatMessages           []map[string]any         `json:"chat_messages"`
@@ -68,7 +69,8 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			        created_by, created_at, updated_at
 			 FROM programs WHERE user_id = $1 ORDER BY created_at`},
 		{"phases", new([]map[string]any),
-			`SELECT ph.id, ph.program_id, ph.order_index, ph.name, ph.start_date, ph.end_date, ph.created_at
+			`SELECT ph.id, ph.program_id, ph.order_index, ph.name, ph.start_date, ph.end_date,
+			        ph.deload_weeks, ph.deload_pct, ph.created_at
 			 FROM phases ph JOIN programs p ON p.id = ph.program_id
 			 WHERE p.user_id = $1 ORDER BY ph.program_id, ph.order_index`},
 		{"weeks", new([]map[string]any),
@@ -78,8 +80,8 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			 JOIN programs p ON p.id = ph.program_id
 			 WHERE p.user_id = $1 ORDER BY ph.program_id, w.week_number`},
 		{"scheduled_activities", new([]map[string]any),
-			`SELECT sa.id, sa.week_id, sa.day_of_week, sa.activity_type, sa.notes,
-			        sa.prescription, sa.order_index, sa.created_at, sa.updated_at
+			`SELECT sa.id, sa.week_id, sa.series_id, sa.day_of_week, sa.activity_type, sa.notes,
+			        sa.prescription, sa.is_override, sa.order_index, sa.created_at, sa.updated_at
 			 FROM scheduled_activities sa
 			 JOIN weeks w ON w.id = sa.week_id
 			 JOIN phases ph ON ph.id = w.phase_id
@@ -109,6 +111,13 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 			`SELECT period_type, period_start, chat_messages_used, programs_created,
 			        post_workout_reviews_used, missed_workout_reviews_used, created_at, updated_at
 			 FROM usage_tracking WHERE user_id = $1 ORDER BY period_start`},
+		{"activity_series", new([]map[string]any),
+			`SELECT s.id, s.phase_id, s.day_of_week, s.activity_type, s.prescription, s.notes,
+			        s.order_index, s.progression, s.base_week, s.created_at, s.updated_at
+			 FROM activity_series s
+			 JOIN phases ph ON ph.id = s.phase_id
+			 JOIN programs p ON p.id = ph.program_id
+			 WHERE p.user_id = $1 ORDER BY ph.program_id, ph.order_index, s.day_of_week`},
 	}
 
 	for _, sec := range sections {
@@ -135,6 +144,7 @@ func (s *ExportService) Export(ctx context.Context, userID string) (*ExportPaylo
 		ChatFacts:               *sections[9].dest,
 		NotificationPreferences: *sections[10].dest,
 		UsageTracking:           *sections[11].dest,
+		ActivitySeries:          *sections[12].dest,
 	}, nil
 }
 

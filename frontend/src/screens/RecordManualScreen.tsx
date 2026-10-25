@@ -51,15 +51,6 @@ import type { HRReading, HRZone } from '../types/gps';
 // HELPERS
 // ─────────────────────────────────────────────
 
-function parseDurationToSeconds(duration: string | undefined): number {
-  if (!duration) return 60;
-  const match = String(duration).match(/(\d+)\s*(min|sec|s|m)?/i);
-  if (!match) return 60;
-  const val = parseInt(match[1], 10);
-  const unit = (match[2] || 'm').toLowerCase();
-  return unit.startsWith('s') ? val : val * 60;
-}
-
 function inferWorkoutType(type: string): WorkoutType {
   const t = type.toLowerCase();
   if (t.includes('strength') || t.includes('weight')) return 'strength';
@@ -901,16 +892,16 @@ export default function RecordManualScreen() {
           name: ex.name || '',
           targetSets: ex.sets,
           targetReps: ex.reps ? String(ex.reps) : undefined,
-          targetWeight: ex.weight ? String(ex.weight) : undefined,
+          targetWeight: ex.weight_kg ? String(ex.weight_kg) : undefined,
           targetRpe: ex.rpe ? String(ex.rpe) : undefined,
-          restSeconds: ex.rest_seconds ?? 90,
+          restSeconds: ex.rest_sec ?? 90,
           sets: Array.from({ length: ex.sets || 1 }, () => ({ reps: '', weight: '', rpe: '', completed: false })),
         }))
       : BLANK_STRENGTH;
 
     const mobility: MobilityExerciseLog[] = type === 'mobility' && (prescription.exercises ?? []).length > 0
       ? prescription.exercises.map((ex: any) => {
-          const secs = parseDurationToSeconds(ex.duration);
+          const secs: number = ex.duration_sec || 60;
           return { name: ex.name || '', targetDurationSeconds: secs, remainingSeconds: secs, timerActive: false, completed: false };
         })
       : BLANK_MOBILITY;
