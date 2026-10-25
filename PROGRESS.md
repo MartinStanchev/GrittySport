@@ -125,6 +125,7 @@ Full details for each change are in the `progress/` folder.
 | [testflight-review-account](progress/testflight-review-account.md) | Static-OTP review account for App Store / TestFlight review: `REVIEW_ACCOUNT_EMAIL`/`REVIEW_ACCOUNT_OTP` env vars, fixed 6-digit code never emailed, `VerifyOTP` path unchanged; + repaired rotted `TestDeleteAccount` and `user_consents` test-isolation leak |
 | [workout-timer-laps-speed-analytics](progress/workout-timer-laps-speed-analytics.md) | Single pause-aware timer (`utils/workoutDuration.ts`) across live/banner/summary/saved/history + laps & km splits exclude pauses (`paused_before_sec`); auto 1 km laps removed (manual laps + closed final lap only); 15 s time-window live speed/pace; History analytics (`WorkoutAnalyticsSection`) on post-finish summary |
 | [reliable-forget-memory](progress/reliable-forget-memory.md) | `forget_memory` now works by `[id:…]` memory IDs, scrubs forgotten facts from past session summaries (async + daily retry), blocks re-extraction in pre-forget conversations, and memory is reassembled every chat turn |
+| [expo-sdk-58-upgrade](progress/expo-sdk-58-upgrade.md) | Expo SDK 54 → 58 (RN 0.88, TS 6): deps aligned + HealthKit 16 / Health Connect 4, splash → plugin, app.json cleanup (dead `backgroundModes`, dup permissions, SDK pins), R8 kept off, file import via `File` API with raw bytes, React Compiler lint rules warn-only for 23 legacy files |
 
 ## Instructions for Agents
 
