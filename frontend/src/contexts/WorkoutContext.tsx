@@ -1,8 +1,11 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { GPSPoint, HRReading, CadenceReading, Lap } from '../types/gps';
 import { bleService } from '../services/bleService';
 import { usePauseNotification } from '../hooks/usePauseNotification';
+import { useWorkoutLiveActivity } from '../hooks/useWorkoutLiveActivity';
+import { usePreferences } from './PreferencesContext';
+import { buildWorkoutActivityProps } from '../utils/liveActivityProps';
 
 // ---- Manual workout types (unchanged) ----
 
@@ -168,6 +171,14 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   // Lives at the provider so the "workout paused" notification survives navigating away
   // from the recording screen — its whole point is alerting a user who isn't looking at it.
   usePauseNotification(activeGPSWorkout?.recordingState ?? 'idle', activeGPSWorkout?.autoPaused ?? false);
+
+  // iOS Live Activity (lock screen + Dynamic Island) for whichever workout is recording.
+  const { liveActivityMetric } = usePreferences();
+  const liveActivityProps = useMemo(
+    () => buildWorkoutActivityProps(activeWorkout, activeGPSWorkout, liveActivityMetric),
+    [activeWorkout, activeGPSWorkout, liveActivityMetric],
+  );
+  useWorkoutLiveActivity(liveActivityProps);
 
   // Manual
   const startWorkout = useCallback((workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => {

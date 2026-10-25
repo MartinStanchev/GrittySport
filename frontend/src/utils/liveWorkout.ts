@@ -28,12 +28,12 @@ export function formatLiveWorkoutType(activityType: string): string {
     .trim();
 }
 
-export function getRecordingStatusLabel(recordingState: GPSRecordingState): string {
+export function getRecordingStatusLabel(recordingState: GPSRecordingState, autoPaused: boolean): string {
   switch (recordingState) {
     case 'recording':
       return 'Recording';
     case 'paused':
-      return 'Auto-paused';
+      return autoPaused ? 'Auto-paused' : 'Paused';
     case 'stopped':
       return 'Finished';
     default:

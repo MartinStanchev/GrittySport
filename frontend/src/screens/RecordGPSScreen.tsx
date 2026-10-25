@@ -434,7 +434,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
   const lastPoint = workout && workout.points.length > 0 ? workout.points[workout.points.length - 1] : null;
   const currentPosition = lastPoint ? { latitude: lastPoint.lat, longitude: lastPoint.lng } : previewPosition;
   const activityLabel = workout?.activityDisplayType ?? formatLiveWorkoutType(activityType || 'run');
-  const statusLabel = getRecordingStatusLabel(recordingState);
+  const statusLabel = getRecordingStatusLabel(recordingState, workout?.autoPaused ?? false);
   const gpsQuality = recordingState === 'idle'
     ? { label: 'Ready', tone: 'fair' as const }
     : getGPSQualityState(lastPoint?.accuracy, Boolean(lastPoint));
@@ -689,7 +689,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
           <View style={[styles.pauseChip, { top: insets.top + 82, backgroundColor: `${colors.tertiary}22` }]}>
             <Ionicons name="pause-circle" size={15} color={colors.tertiary} />
             <Text style={[styles.pauseChipText, { color: colors.textPrimary }]}>
-              {workout.autoPaused ? 'Auto-paused' : 'Paused'}
+              {statusLabel}
             </Text>
           </View>
         )}

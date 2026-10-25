@@ -27,6 +27,18 @@ export function activeElapsedSec(w: PauseTracking, nowMs: number): number {
   return Math.max(0, (nowMs - w.startedAt.getTime()) / 1000 - totalPausedSec(w, nowMs));
 }
 
+/**
+ * Anchors for a clock drawn outside JS (the iOS Live Activity): counting up from
+ * `timerStartMs` (start shifted by closed pauses) gives active time, and `pausedAtMs`
+ * (the open pause, if any) is where it freezes. Equivalent to `activeElapsedSec`.
+ */
+export function liveClockAnchor(w: PauseTracking): { timerStartMs: number; pausedAtMs: number | null } {
+  return {
+    timerStartMs: Math.round(w.startedAt.getTime() + w.pausedDurationSec * 1000),
+    pausedAtMs: w.lastPauseStart,
+  };
+}
+
 /** Folds an open pause into the total — apply on resume and on finish. */
 export function closePause(
   w: PauseTracking,

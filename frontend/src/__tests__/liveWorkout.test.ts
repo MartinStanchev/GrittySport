@@ -14,9 +14,10 @@ describe('liveWorkout helpers', () => {
   });
 
   test('maps recording states to human-friendly labels', () => {
-    expect(getRecordingStatusLabel('idle')).toBe('Ready');
-    expect(getRecordingStatusLabel('recording')).toBe('Recording');
-    expect(getRecordingStatusLabel('paused')).toBe('Auto-paused');
+    expect(getRecordingStatusLabel('idle', false)).toBe('Ready');
+    expect(getRecordingStatusLabel('recording', false)).toBe('Recording');
+    expect(getRecordingStatusLabel('paused', true)).toBe('Auto-paused');
+    expect(getRecordingStatusLabel('paused', false)).toBe('Paused');
   });
 
   test('classifies GPS signal quality from the latest accuracy', () => {

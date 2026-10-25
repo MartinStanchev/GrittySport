@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
-import { usePreferences } from '../contexts/PreferencesContext';
+import { LIVE_ACTIVITY_METRICS, usePreferences } from '../contexts/PreferencesContext';
 import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
 import { bleService } from '../services/bleService';
@@ -58,10 +58,41 @@ function externalImportStatusLabel(status: ExternalImportStatus, enabled: boolea
 
 const DEFAULT_EFFORT_GOAL = 300;
 
+const UNIT_OPTIONS: { id: 'metric' | 'imperial'; label: string }[] = [
+  { id: 'metric', label: 'Metric' },
+  { id: 'imperial', label: 'Imperial' },
+];
+
+function SegmentedToggle<T extends string>({ options, value, onChange }: {
+  options: { id: T; label: string }[];
+  value: T;
+  onChange: (id: T) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.toggleRow}>
+      {options.map(({ id, label }) => {
+        const selected = value === id;
+        return (
+          <TouchableOpacity
+            key={id}
+            style={[styles.toggleButton, { borderColor: colors.border }, selected && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => onChange(id)}
+          >
+            <Text style={[styles.toggleText, { color: colors.textPrimary }, selected && { color: colors.surface }]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const { user, signOut, deleteAccount, updateUser } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { autoPauseEnabled, setAutoPauseEnabled } = usePreferences();
+  const { autoPauseEnabled, setAutoPauseEnabled, liveActivityMetric, setLiveActivityMetric } = usePreferences();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<SettingsStackParamList>>();
 
@@ -243,24 +274,7 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Preferences</Text>
         <KineticPanel style={styles.section}>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Units</Text>
-          <View style={styles.toggleRow}>
-            <TouchableOpacity
-              style={[styles.toggleButton, { borderColor: colors.border }, units === 'metric' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-              onPress={() => setUnits('metric')}
-            >
-              <Text style={[styles.toggleText, { color: colors.textPrimary }, units === 'metric' && { color: colors.surface }]}>
-                Metric
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.toggleButton, { borderColor: colors.border }, units === 'imperial' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-              onPress={() => setUnits('imperial')}
-            >
-              <Text style={[styles.toggleText, { color: colors.textPrimary }, units === 'imperial' && { color: colors.surface }]}>
-                Imperial
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <SegmentedToggle options={UNIT_OPTIONS} value={units} onChange={setUnits} />
 
           <Text style={[styles.label, { color: colors.textSecondary }]}>Timezone</Text>
           <TextInput
@@ -474,6 +488,15 @@ export default function SettingsScreen() {
               ]} />
             </TouchableOpacity>
           </View>
+          {Platform.OS === 'ios' && (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Dynamic Island</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>
+                Shown next to the workout clock on the lock screen and Dynamic Island while recording. Pace shows as speed for rides; if the metric isn&apos;t available (e.g. no HR strap), the next one is shown
+              </Text>
+              <SegmentedToggle options={LIVE_ACTIVITY_METRICS} value={liveActivityMetric} onChange={setLiveActivityMetric} />
+            </>
+          )}
         </KineticPanel>
 
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>

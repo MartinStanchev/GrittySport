@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import type { ImageProps } from '@expo/ui/swift-ui';
 
 // Canonical activity types — snake_case, used by both frontend and backend.
 // Run/cycle/swim sub-flavors (easy/long/tempo/interval/trail) are encoded in
@@ -44,6 +45,33 @@ export const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   indoor_activity: 'home-outline',
   event: 'trophy-outline',
 };
+
+export type SFSymbolName = NonNullable<ImageProps['systemName']>;
+
+// SF Symbols for native iOS surfaces (the workout Live Activity).
+export const ACTIVITY_SF_SYMBOLS: Record<ActivityType, SFSymbolName> = {
+  run: 'figure.run',
+  walk: 'figure.walk',
+  cycling: 'figure.outdoor.cycle',
+  swim: 'figure.pool.swim',
+  open_water_swim: 'figure.open.water.swim',
+  indoor_run: 'figure.run',
+  indoor_cycling: 'figure.indoor.cycle',
+  strength_training: 'dumbbell.fill',
+  mobility: 'figure.flexibility',
+  yoga: 'figure.yoga',
+  recovery: 'figure.cooldown',
+  rest: 'bed.double.fill',
+  drill: 'flag.fill',
+  cross_training: 'figure.cross.training',
+  outdoor_activity: 'sun.max.fill',
+  indoor_activity: 'house.fill',
+  event: 'trophy.fill',
+};
+
+export function getActivitySFSymbol(type: string): SFSymbolName {
+  return ACTIVITY_SF_SYMBOLS[type as ActivityType] ?? 'figure.mixed.cardio';
+}
 
 // Gold accent used to mark the program's goal event and trophy-room items.
 export const EVENT_COLOR = '#E8B53C';
