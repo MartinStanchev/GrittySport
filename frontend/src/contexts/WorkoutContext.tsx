@@ -6,10 +6,13 @@ import { usePauseNotification } from '../hooks/usePauseNotification';
 import { useWorkoutLiveActivity } from '../hooks/useWorkoutLiveActivity';
 import { usePreferences } from './PreferencesContext';
 import { buildWorkoutActivityProps } from '../utils/liveActivityProps';
+import type { IndoorLap } from '../utils/indoorWorkout';
+import type { RecordScreen } from '../constants/activityIcons';
 
-// ---- Manual workout types (unchanged) ----
+// ---- Manual workout types ----
 
-export type WorkoutType = 'strength' | 'mobility' | 'drill';
+// 'cardio' is an indoor run / ride (see RecordIndoorScreen): timer, HR, laps, calories.
+export type WorkoutType = 'strength' | 'mobility' | 'drill' | 'cardio';
 
 export interface SetLog {
   reps: string;
@@ -50,6 +53,8 @@ export interface ActiveWorkout {
   drillDescription: string;
   drillNotes: string;
   workoutNotes: string;
+  // Laps the user pressed Lap for (cardio only) — the remainder is closed into a final lap on finish
+  laps: IndoorLap[];
   // HR sensor (optional throughout the workout)
   hrReadings: HRReading[];
   currentHR: number | null;
@@ -62,9 +67,17 @@ export interface ActiveWorkout {
 }
 
 type ManualWorkoutInitFields =
-  | 'phase' | 'workoutNotes' | 'finishedAt'
+  | 'phase' | 'workoutNotes' | 'finishedAt' | 'laps'
   | 'hrReadings' | 'currentHR' | 'avgHR' | 'hrDeviceName'
   | 'pausedDurationSec' | 'lastPauseStart';
+
+// Per-type logger state; a workout only passes the fields its type uses.
+type LoggerFields =
+  | 'strengthExercises' | 'mobilityExercises'
+  | 'drillName' | 'drillDescription' | 'drillNotes';
+
+export type StartWorkoutOpts =
+  Omit<ActiveWorkout, ManualWorkoutInitFields | LoggerFields> & Partial<Pick<ActiveWorkout, LoggerFields>>;
 
 // ---- GPS workout types ----
 
@@ -138,7 +151,7 @@ export type StartGPSWorkoutOpts = Omit<ActiveGPSWorkout, GPSWorkoutInitFields>;
 interface WorkoutContextType {
   // Manual
   activeWorkout: ActiveWorkout | null;
-  startWorkout: (workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => void;
+  startWorkout: (workout: StartWorkoutOpts) => void;
   updateWorkout: (updates: Partial<ActiveWorkout>) => void;
   clearWorkout: () => void;
   // GPS
@@ -148,6 +161,8 @@ interface WorkoutContextType {
   clearGPSWorkout: () => void;
   // Derived
   workoutMode: WorkoutMode | null;
+  /** The screen recording the active session, or null when nothing is active. */
+  activeRecordScreen: RecordScreen | null;
 }
 
 // Name of the HR monitor connected before the workout started, if any (e.g. an
@@ -181,13 +196,19 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
   useWorkoutLiveActivity(liveActivityProps);
 
   // Manual
-  const startWorkout = useCallback((workout: Omit<ActiveWorkout, ManualWorkoutInitFields>) => {
+  const startWorkout = useCallback((workout: StartWorkoutOpts) => {
     if (activeGPSWorkoutRef.current !== null) return; // GPS session in progress
     setActiveWorkout({
+      strengthExercises: [],
+      mobilityExercises: [],
+      drillName: '',
+      drillDescription: '',
+      drillNotes: '',
       ...workout,
       phase: 'recording',
       workoutNotes: '',
       finishedAt: undefined,
+      laps: [],
       hrReadings: [],
       currentHR: null,
       avgHR: null,
@@ -249,13 +270,16 @@ export function WorkoutProvider({ children }: { children: ReactNode }) {
 
   const workoutMode: WorkoutMode | null =
     activeWorkout !== null ? 'manual' : activeGPSWorkout !== null ? 'gps' : null;
+  let activeRecordScreen: RecordScreen | null = null;
+  if (activeGPSWorkout) activeRecordScreen = 'RecordGPS';
+  else if (activeWorkout) activeRecordScreen = activeWorkout.workoutType === 'cardio' ? 'RecordIndoor' : 'RecordManual';
 
   return (
     <WorkoutContext.Provider
       value={{
         activeWorkout, startWorkout, updateWorkout, clearWorkout,
         activeGPSWorkout, startGPSWorkout, updateGPSWorkout, clearGPSWorkout,
-        workoutMode,
+        workoutMode, activeRecordScreen,
       }}
     >
       {children}

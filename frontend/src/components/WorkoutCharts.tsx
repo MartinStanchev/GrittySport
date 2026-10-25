@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Svg, { Rect, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { LineChart } from 'react-native-gifted-charts';
@@ -46,7 +46,8 @@ interface HROverTimeChartProps {
   maxHR: number;
 }
 
-export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
+// Memoized: it's also drawn live on recording screens that re-render every second.
+export const HROverTimeChart = memo(function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
   const { width: screenWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const plotWidth = screenWidth - 32 - HR_LABEL_WIDTH - HR_RIGHT_WIDTH;
@@ -243,7 +244,7 @@ export function HROverTimeChart({ readings, maxHR }: HROverTimeChartProps) {
       </View>
     </View>
   );
-}
+});
 
 // --- Pace Over Time Chart ---
 

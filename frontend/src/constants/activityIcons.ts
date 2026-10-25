@@ -148,13 +148,35 @@ export const IMPORT_ACTIVITY_TYPES: { type: string; label: string }[] = [
 const GPS_ROOTS = ['run', 'walk', 'swim', 'cycling', 'open_water_swim', 'outdoor_activity'];
 const MANUAL_ROOTS = ['strength_training', 'mobility', 'drill', 'yoga', 'recovery', 'indoor_run', 'indoor_cycling', 'indoor_activity'];
 
+const INDOOR_CARDIO_TYPES = ['indoor_run', 'indoor_cycling'];
+
+function normalizeType(type: string): string {
+  return type.toLowerCase().replace(/\s+/g, '_');
+}
+
 export function isGPSActivity(type: string): boolean {
-  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  const normalized = normalizeType(type);
+  // "indoor_run" / "indoor_cycling" contain GPS roots but are recorded without GPS.
+  if (normalized.startsWith('indoor')) return false;
   return GPS_ROOTS.some((t) => normalized.includes(t));
 }
 
+/** Treadmill / stationary-bike sessions: timed cardio with HR, laps and calories. */
+export function isIndoorCardioActivity(type: string): boolean {
+  return INDOOR_CARDIO_TYPES.includes(normalizeType(type));
+}
+
+export type RecordScreen = 'RecordGPS' | 'RecordIndoor' | 'RecordManual';
+
+/** The live-recording screen for an activity type. */
+export function getRecordScreen(type: string): RecordScreen {
+  if (isIndoorCardioActivity(type)) return 'RecordIndoor';
+  if (isGPSActivity(type)) return 'RecordGPS';
+  return 'RecordManual';
+}
+
 export function isManualActivity(type: string): boolean {
-  const normalized = type.toLowerCase().replace(/\s+/g, '_');
+  const normalized = normalizeType(type);
   return MANUAL_ROOTS.some((t) => normalized.includes(t));
 }
 

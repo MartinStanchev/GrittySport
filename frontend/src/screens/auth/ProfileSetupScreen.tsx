@@ -13,7 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ageBasedMaxHR, inchesToCm, lbsToKg } from '../../utils/units';
+import { ageBasedMaxHR, ageFromBirthYear, inchesToCm, lbsToKg } from '../../utils/units';
 
 export default function ProfileSetupScreen() {
   const { updateUser, user } = useAuth();
@@ -27,8 +27,8 @@ export default function ProfileSetupScreen() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Birth year is captured at the consent step; here we only use it to estimate max HR.
-  const ageFromBirthYear = user?.birth_year ? new Date().getFullYear() - user.birth_year : null;
-  const estimatedMaxHR = ageFromBirthYear !== null ? ageBasedMaxHR(ageFromBirthYear) : null;
+  const age = ageFromBirthYear(user?.birth_year);
+  const estimatedMaxHR = age !== null ? ageBasedMaxHR(age) : null;
 
   async function handleContinue() {
     const parsedHeight = parseFloat(height);

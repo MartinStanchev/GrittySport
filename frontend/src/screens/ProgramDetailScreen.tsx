@@ -24,6 +24,7 @@ import {
   dominantActivity,
   formatActivityType,
   isManualActivity,
+  getRecordScreen,
   dayAbbrev,
   WEEK_DAYS_MON_SUN,
 } from '../constants/activityIcons';
@@ -377,7 +378,7 @@ export default function ProgramDetailScreen({ route, navigation }: any) {
                 highlightDayIdx={highlightDayIdx}
                 onActivityPress={(a) => navigation.navigate('ActivityDetail', { activityId: a.id })}
                 onRecordActivity={(a) =>
-                  navigation.navigate('RecordManual', {
+                  navigation.navigate(getRecordScreen(a.activity_type), {
                     scheduledActivityId: a.id,
                     activityType: a.activity_type,
                   })

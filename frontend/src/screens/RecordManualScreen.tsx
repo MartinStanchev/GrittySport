@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -24,7 +23,7 @@ import { formatTime } from '../constants/workoutUtils';
 import { activeElapsedSec, closePause } from '../utils/workoutDuration';
 import { getActivity } from '../services/api';
 import { saveWorkoutWithFallback } from '../services/syncService';
-import { formatActivityType, isGPSActivity } from '../constants/activityIcons';
+import { formatActivityType, getRecordScreen, type RecordScreen } from '../constants/activityIcons';
 import {
   useWorkout,
   type WorkoutType,
@@ -33,19 +32,17 @@ import {
 } from '../contexts/WorkoutContext';
 import { useProgram } from '../contexts/ProgramContext';
 import HRSensorModal from '../components/HRSensorModal';
-import LiveHRChart from '../components/LiveHRChart';
+import { HROverTimeChart } from '../components/WorkoutCharts';
 import { useHRAutoConnect } from '../hooks/useHRAutoConnect';
+import { useWorkoutHRLog } from '../hooks/useWorkoutHRLog';
 import { bleService } from '../services/bleService';
-import {
-  getHRZoneColor,
-  HR_ZONE_COLORS,
-  computeHRZoneDistribution,
-} from '../services/gpsUtils';
+import { getHRZoneColor, summarizeHR } from '../services/gpsUtils';
+import { HRZoneBar } from '../components/WorkoutSummaryParts';
 import {
   useSetDetection,
   type SetHighlight,
 } from '../utils/setDetection';
-import type { HRReading, HRZone } from '../types/gps';
+import type { HRReading } from '../types/gps';
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -70,8 +67,6 @@ const DISPLAY_TYPE_LABELS: Record<string, string> = {
   strength_training: 'Strength Training',
   mobility: 'Mobility / Recovery',
   drill: 'Sport-Specific Drill',
-  indoor_run: 'Indoor Run',
-  indoor_cycling: 'Indoor Cycling',
   swim: 'Pool Swim',
 };
 
@@ -84,31 +79,30 @@ interface TypeOption {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   desc: string;
+  screen: RecordScreen;
 }
 
 const GPS_OPTIONS: TypeOption[] = [
-  { activityType: 'run', icon: 'walk-outline', label: 'Run', desc: 'Outdoor run with GPS tracking' },
-  { activityType: 'walk', icon: 'walk-outline', label: 'Walk', desc: 'Walk or hike with GPS tracking' },
-  { activityType: 'cycling', icon: 'bicycle-outline', label: 'Cycling', desc: 'Outdoor cycling with GPS tracking' },
-  { activityType: 'open_water_swim', icon: 'water-outline', label: 'Open Water Swim', desc: 'Lake, sea, or river swim with GPS' },
+  { activityType: 'run', icon: 'walk-outline', label: 'Run', desc: 'Outdoor run with GPS tracking', screen: 'RecordGPS' },
+  { activityType: 'walk', icon: 'walk-outline', label: 'Walk', desc: 'Walk or hike with GPS tracking', screen: 'RecordGPS' },
+  { activityType: 'cycling', icon: 'bicycle-outline', label: 'Cycling', desc: 'Outdoor cycling with GPS tracking', screen: 'RecordGPS' },
+  { activityType: 'open_water_swim', icon: 'water-outline', label: 'Open Water Swim', desc: 'Lake, sea, or river swim with GPS', screen: 'RecordGPS' },
 ];
 
 const INDOOR_OPTIONS: TypeOption[] = [
-  { activityType: 'indoor_run', icon: 'walk-outline', label: 'Indoor Run', desc: 'Treadmill or indoor track' },
-  { activityType: 'indoor_cycling', icon: 'bicycle-outline', label: 'Indoor Cycling', desc: 'Stationary bike or spin class' },
-  { activityType: 'swim', icon: 'water-outline', label: 'Swim', desc: 'Pool swimming session' },
-  { activityType: 'strength_training', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight' },
-  { activityType: 'mobility', icon: 'body-outline', label: 'Mobility', desc: 'Timed exercises with countdowns' },
-  { activityType: 'drill', icon: 'flag-outline', label: 'Drill', desc: 'Drill session with notes' },
+  { activityType: 'indoor_run', icon: 'walk-outline', label: 'Indoor Run', desc: 'Treadmill or indoor track', screen: 'RecordIndoor' },
+  { activityType: 'indoor_cycling', icon: 'bicycle-outline', label: 'Indoor Cycling', desc: 'Stationary bike or spin class', screen: 'RecordIndoor' },
+  { activityType: 'swim', icon: 'water-outline', label: 'Swim', desc: 'Pool swimming session', screen: 'RecordManual' },
+  { activityType: 'strength_training', icon: 'barbell-outline', label: 'Strength', desc: 'Log sets, reps, and weight', screen: 'RecordManual' },
+  { activityType: 'mobility', icon: 'body-outline', label: 'Mobility', desc: 'Timed exercises with countdowns', screen: 'RecordManual' },
+  { activityType: 'drill', icon: 'flag-outline', label: 'Drill', desc: 'Drill session with notes', screen: 'RecordManual' },
 ];
 
 function TypeSelector({
-  onSelectManual,
-  onSelectGPS,
+  onSelect,
   colors,
 }: {
-  onSelectManual: (activityType: string) => void;
-  onSelectGPS: (activityType: string) => void;
+  onSelect: (option: TypeOption) => void;
   colors: ThemeColors;
 }) {
   return (
@@ -118,7 +112,7 @@ function TypeSelector({
         <Pressable
           key={opt.activityType}
           style={[styles.typeOption, { backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
-          onPress={() => onSelectGPS(opt.activityType)}
+          onPress={() => onSelect(opt)}
         >
           <View style={[styles.typeIconCircle, { backgroundColor: colors.primary + '14' }]}>
             <Ionicons name={opt.icon} size={24} color={colors.primary} />
@@ -141,7 +135,7 @@ function TypeSelector({
         <Pressable
           key={opt.activityType}
           style={[styles.typeOption, { backgroundColor: colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}
-          onPress={() => onSelectManual(opt.activityType)}
+          onPress={() => onSelect(opt)}
         >
           <View style={[styles.typeIconCircle, { backgroundColor: colors.primaryLight }]}>
             <Ionicons name={opt.icon} size={24} color={colors.primary} />
@@ -539,10 +533,7 @@ function HRStatsRow({
   colors: ThemeColors;
 }) {
   if (hrReadings.length === 0) return null;
-  const avg = Math.round(hrReadings.reduce((s, r) => s + r.bpm, 0) / hrReadings.length);
-  const max = hrReadings.reduce((m, r) => Math.max(m, r.bpm), 0);
-  const dist = computeHRZoneDistribution(hrReadings, maxHR);
-  const totalSec = (Object.values(dist) as number[]).reduce((s, v) => s + v, 0);
+  const { avg_hr: avg, max_hr: max } = summarizeHR(hrReadings);
   return (
     <View style={[styles.hrStatsCard, { backgroundColor: colors.surface, borderTopColor: colors.border, borderBottomColor: colors.border }]}>
       <View style={styles.hrStatsHeader}>
@@ -555,28 +546,7 @@ function HRStatsRow({
           <Text style={[styles.hrStatValue, { color: colors.textPrimary }]}>{max}<Text style={[styles.hrStatUnit, { color: colors.textSecondary }]}> bpm</Text></Text>
         </View>
       </View>
-      {totalSec > 0 && (
-        <>
-          <View style={styles.hrZoneBar}>
-            {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => {
-              const pct = dist[zone] / totalSec;
-              return pct > 0 ? (
-                <View key={zone} style={{ flex: pct, height: 12, backgroundColor: HR_ZONE_COLORS[zone] }} />
-              ) : null;
-            })}
-          </View>
-          <View style={styles.hrZoneLegend}>
-            {([1, 2, 3, 4, 5] as HRZone[]).map((zone) => (
-              <View key={zone} style={styles.hrZoneLegendItem}>
-                <View style={[styles.hrZoneDot, { backgroundColor: HR_ZONE_COLORS[zone] }]} />
-                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                  Z{zone} {Math.round((dist[zone] / totalSec) * 100)}%
-                </Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
+      <HRZoneBar readings={hrReadings} maxHR={maxHR} />
     </View>
   );
 }
@@ -742,7 +712,7 @@ export default function RecordManualScreen() {
   const maxHR = user?.max_heart_rate ?? 185;
   const { scheduledActivityId, activityType: paramActivityType } = route.params ?? {};
 
-  const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode } = useWorkout();
+  const { activeWorkout, startWorkout, updateWorkout, clearWorkout, workoutMode, activeRecordScreen } = useWorkout();
   const { notifyProgramDataChanged } = useProgram();
 
   const [isLoadingActivity, setIsLoadingActivity] = useState(false);
@@ -751,24 +721,7 @@ export default function RecordManualScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [hrModalVisible, setHRModalVisible] = useState(false);
   const [hrPanelExpanded, setHRPanelExpanded] = useState(false);
-  const hrReadingsRef = useRef<HRReading[]>([]);
-  const hrSumRef = useRef(0);
-
-  // Keep ref aligned with context state on workout start (handles cross-screen resume).
-  useEffect(() => {
-    const readings = activeWorkout?.hrReadings ?? [];
-    hrReadingsRef.current = readings;
-    hrSumRef.current = readings.reduce((s, r) => s + r.bpm, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeWorkout?.startedAt]);
-
-  const handleHRReading = useCallback((bpm: number) => {
-    const now = Date.now();
-    hrReadingsRef.current = [...hrReadingsRef.current, { bpm, timestamp: now }];
-    hrSumRef.current += bpm;
-    const avg = Math.round(hrSumRef.current / hrReadingsRef.current.length);
-    updateWorkout({ hrReadings: hrReadingsRef.current, currentHR: bpm, avgHR: avg });
-  }, [updateWorkout]);
+  const handleHRReading = useWorkoutHRLog(activeWorkout, updateWorkout);
 
   const handleHRConnected = useCallback((deviceName: string) => {
     updateWorkout({ hrDeviceName: deviceName });
@@ -838,13 +791,20 @@ export default function RecordManualScreen() {
       return;
     }
 
+    // A session recorded on another screen (e.g. an indoor run) is resumed there.
+    if (activeRecordScreen && activeRecordScreen !== 'RecordManual') {
+      navigation.replace(activeRecordScreen);
+      return;
+    }
+
     if (activeWorkout) return; // resume existing
 
     if (!scheduledActivityId && !paramActivityType) return; // type-select will handle it
 
-    // If the param type is a GPS activity, redirect to RecordGPS
-    if (paramActivityType && isGPSActivity(paramActivityType)) {
-      navigation.replace('RecordGPS', { activityType: paramActivityType });
+    // Types recorded elsewhere (GPS, indoor cardio) go to their own screen.
+    const target = paramActivityType ? getRecordScreen(paramActivityType) : 'RecordManual';
+    if (target !== 'RecordManual') {
+      navigation.replace(target, { scheduledActivityId, activityType: paramActivityType });
       return;
     }
 
@@ -913,7 +873,11 @@ export default function RecordManualScreen() {
     return [strength, mobility, drill];
   }
 
-  function handleManualTypeSelect(activityType: string) {
+  function handleTypeSelect({ activityType, screen }: TypeOption) {
+    if (screen !== 'RecordManual') {
+      navigation.navigate(screen, { activityType });
+      return;
+    }
     const type = inferWorkoutType(activityType);
     startWorkout({
       workoutType: type,
@@ -930,13 +894,7 @@ export default function RecordManualScreen() {
 
   function buildRecordedData(): Record<string, any> {
     if (!activeWorkout) return {};
-    const hr = activeWorkout.hrReadings;
-    const hrSummary: Record<string, number> = hr.length > 0
-      ? {
-          avg_hr: Math.round(hr.reduce((s, r) => s + r.bpm, 0) / hr.length),
-          max_hr: hr.reduce((m, r) => Math.max(m, r.bpm), 0),
-        }
-      : {};
+    const hrSummary = summarizeHR(activeWorkout.hrReadings);
     if (activeWorkout.workoutType === 'strength') {
       return {
         ...hrSummary,
@@ -1097,13 +1055,11 @@ export default function RecordManualScreen() {
       {/* Inline live HR chart — only when expanded */}
       {phase === 'recording' && hrPanelExpanded && activeWorkout && activeWorkout.currentHR != null && (
         <View style={[styles.hrPanel, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <LiveHRChart
-            hrReadings={activeWorkout.hrReadings}
-            maxHR={maxHR}
-            startedAt={activeWorkout.startedAt}
-            width={Dimensions.get('window').width}
-            height={150}
-          />
+          {activeWorkout.hrReadings.length >= 2 ? (
+            <HROverTimeChart readings={activeWorkout.hrReadings} maxHR={maxHR} />
+          ) : (
+            <Text style={[styles.hrPanelEmpty, { color: colors.textSecondary }]}>Collecting heart rate…</Text>
+          )}
           <Pressable onPress={() => setHRModalVisible(true)} style={styles.hrPanelLink}>
             <Text style={{ color: colors.primary, fontFamily: Fonts.bodySemiBold, fontSize: 12 }}>
               {bleService.isConnected() ? 'Change device / Disconnect' : 'Connect device'}
@@ -1121,11 +1077,7 @@ export default function RecordManualScreen() {
         )}
 
         {phase === 'type-select' && (
-          <TypeSelector
-            onSelectManual={handleManualTypeSelect}
-            onSelectGPS={(activityType) => navigation.navigate('RecordGPS', { activityType })}
-            colors={colors}
-          />
+          <TypeSelector onSelect={handleTypeSelect} colors={colors} />
         )}
 
         {phase === 'recording' && activeWorkout?.workoutType === 'strength' && (
@@ -1227,12 +1179,13 @@ const styles = StyleSheet.create({
   hrPillValue: { fontSize: 15, fontFamily: Fonts.headingMedium, fontVariant: ['tabular-nums'] },
   hrPillUnit: { fontSize: 11, fontFamily: Fonts.bodySemiBold },
   hrPanel: {
-    paddingVertical: 10,
-    paddingHorizontal: 0,
+    paddingTop: 12,
+    paddingBottom: 4,
+    paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
   },
-  hrPanelLink: { paddingVertical: 6, paddingHorizontal: 12, marginTop: 4 },
+  hrPanelEmpty: { fontSize: 13, fontFamily: Fonts.body, textAlign: 'center', paddingVertical: 24 },
+  hrPanelLink: { alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12 },
   hrStatsCard: {
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -1245,10 +1198,6 @@ const styles = StyleSheet.create({
   hrStatLabel: { fontSize: 11, fontFamily: Fonts.bodySemiBold, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   hrStatValue: { fontSize: 22, fontFamily: Fonts.heading, fontVariant: ['tabular-nums'] },
   hrStatUnit: { fontSize: 12, fontFamily: Fonts.body },
-  hrZoneBar: { flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', marginBottom: 8 },
-  hrZoneLegend: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  hrZoneLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  hrZoneDot: { width: 8, height: 8, borderRadius: 4 },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 40 },
   activityBanner: {

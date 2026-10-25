@@ -12,7 +12,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
 import { useAuth } from '../contexts/AuthContext';
-import { ageBasedMaxHR, cmToInches, inchesToCm, kgToLbs, lbsToKg } from '../utils/units';
+import { ageBasedMaxHR, ageFromBirthYear, cmToInches, inchesToCm, kgToLbs, lbsToKg } from '../utils/units';
 import { KineticHeader, KineticPanel } from '../components/Kinetic';
 
 function displayHeight(heightCm: number | undefined, isImperial: boolean): string {
@@ -31,7 +31,7 @@ export default function BodyMetricsScreen() {
 
   const isImperial = user?.units_preference === 'imperial';
   const currentYear = new Date().getFullYear();
-  const currentAge = user?.birth_year ? currentYear - user.birth_year : null;
+  const currentAge = ageFromBirthYear(user?.birth_year);
 
   const initialAge = currentAge != null ? `${currentAge}` : '';
   const initialHeight = displayHeight(user?.height_cm, isImperial);

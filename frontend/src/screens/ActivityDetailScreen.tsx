@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
-import { ACTIVITY_TYPES, getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity } from '../constants/activityIcons';
+import { ACTIVITY_TYPES, getActivityIcon, formatActivityType, formatActivityDate, dayAbbrev, isManualActivity, isGPSActivity, getRecordScreen } from '../constants/activityIcons';
 import { getActivity, updateActivity, createActivity } from '../services/api';
 import type { ActivityDetail, UpdateActivityInput, CreateActivityInput } from '../services/api';
 import { PrescriptionDisplay } from '../components/PrescriptionDisplay';
@@ -362,11 +362,10 @@ export default function ActivityDetailScreen({ route, navigation }: any) {
                 disabled={!activity || (!isManualActivity(activity.activity_type) && !isGPSActivity(activity.activity_type))}
                 onPress={() => {
                   if (!activity) return;
-                  if (isManualActivity(activity.activity_type)) {
-                    navigation.navigate('RecordManual', { scheduledActivityId: activity.id, activityType: activity.activity_type });
-                  } else if (isGPSActivity(activity.activity_type)) {
-                    navigation.navigate('RecordGPS', { scheduledActivityId: activity.id, activityType: activity.activity_type });
-                  }
+                  navigation.navigate(getRecordScreen(activity.activity_type), {
+                    scheduledActivityId: activity.id,
+                    activityType: activity.activity_type,
+                  });
                 }}
               >
                 <Ionicons name="play" size={18} color="#FFF" />

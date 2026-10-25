@@ -48,6 +48,7 @@ function manualWorkout(overrides: Partial<ActiveWorkout> = {}): ActiveWorkout {
     drillDescription: '',
     drillNotes: '',
     workoutNotes: '',
+    laps: [],
     hrReadings: [],
     currentHR: null,
     avgHR: null,

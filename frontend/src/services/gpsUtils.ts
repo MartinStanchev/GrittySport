@@ -1,4 +1,5 @@
 import type { GPSPoint, HRReading, CadenceReading, PowerReading, Lap, GPSRouteData, GPSSummaryData, HRData, HRZone, HRZoneDistribution, KmSplit, EffortScoreData, SplitsAnalysis } from '../types/gps';
+import { ageFromBirthYear } from '../utils/units';
 
 // --- Distance ---
 
@@ -165,7 +166,7 @@ export function closeFinalLap(
  * Whether a workout has laps worth listing. A single lap just spans the whole workout
  * (e.g. a device file with one implicit lap), so it needs at least two.
  */
-export function hasRecordedLaps(laps: Lap[] | undefined | null): laps is Lap[] {
+export function hasRecordedLaps<T>(laps: T[] | undefined | null): laps is T[] {
   return (laps?.length ?? 0) > 1;
 }
 
@@ -204,6 +205,18 @@ export function computeHRZoneDistribution(
     dist[zone] += durSec;
   }
   return dist;
+}
+
+/** Average and peak bpm of a recording, both undefined when there are no readings. */
+export function summarizeHR(readings: HRReading[]): { avg_hr?: number; max_hr?: number } {
+  if (readings.length === 0) return {};
+  let sum = 0;
+  let max = 0;
+  for (const r of readings) {
+    sum += r.bpm;
+    if (r.bpm > max) max = r.bpm;
+  }
+  return { avg_hr: Math.round(sum / readings.length), max_hr: max };
 }
 
 // --- Formatting ---
@@ -267,11 +280,47 @@ export function computeMaxPaceAndSpeed(
 const MET_VALUES: Record<string, number> = {
   run: 10, easy_run: 8, long_run: 9, interval: 12, trail_run: 11,
   cycling: 8, bike: 8, swim: 7, walk: 3.5, hike: 6,
+  indoor_run: 9, indoor_cycling: 7,
 };
 
-/** Estimate calories burned using MET values. Default weight 70kg. */
-export function estimateCalories(activityType: string, durationSec: number, weightKg = 70): number {
+const DEFAULT_WEIGHT_KG = 70;
+const DEFAULT_AGE = 35;
+
+/** The profile fields the calorie estimate uses. */
+export interface CalorieProfile {
+  weightKg?: number;
+  age?: number;
+}
+
+export function calorieProfile(
+  user: { weight_kg?: number; birth_year?: number } | null | undefined,
+  now = new Date(),
+): CalorieProfile {
+  return {
+    weightKg: user?.weight_kg,
+    age: ageFromBirthYear(user?.birth_year, now) ?? undefined,
+  };
+}
+
+/**
+ * Estimated kcal burned. With an average heart rate it uses the Keytel et al. (2005)
+ * HR equation — averaged across its male/female variants since the profile has no sex —
+ * otherwise (or if the HR equation goes non-positive at very low HR) a MET value per sport.
+ */
+export function estimateCalories(params: {
+  activityType: string;
+  durationSec: number;
+  avgHR?: number | null;
+  profile?: CalorieProfile;
+}): number {
+  const { activityType, durationSec, avgHR, profile } = params;
   if (durationSec <= 0) return 0;
+  const weightKg = profile?.weightKg ?? DEFAULT_WEIGHT_KG;
+  if (avgHR && avgHR > 0) {
+    const age = profile?.age ?? DEFAULT_AGE;
+    const kcalPerMin = (-37.7496 + 0.53905 * avgHR + 0.03625 * weightKg + 0.13785 * age) / 4.184;
+    if (kcalPerMin > 0) return Math.round(kcalPerMin * (durationSec / 60));
+  }
   const met = MET_VALUES[activityType.toLowerCase()] ?? 6;
   return Math.round(met * weightKg * (durationSec / 3600));
 }
@@ -519,11 +568,7 @@ export function buildFinalGPSPayload(params: {
   const pace = avgPaceSecPerKm(totalDistanceM, durationSec);
   const speed = avgSpeedKph(totalDistanceM, durationSec);
 
-  const avgHR =
-    hrReadings.length > 0
-      ? Math.round(hrReadings.reduce((s, r) => s + r.bpm, 0) / hrReadings.length)
-      : undefined;
-  const maxHR = hrReadings.length > 0 ? Math.max(...hrReadings.map((r) => r.bpm)) : undefined;
+  const { avg_hr: avgHR, max_hr: maxHR } = summarizeHR(hrReadings);
 
   const avgCad =
     cadenceReadings && cadenceReadings.length > 0

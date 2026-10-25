@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
 import { Ionicons } from '@expo/vector-icons';
-import { isGPSActivity, EVENT_COLOR } from '../constants/activityIcons';
+import { getRecordScreen, EVENT_COLOR } from '../constants/activityIcons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../contexts/ThemeContext';
 import { useChatWebSocket, ChatMessage } from '../hooks/useChatWebSocket';
@@ -624,19 +624,12 @@ export default function HomeScreen() {
           activities={todayActivities}
           completedIds={completedActivityIds}
           program={activeProgram}
-          onStartWorkout={(activity) => {
-            if (isGPSActivity(activity.activity_type)) {
-              navigation.navigate('RecordGPS', {
-                scheduledActivityId: activity.id,
-                activityType: activity.activity_type,
-              });
-            } else {
-              navigation.navigate('RecordManual', {
-                scheduledActivityId: activity.id,
-                activityType: activity.activity_type,
-              });
-            }
-          }}
+          onStartWorkout={(activity) =>
+            navigation.navigate(getRecordScreen(activity.activity_type), {
+              scheduledActivityId: activity.id,
+              activityType: activity.activity_type,
+            })
+          }
           onCreateProgram={openProgramCreation}
         />
 
@@ -660,7 +653,7 @@ export default function HomeScreen() {
 
         {/* Quick Start */}
         <QuickStartSection
-          onRepeatLast={(activityType) => navigation.navigate('RecordManual', { activityType })}
+          onRepeatLast={(activityType) => navigation.navigate(getRecordScreen(activityType), { activityType })}
           onStartWorkout={() => navigation.navigate('RecordManual')}
           onLogActivity={() => navigation.navigate('LogActivity')}
           onImportFile={async () => {

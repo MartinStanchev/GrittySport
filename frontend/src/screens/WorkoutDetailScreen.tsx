@@ -5,14 +5,16 @@ import { RouteMapPreview } from '../components/RouteMapPreview';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../contexts/ThemeContext';
 import { Fonts } from '../constants/fonts';
-import { getActivityIcon, formatActivityType, EVENT_COLOR } from '../constants/activityIcons';
+import { getActivityIcon, formatActivityType, EVENT_COLOR, isIndoorCardioActivity } from '../constants/activityIcons';
 import { formatDuration, formatFullDate, formatRelativeDay } from '../utils/dates';
 import { savedWorkoutDurationSec } from '../utils/workoutDuration';
 import { getWorkout, getLinkableActivities, linkWorkoutToActivity, deleteWorkout, pinAchievement } from '../services/api';
 import type { WorkoutResponse } from '../services/api';
 import { canExportWorkout, workoutHasGPS, shareWorkoutExport, type ExportFormat } from '../services/workoutExport';
 import type { GPSPoint, HRReading } from '../types/gps';
-import { formatPaceSecPerKm, formatSpeedKph, isRunSport, isCyclingSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories, cadenceUnit, computeCyclingDerivedStats, hasRecordedLaps } from '../services/gpsUtils';
+import { formatPaceSecPerKm, formatSpeedKph, isRunSport, isCyclingSport, computeEffortScore, computeKmSplits, computeMaxPaceAndSpeed, estimateCalories, calorieProfile, cadenceUnit, computeCyclingDerivedStats, hasRecordedLaps } from '../services/gpsUtils';
+import type { IndoorLap } from '../utils/indoorWorkout';
+import { IndoorLapsTable } from '../components/IndoorLapsTable';
 import { formatTime } from '../constants/workoutUtils';
 import { useAuth } from '../contexts/AuthContext';
 import { isPremium } from '../utils/premium';
@@ -179,10 +181,7 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   );
 
   const durationSec = savedWorkoutDurationSec(workout) ?? 0;
-  const calories = useMemo(
-    () => estimateCalories(workout.activity_type, durationSec, user?.weight_kg ?? 70),
-    [workout.activity_type, durationSec, user?.weight_kg],
-  );
+  const calories = useWorkoutCalories(workout, durationSec);
 
   const effortData = useMemo(
     () => hrReadings.length >= 2 ? computeEffortScore(hrReadings, maxHR, durationSec) : null,
@@ -268,6 +267,47 @@ function GPSDetail({ workout }: { workout: WorkoutResponse }) {
   );
 }
 
+/** Calories the workout was saved with, else an estimate from duration and avg HR. */
+function useWorkoutCalories(workout: WorkoutResponse, durationSec: number): number {
+  const { user } = useAuth();
+  const data = workout.recorded_data ?? {};
+  const recorded = Number(data.calories ?? 0);
+  return recorded > 0
+    ? Math.round(recorded)
+    : estimateCalories({
+        activityType: workout.activity_type,
+        durationSec,
+        avgHR: data.avg_hr,
+        profile: calorieProfile(user),
+      });
+}
+
+// Treadmill / stationary-bike sessions: calories and any laps the user split.
+function IndoorCardioExtras({ workout }: { workout: WorkoutResponse }) {
+  const { colors } = useTheme();
+  const { user } = useAuth();
+  const maxHR = user?.max_heart_rate ?? 185;
+  const calories = useWorkoutCalories(workout, savedWorkoutDurationSec(workout) ?? 0);
+  const recordedLaps = workout.recorded_data?.laps as IndoorLap[] | undefined;
+  const laps = hasRecordedLaps(recordedLaps) ? recordedLaps : [];
+  return (
+    <>
+      <StatGrid
+        stats={[
+          calories > 0 ? { label: 'Calories', value: `${calories}`, unit: 'kcal' } : { label: '', value: '' },
+          laps.length > 0 ? { label: 'Laps', value: `${laps.length}` } : { label: '', value: '' },
+        ]}
+      />
+      {laps.length > 0 && (
+        <View style={styles.detailSection}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Lap Splits</Text>
+          <IndoorLapsTable laps={laps} maxHR={maxHR} />
+        </View>
+      )}
+    </>
+  );
+}
+
 function HROnlyDetail({ workout }: { workout: WorkoutResponse }) {
   const hrData = workout.heart_rate_data;
   const summary = workout.recorded_data ?? {};
@@ -337,6 +377,7 @@ function TypeSpecificDetail({ workout }: { workout: WorkoutResponse }) {
   return (
     <>
       {typeDetail}
+      {isIndoorCardioActivity(workout.activity_type) && <IndoorCardioExtras workout={workout} />}
       {hasHRData && <HROnlyDetail workout={workout} />}
     </>
   );

@@ -14,6 +14,11 @@ export function lbsToKg(lbs: number): number {
   return Math.round(lbs * 0.453592 * 10) / 10;
 }
 
+/** Age this calendar year from a birth year, or null when it isn't known. */
+export function ageFromBirthYear(birthYear: number | null | undefined, now = new Date()): number | null {
+  return birthYear ? now.getFullYear() - birthYear : null;
+}
+
 export function ageBasedMaxHR(age: number): number | null {
   if (age > 0 && age < 120) return 220 - age;
   return null;

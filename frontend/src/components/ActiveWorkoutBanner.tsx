@@ -11,7 +11,7 @@ import { activeElapsedSec } from '../utils/workoutDuration';
 
 export function ActiveWorkoutBanner() {
   const { colors } = useTheme();
-  const { activeWorkout, activeGPSWorkout, workoutMode } = useWorkout();
+  const { activeWorkout, activeGPSWorkout, workoutMode, activeRecordScreen } = useWorkout();
   const insets = useSafeAreaInsets();
   const [elapsed, setElapsed] = useState(0);
   const [currentRoute, setCurrentRoute] = useState<string | undefined>();
@@ -36,18 +36,14 @@ export function ActiveWorkoutBanner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- individual fields are tracked
   }, [activeWorkout?.startedAt, activeWorkout?.phase, activeWorkout?.lastPauseStart, activeWorkout?.pausedDurationSec]);
 
-  if (workoutMode === null) return null;
+  if (activeRecordScreen === null) return null;
 
   // Hide banner when user is already on the recording screen
-  if (currentRoute === 'RecordGPS' || currentRoute === 'RecordManual') return null;
+  if (currentRoute === activeRecordScreen) return null;
 
   function handlePress() {
     if (!navigationRef.isReady()) return;
-    if (workoutMode === 'gps') {
-      navigationRef.navigate('Home', { screen: 'RecordGPS' });
-    } else {
-      navigationRef.navigate('Home', { screen: 'RecordManual' });
-    }
+    navigationRef.navigate('Home', { screen: activeRecordScreen });
   }
 
   if (workoutMode === 'gps' && activeGPSWorkout) {
