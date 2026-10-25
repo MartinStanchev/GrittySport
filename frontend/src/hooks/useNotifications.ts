@@ -22,7 +22,8 @@ const CHAT_MESSAGE_TYPES = new Set([
 // Configure how foreground notifications appear
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),

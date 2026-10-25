@@ -627,7 +627,7 @@ export default function RecordGPSScreen({ route, navigation }: Props) {
       <View style={styles.mapSection}>
         <MapView
           ref={mapRef}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           mapType={Platform.OS === 'android' ? 'none' : 'standard'}
           mapPadding={liveMapPadding}
           showsUserLocation={recordingState === 'idle'}
@@ -1121,7 +1121,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   mapScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   topBar: {
     position: 'absolute',
@@ -1309,7 +1309,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   panelBackground: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
   },

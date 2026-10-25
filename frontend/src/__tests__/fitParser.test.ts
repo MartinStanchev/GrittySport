@@ -16,7 +16,7 @@ function setupFitMock(data: any) {
 }
 
 describe('parseFITFile', () => {
-  const DUMMY_BASE64 = 'AAAA';
+  const DUMMY_BYTES = new Uint8Array(4);
 
   it('parses FIT data with GPS records', async () => {
     setupFitMock({
@@ -50,7 +50,7 @@ describe('parseFITFile', () => {
       ],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
 
     expect(result.sourceFormat).toBe('fit');
     expect(result.type).toBe('run');
@@ -82,7 +82,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.type).toBe('cycling');
   });
 
@@ -106,7 +106,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.powerReadings).toHaveLength(2);
     expect(result.powerReadings[0].watts).toBe(200);
     expect(result.powerReadings[1].watts).toBe(220);
@@ -128,7 +128,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.points).toHaveLength(1);
     expect(Math.abs(result.points[0].lat - 51.5)).toBeLessThan(1);
   });
@@ -140,7 +140,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.points).toHaveLength(0);
     expect(result.sourceFormat).toBe('fit');
   });
@@ -148,7 +148,7 @@ describe('parseFITFile', () => {
   it('returns empty result when data is null', async () => {
     setupFitMock(null);
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.points).toHaveLength(0);
   });
 
@@ -170,7 +170,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.points).toHaveLength(1);
     expect(result.hrReadings).toHaveLength(2);
   });
@@ -184,7 +184,7 @@ describe('parseFITFile', () => {
       laps: [],
     });
 
-    const result = await parseFITFile(DUMMY_BASE64);
+    const result = await parseFITFile(DUMMY_BYTES);
     expect(result.type).toBe('swim');
   });
 });
