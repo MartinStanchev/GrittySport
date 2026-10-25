@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import type { SaveWorkoutInput } from './api';
 import { buildFinalGPSPayload } from './gpsUtils';
 import { parseGPXFile } from './gpxParser';
@@ -44,36 +45,12 @@ export async function pickWorkoutFile(): Promise<{ uri: string; fileName: string
   }
 }
 
-/** Read a file URI as UTF-8 text (React Native fetch supports file:// URIs) */
-async function readFileAsText(uri: string): Promise<string> {
-  const response = await fetch(uri);
-  return response.text();
-}
-
-/** Read a file URI as base64 string */
-async function readFileAsBase64(uri: string): Promise<string> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      // Strip data URL prefix (e.g. "data:application/octet-stream;base64,")
-      const base64 = dataUrl.split(',')[1] ?? '';
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error('Failed to read file as base64'));
-    reader.readAsDataURL(blob);
-  });
-}
-
 /** Parse a workout file by extension, returns single result or ZIP multi-result */
 export async function parseWorkoutFile(uri: string, fileName: string): Promise<ParseResult> {
   const ext = getExtension(fileName);
 
   if (ext === '.zip') {
-    const base64 = await readFileAsBase64(uri);
-    const zipResult = await parseZIPFile(base64);
+    const zipResult = await parseZIPFile(await new File(uri).bytes());
     return { kind: 'zip', data: zipResult };
   }
 
@@ -84,11 +61,10 @@ export async function parseWorkoutFile(uri: string, fileName: string): Promise<P
 /** Parse a single (non-ZIP) workout file */
 async function parseSingleFile(uri: string, ext: string): Promise<WorkoutFileParseResult> {
   if (ext === '.fit') {
-    const base64 = await readFileAsBase64(uri);
-    return parseFITFile(base64);
+    return parseFITFile(await new File(uri).bytes());
   }
 
-  const text = await readFileAsText(uri);
+  const text = await new File(uri).text();
 
   switch (ext) {
     case '.gpx':

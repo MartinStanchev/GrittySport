@@ -85,7 +85,6 @@ export default function LiveHRChart({
         maxValue={maxBpm - minBpm}
         noOfSections={4}
         xAxisLabelsHeight={0}
-        hideXAxisText
         curved
         areaChart
         startFillColor={`${colors.primary}30`}

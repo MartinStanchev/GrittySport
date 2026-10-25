@@ -26,10 +26,8 @@ const FIT_SPORT_MAP: Record<string, string> = {
   training: '',
 };
 
-/** Parse FIT file from base64-encoded data */
-export async function parseFITFile(base64Data: string): Promise<WorkoutFileParseResult> {
-  const buffer = Buffer.from(base64Data, 'base64');
-
+/** Parse FIT file from its raw bytes */
+export async function parseFITFile(bytes: Uint8Array): Promise<WorkoutFileParseResult> {
   const fitParser = new FitParser({
     force: true,
     speedUnit: 'm/s',
@@ -37,7 +35,7 @@ export async function parseFITFile(base64Data: string): Promise<WorkoutFileParse
     elapsedRecordField: true,
   });
 
-  const data = await fitParser.parseAsync(buffer);
+  const data = await fitParser.parseAsync(Buffer.from(bytes));
   if (!data) return emptyParseResult('FIT Import', '', 'fit');
 
   // Extract sport

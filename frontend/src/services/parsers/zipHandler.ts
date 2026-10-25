@@ -1,5 +1,4 @@
 import JSZip from 'jszip';
-import { Buffer } from 'buffer';
 import type { WorkoutFileParseResult } from '../workoutFileTypes';
 import { getExtension } from '../workoutFileTypes';
 import { parseGPXFile } from '../gpxParser';
@@ -14,10 +13,9 @@ export interface ZipParseResult {
 
 const SUPPORTED_EXTENSIONS = new Set(['.gpx', '.tcx', '.fit', '.csv']);
 
-/** Parse a ZIP archive from base64 data, extracting all supported workout files */
-export async function parseZIPFile(base64Data: string): Promise<ZipParseResult> {
-  const buffer = Buffer.from(base64Data, 'base64');
-  const zip = await JSZip.loadAsync(buffer);
+/** Parse a ZIP archive from its raw bytes, extracting all supported workout files */
+export async function parseZIPFile(data: Uint8Array): Promise<ZipParseResult> {
+  const zip = await JSZip.loadAsync(data);
 
   // Collect all supported files at any depth
   const entries: { name: string; ext: string; file: JSZip.JSZipObject }[] = [];
@@ -35,8 +33,7 @@ export async function parseZIPFile(base64Data: string): Promise<ZipParseResult> 
       const basename = entry.name.split('/').pop() ?? entry.name;
 
       if (entry.ext === '.fit') {
-        const data = await entry.file.async('base64');
-        const result = await parseFITFile(data);
+        const result = await parseFITFile(await entry.file.async('uint8array'));
         result.name = basename.replace(/\.[^.]+$/, '');
         return result;
       }

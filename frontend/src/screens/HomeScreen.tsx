@@ -14,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import type { TextInputInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useFetchOnFocus } from '../hooks/useFetchOnFocus';
@@ -300,7 +301,7 @@ export default function HomeScreen() {
   const [reviewingProposal, setReviewingProposal] = useState<{ data: ProgramProposalData; messageId: string } | null>(null);
   const [reviewingEditProposal, setReviewingEditProposal] = useState<{ data: ProgramEditData; messageId: string } | null>(null);
 
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInputInstance>(null);
 
   const markdownStyles = useMemo(() => getMarkdownStyles(colors), [colors]);
 
@@ -759,7 +760,7 @@ export default function HomeScreen() {
                 <View style={styles.loadMoreContainer}>
                   <ActivityIndicator size="small" color={colors.textSecondary} />
                 </View>
-              ) : null
+              ) : undefined
             }
           />
 

@@ -297,13 +297,11 @@ export function PaceOverTimeChart({ points }: PaceOverTimeChartProps) {
           maxValue={maxPace - minPace}
           noOfSections={4}
           xAxisLabelsHeight={0}
-          hideXAxisText
           curved
           areaChart
           startFillColor="#4CAF5020"
           endFillColor="#4CAF5005"
           isAnimated={false}
-          invertYAxis
         />
       </View>
     </View>
@@ -355,7 +353,6 @@ export function SpeedOverTimeChart({ points }: SpeedOverTimeChartProps) {
           maxValue={maxSpeed}
           noOfSections={4}
           xAxisLabelsHeight={0}
-          hideXAxisText
           curved
           areaChart
           startFillColor="#2196F320"
@@ -429,7 +426,6 @@ export function CadenceChart({ readings, activityType }: CadenceChartProps) {
           maxValue={chartMax}
           noOfSections={3}
           xAxisLabelsHeight={0}
-          hideXAxisText
           curved
           areaChart
           startFillColor="#FF980020"

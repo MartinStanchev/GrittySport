@@ -342,7 +342,7 @@ export default function HistoryScreen({ navigation }: Props) {
               <View style={styles.footerLoader}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>
-            ) : null
+            ) : undefined
           }
           ListEmptyComponent={
             <KineticPanel style={styles.emptyState}>
