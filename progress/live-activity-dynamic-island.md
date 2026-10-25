@@ -25,6 +25,9 @@ While a workout is recording (GPS or manual — strength/mobility/drill), iOS sh
 - `expo-widgets` plugin adds the `ExpoWidgetsTarget` extension (`com.grittyfitness.app.ExpoWidgetsTarget`), App Group `group.com.grittyfitness.app` on both targets, `NSSupportsLiveActivities`, and the EAS `appExtensions` entry. EAS will need to create credentials/provisioning for the extension + App Group on the next build.
 - `UIBackgroundModes`: `fetch, location, bluetooth-central`.
 
+## Gotcha: clear the Metro cache after adding expo-widgets
+- `babel-preset-expo` only adds its `'widget'`-directive transform when `expo-widgets` resolves, and that check isn't part of Metro's transform cache key. A stale cache served the layout as a plain function, and the dev build crashed at startup with `LiveActivityFactory ... The 2nd argument cannot be cast to type String`. Fix: `npx expo start --clear` once. EAS builds start from a clean cache, so they're unaffected.
+
 ## Validation
 - `tsc` 0 errors, Jest 319/319 (new `liveActivityProps.test.ts`), lint 0 errors (no new warnings). `expo export` confirms iOS bundles the layout and Android/web get the stub.
 - Not verified here: on-device rendering (layout sizing in the compact island, especially the clock width cap of 64 pt), background HR updates for manual workouts, Live Activity start/stop on a real device.
